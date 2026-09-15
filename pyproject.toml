@@ -1,0 +1,60 @@
+[project]
+name = "trekking-mcp"
+version = "0.1.0"
+description = "Server MCP per sentieri, rifugi e condizioni di montagna sulle Alpi italiane"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Alessandro Magliola" }]
+keywords = ["mcp", "model-context-protocol", "hiking", "openstreetmap", "caaml", "avalanche"]
+classifiers = [
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: GIS",
+]
+
+dependencies = [
+    "mcp>=2.0,<3.0",
+    "httpx>=0.27",
+    "pydantic>=2.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "respx>=0.21",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[project.scripts]
+trekking-mcp = "trekking_mcp.__main__:main"
+
+[project.urls]
+Repository = "https://github.com/19Alma98/trekking_mcp"
+Issues = "https://github.com/19Alma98/trekking_mcp/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trekking_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["trekking_mcp"]
