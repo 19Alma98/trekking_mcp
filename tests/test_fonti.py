@@ -60,6 +60,38 @@ def test_query_escapa_gli_apici():
     assert ql.count("out tags center;") == 1
 
 
+def test_query_sentieri_con_testo_usa_regex_su_tag_testuali():
+    ql = overpass.query_sentieri(
+        sud=45.0, ovest=7.0, nord=45.5, est=7.5, testo="Mucrone"
+    )
+    assert '[~"^(name|from|to|description)$"~"Mucrone",i]' in ql
+    assert "out tags center;" in ql
+
+
+def test_query_sentieri_testo_escapa_metacaratteri_regex():
+    ql = overpass.query_sentieri(
+        sud=45.0, ovest=7.0, nord=45.5, est=7.5, testo="C.A.I. (Nord)"
+    )
+    assert '["route"="hiking"]' in ql
+    assert ql.count("out tags center;") == 1
+    assert "\\(" in ql  # parentesi escapata da re.escape
+
+
+def test_pattern_operatore_cai_matcha_punti():
+    assert overpass.pattern_operatore("CAI") == r"C\.?A\.?I\.?"
+    assert overpass.pattern_operatore("cai") == r"C\.?A\.?I\.?"
+    assert overpass.pattern_operatore("CAI Torino") == "CAI Torino"
+
+
+def test_query_sentieri_operatore_cai_non_e_letterale():
+    pattern = overpass.pattern_operatore("CAI")
+    ql = overpass.query_sentieri(
+        sud=45.0, ovest=7.0, nord=45.5, est=7.5, operatore="CAI"
+    )
+    assert f'["operator"~"{overpass._escape(pattern)}",i]' in ql
+    assert '["operator"~"CAI",i]' not in ql
+
+
 async def test_cerca_sentieri_parsa_la_risposta(httpx2_mock: respx.Router):
     httpx2_mock.post(url__startswith="https://overpass-api.de").respond(
         200,

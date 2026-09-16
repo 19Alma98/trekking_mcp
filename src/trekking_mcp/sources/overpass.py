@@ -11,6 +11,7 @@ e viene propagata nei campi `fonti` degli output.
 
 from __future__ import annotations
 
+import re
 from typing import cast
 
 from trekking_mcp.config import CONFIG
@@ -20,10 +21,23 @@ from trekking_mcp.sources.http import CLIENT
 
 ATTRIBUZIONE = "Dati sentieri e ricoveri: (c) contributori OpenStreetMap, ODbL"
 _INTESTAZIONE = "[out:json][timeout:{timeout}];"
+_TESTO_MAX_LEN = 64
 
 
 def _bbox(sud: float, ovest: float, nord: float, est: float) -> str:
     return f"{sud},{ovest},{nord},{est}"
+
+
+def pattern_operatore(operatore: str) -> str:
+    """Normalizza alias comuni prima della regex case-insensitive Overpass."""
+    if operatore.strip().casefold() == "cai":
+        return r"C\.?A\.?I\.?"
+    return operatore
+
+
+def _escape_regex(valore: str) -> str:
+    """Escape PCRE/regex per valore utente, poi escape sintassi QL."""
+    return _escape(re.escape(valore[:_TESTO_MAX_LEN]))
 
 
 def query_sentieri(
@@ -34,13 +48,16 @@ def query_sentieri(
     est: float,
     ref: str | None = None,
     operatore: str | None = None,
+    testo: str | None = None,
 ) -> str:
     """Costruisce la query QL per le relation escursionistiche in un riquadro."""
     filtri = ['["route"="hiking"]', '["type"="route"]']
     if ref:
         filtri.append(f'["ref"="{_escape(ref)}"]')
     if operatore:
-        filtri.append(f'["operator"~"{_escape(operatore)}",i]')
+        filtri.append(f'["operator"~"{_escape(pattern_operatore(operatore))}",i]')
+    if testo and testo.strip():
+        filtri.append(f'[~"^(name|from|to|description)$"~"{_escape_regex(testo.strip())}",i]')
 
     catena = "".join(filtri)
     return (
@@ -147,8 +164,13 @@ async def cerca_sentieri(
     est: float,
     ref: str | None = None,
     operatore: str | None = None,
+    testo: str | None = None,
 ) -> list[Sentiero]:
-    dati = await esegui(query_sentieri(sud=sud, ovest=ovest, nord=nord, est=est, ref=ref, operatore=operatore))
+    dati = await esegui(
+        query_sentieri(
+            sud=sud, ovest=ovest, nord=nord, est=est, ref=ref, operatore=operatore, testo=testo
+        )
+    )
     return [Sentiero.da_relation(el) for el in dati.get("elements", []) if el.get("type") == "relation"]
 
 
