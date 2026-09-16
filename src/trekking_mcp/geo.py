@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import cast
+
+from trekking_mcp.payloads import GeoJsonGeometry, GeoJsonMultiPolygonCoords, GeoJsonPolygonCoords
 
 # (ovest, sud, est, nord), come da convenzione GeoJSON `bbox`.
 Riquadro = tuple[float, float, float, float]
@@ -49,7 +51,7 @@ def _nel_poligono(lat: float, lon: float, poligono: list[Anello]) -> bool:
     return not any(_nell_anello(lat, lon, buco) for buco in poligono[1:])
 
 
-def anelli_di_geometria(geometria: dict[str, Any]) -> list[list[Anello]]:
+def anelli_di_geometria(geometria: GeoJsonGeometry) -> list[list[Anello]]:
     """Normalizza Polygon e MultiPolygon in una lista di poligoni.
 
     Restituisce sempre la stessa forma, cosi' il chiamante non deve
@@ -59,9 +61,11 @@ def anelli_di_geometria(geometria: dict[str, Any]) -> list[list[Anello]]:
     coordinate = geometria.get("coordinates") or []
 
     if tipo == "Polygon":
-        return [[[(float(p[0]), float(p[1])) for p in anello] for anello in coordinate]]
+        poligono = cast(GeoJsonPolygonCoords, coordinate)
+        return [[[(float(p[0]), float(p[1])) for p in anello] for anello in poligono]]
     if tipo == "MultiPolygon":
-        return [[[(float(p[0]), float(p[1])) for p in anello] for anello in poligono] for poligono in coordinate]
+        multipoligono = cast(GeoJsonMultiPolygonCoords, coordinate)
+        return [[[(float(p[0]), float(p[1])) for p in anello] for anello in poligono] for poligono in multipoligono]
     return []
 
 

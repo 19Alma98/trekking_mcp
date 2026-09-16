@@ -4,6 +4,7 @@ from typing import Annotated
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.context import Context
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from trekking_mcp.errors import NonTrovato
@@ -21,7 +22,7 @@ def registra(mcp: MCPServer) -> None:
             "per cui viene emesso il bollettino valanghe. Usa questo tool prima di "
             "`bollettino_valanghe` invece di indovinare l'identificativo della zona."
         ),
-        annotations={"readOnlyHint": True, "openWorldHint": True},
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
     @gestisci_errori
     async def zona_valanghe_da_coordinate(
@@ -46,7 +47,7 @@ def registra(mcp: MCPServer) -> None:
             "di fornire coordinate. Restituisce piu' candidati: se sono ambigui, chiedi "
             "conferma prima di procedere."
         ),
-        annotations={"readOnlyHint": True, "openWorldHint": True},
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
     @gestisci_errori
     async def cerca_localita(
@@ -67,7 +68,7 @@ def registra(mcp: MCPServer) -> None:
             "scarica la geometria completa: usalo quando serve capire l'impegno di una "
             "gita, non nelle ricerche."
         ),
-        annotations={"readOnlyHint": True, "openWorldHint": True},
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
     @gestisci_errori
     async def profilo_altimetrico(

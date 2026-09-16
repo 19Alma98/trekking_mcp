@@ -16,8 +16,9 @@ Questo codice lo rilegge, non lo interpreta.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any
+from typing import TypedDict, cast
 
 from trekking_mcp.config import CONFIG
 from trekking_mcp.errors import NonTrovato
@@ -27,9 +28,23 @@ from trekking_mcp.models import (
     ProblemaValanghivo,
     ValutazionePericolo,
 )
+from trekking_mcp.payloads import (
+    CaamlAvalancheProblem,
+    CaamlBulletin,
+    CaamlDangerRating,
+    CaamlElevationBound,
+    CaamlResponse,
+    CaamlTextBlock,
+)
 from trekking_mcp.sources.http import CLIENT
 
-PROVIDER = {
+
+class _Provider(TypedDict):
+    url: Callable[[str], str]
+    attribuzione: str
+
+
+PROVIDER: dict[str, _Provider] = {
     "aineva": {
         "url": lambda lang: f"{CONFIG.aineva_url}/albina_files/latest/{lang}.json",
         "attribuzione": "Bollettino valanghe: AINEVA / servizi valanghe regionali",
@@ -55,7 +70,7 @@ def _data(valore: str | None) -> datetime:
     return datetime.fromisoformat(valore.replace("Z", "+00:00"))
 
 
-def _quota(valore: Any) -> int | None:
+def _quota(valore: CaamlElevationBound | None) -> int | None:
     """`elevation` puo' essere un intero, una stringa, o 'treeline'."""
     if valore in (None, "", "treeline"):
         return None
@@ -65,14 +80,15 @@ def _quota(valore: Any) -> int | None:
         return None
 
 
-def _valutazioni(grezze: list[dict]) -> list[ValutazionePericolo]:
+def _valutazioni(grezze: list[CaamlDangerRating]) -> list[ValutazionePericolo]:
     esito: list[ValutazionePericolo] = []
     for v in grezze:
         grado = _GRADI.get(str(v.get("mainValue", "")).lower())
         if grado is None:
             continue
-        limite = _quota(v.get("elevation", {}).get("lowerBound") or v.get("elevation", {}).get("upperBound"))
-        sopra = "lowerBound" in (v.get("elevation") or {})
+        elev = v.get("elevation") or {}
+        limite = _quota(elev.get("lowerBound") or elev.get("upperBound"))
+        sopra = "lowerBound" in elev
         esito.append(
             ValutazionePericolo(
                 grado=grado,
@@ -84,7 +100,7 @@ def _valutazioni(grezze: list[dict]) -> list[ValutazionePericolo]:
     return esito
 
 
-def _problemi(grezzi: list[dict]) -> list[ProblemaValanghivo]:
+def _problemi(grezzi: list[CaamlAvalancheProblem]) -> list[ProblemaValanghivo]:
     esito: list[ProblemaValanghivo] = []
     for p in grezzi:
         tipo = p.get("problemType") or p.get("type")
@@ -102,7 +118,7 @@ def _problemi(grezzi: list[dict]) -> list[ProblemaValanghivo]:
     return esito
 
 
-def _testo(blocco: Any) -> str | None:
+def _testo(blocco: str | CaamlTextBlock | None) -> str | None:
     """I campi testuali CAAML sono a volte stringhe, a volte {'highlights': ...}."""
     if isinstance(blocco, str):
         return blocco.strip() or None
@@ -113,7 +129,7 @@ def _testo(blocco: Any) -> str | None:
     return None
 
 
-def normalizza(grezzo: dict, *, zona_id: str, provider: str, url: str) -> Bollettino:
+def normalizza(grezzo: CaamlBulletin, *, zona_id: str, provider: str, url: str) -> Bollettino:
     """Converte un singolo `bulletin` CAAML v6 nel modello interno."""
     regioni = grezzo.get("regions") or []
     nome_zona = next((r.get("name") for r in regioni if r.get("regionID") == zona_id), None)
@@ -140,9 +156,9 @@ async def leggi_bollettino(*, zona_id: str, provider: str = "aineva", lingua: st
         raise NonTrovato("provider", provider, list(PROVIDER))
 
     url = PROVIDER[provider]["url"](lingua)
-    dati = await CLIENT.json("GET", url, fonte=provider, ttl_s=CONFIG.ttl_bollettino_s)
+    dati = cast(CaamlResponse, await CLIENT.json("GET", url, fonte=provider, ttl_s=CONFIG.ttl_bollettino_s))
 
-    bollettini = dati.get("bulletins") or [f.get("properties", {}) for f in dati.get("features", [])]
+    bollettini = dati.get("bulletins") or [f.get("properties") or {} for f in dati.get("features") or []]
 
     zone_disponibili: list[str] = []
     for b in bollettini:

@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from typing import cast
 
 from trekking_mcp.config import CONFIG
 from trekking_mcp.models import Coord, Localita
+from trekking_mcp.payloads import NominatimExtratags, NominatimResult
 from trekking_mcp.sources.http import CLIENT
 
 log = logging.getLogger(__name__)
@@ -53,7 +55,7 @@ class Limitatore:
 LIMITATORE = Limitatore(CONFIG.nominatim_intervallo_s)
 
 
-def _quota(extratags: dict | None) -> int | None:
+def _quota(extratags: NominatimExtratags | None) -> int | None:
     if not extratags:
         return None
     for chiave in ("ele", "ele:m"):
@@ -70,7 +72,7 @@ async def cerca(nome: str, *, limite: int = 5, solo_montagna: bool = True) -> li
     await LIMITATORE.attendi()
 
     ovest, sud, est, nord = RIQUADRO_ITALIA
-    dati = await CLIENT.json(
+    grezzo = await CLIENT.json(
         "GET",
         CONFIG.nominatim_url,
         fonte="nominatim",
@@ -88,7 +90,8 @@ async def cerca(nome: str, *, limite: int = 5, solo_montagna: bool = True) -> li
     )
 
     risultati: list[Localita] = []
-    for voce in dati if isinstance(dati, list) else []:
+    voci = cast(list[NominatimResult], grezzo) if isinstance(grezzo, list) else []
+    for voce in voci:
         tipo = voce.get("type")
         if solo_montagna and tipo not in TIPI_UTILI:
             continue

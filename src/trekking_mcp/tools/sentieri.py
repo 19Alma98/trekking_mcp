@@ -4,6 +4,7 @@ from typing import Annotated
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.context import Context
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from trekking_mcp.models import DifficoltaCAI, Ricovero, Sentiero
@@ -20,7 +21,7 @@ def registra(mcp: MCPServer) -> None:
             "o attorno a un punto. Il numero del sentiero va nel parametro `ref` (es. '103'). "
             "Fonte: relation OSM route=hiking."
         ),
-        annotations={"readOnlyHint": True, "openWorldHint": True},
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
     @gestisci_errori
     async def cerca_sentieri(
@@ -60,7 +61,7 @@ def registra(mcp: MCPServer) -> None:
         name="dettaglio_sentiero",
         title="Dettaglio di un sentiero",
         description="Restituisce i dati completi di un sentiero dato l'ID della sua relation OSM.",
-        annotations={"readOnlyHint": True, "openWorldHint": True},
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
     @gestisci_errori
     async def dettaglio_sentiero(
@@ -75,7 +76,7 @@ def registra(mcp: MCPServer) -> None:
             "Cerca rifugi gestiti, bivacchi e ripari entro un raggio da un punto. "
             "I dati su posti letto e contatti dipendono dalla mappatura OSM e possono mancare."
         ),
-        annotations={"readOnlyHint": True, "openWorldHint": True},
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
     @gestisci_errori
     async def cerca_ricoveri(

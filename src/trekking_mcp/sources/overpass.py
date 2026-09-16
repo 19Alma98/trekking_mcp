@@ -11,8 +11,11 @@ e viene propagata nei campi `fonti` degli output.
 
 from __future__ import annotations
 
+from typing import cast
+
 from trekking_mcp.config import CONFIG
 from trekking_mcp.models import Coord, Ricovero, Sentiero
+from trekking_mcp.payloads import OverpassElement, OverpassResponse
 from trekking_mcp.sources.http import CLIENT
 
 ATTRIBUZIONE = "Dati sentieri e ricoveri: (c) contributori OpenStreetMap, ODbL"
@@ -76,7 +79,7 @@ def query_geometria(osm_relation_id: int) -> str:
     return _INTESTAZIONE.format(timeout=int(CONFIG.timeout_s) - 5) + f"relation({osm_relation_id});" + "out tags geom;"
 
 
-def polilinea(elemento: dict) -> list[Coord]:
+def polilinea(elemento: OverpassElement) -> list[Coord]:
     """Concatena i membri way di una relation in una polilinea unica.
 
     Le way di una relation escursionistica **non sono garantite in ordine ne'
@@ -123,18 +126,29 @@ def _escape(valore: str) -> str:
     return valore.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
 
 
-async def esegui(ql: str, *, ttl_s: int | None = None) -> dict:
-    return await CLIENT.json(
-        "POST",
-        CONFIG.overpass_url,
-        fonte="overpass",
-        ttl_s=ttl_s if ttl_s is not None else CONFIG.ttl_overpass_s,
-        data={"data": ql},
+async def esegui(ql: str, *, ttl_s: int | None = None) -> OverpassResponse:
+    return cast(
+        OverpassResponse,
+        await CLIENT.json(
+            "POST",
+            CONFIG.overpass_url,
+            fonte="overpass",
+            ttl_s=ttl_s if ttl_s is not None else CONFIG.ttl_overpass_s,
+            data={"data": ql},
+        ),
     )
 
 
-async def cerca_sentieri(**kwargs) -> list[Sentiero]:
-    dati = await esegui(query_sentieri(**kwargs))
+async def cerca_sentieri(
+    *,
+    sud: float,
+    ovest: float,
+    nord: float,
+    est: float,
+    ref: str | None = None,
+    operatore: str | None = None,
+) -> list[Sentiero]:
+    dati = await esegui(query_sentieri(sud=sud, ovest=ovest, nord=nord, est=est, ref=ref, operatore=operatore))
     return [Sentiero.da_relation(el) for el in dati.get("elements", []) if el.get("type") == "relation"]
 
 

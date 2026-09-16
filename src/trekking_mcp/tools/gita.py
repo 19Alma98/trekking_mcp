@@ -6,6 +6,7 @@ from typing import Annotated
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.context import Context
 from mcp.server.mcpserver.resolve import Elicit, Resolve
+from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field
 
 from trekking_mcp.errors import NonTrovato
@@ -17,6 +18,7 @@ from trekking_mcp.models import (
     MeteoQuota,
     ProfiloAltimetrico,
     SegnaleAttenzione,
+    Sentiero,
     ValutazioneGita,
     ZonaValanghe,
 )
@@ -152,7 +154,7 @@ def registra(mcp: MCPServer) -> None:
             "Restituisce fatti normalizzati e segnali di attenzione, NON un verdetto "
             "vai/non-vai: la decisione resta a chi va in montagna."
         ),
-        annotations={"readOnlyHint": True, "openWorldHint": True},
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
     @gestisci_errori
     async def valuta_gita(
@@ -173,15 +175,17 @@ def registra(mcp: MCPServer) -> None:
         await ctx.report_progress(0, passi, "Carico il sentiero")
 
         punti: list[Coord] = []
+        sentiero: Sentiero
         if con_profilo:
             esito = await overpass.leggi_geometria(osm_relation_id)
             if esito is None:
                 raise NonTrovato("sentiero", str(osm_relation_id))
             sentiero, punti = esito
         else:
-            sentiero = await overpass.leggi_sentiero(osm_relation_id)
-            if sentiero is None:
+            trovato = await overpass.leggi_sentiero(osm_relation_id)
+            if trovato is None:
                 raise NonTrovato("sentiero", str(osm_relation_id))
+            sentiero = trovato
 
         fonti = [overpass.ATTRIBUZIONE, meteo.ATTRIBUZIONE]
 
@@ -206,9 +210,10 @@ def registra(mcp: MCPServer) -> None:
 
         await ctx.report_progress(2, passi, "Cerco rifugi e bivacchi")
         ricoveri = []
-        if sentiero.centro:
-            ricoveri = await overpass.cerca_ricoveri(lat=sentiero.centro.lat, lon=sentiero.centro.lon, raggio_m=5000)
-            ricoveri.sort(key=lambda r: distanza_km(sentiero.centro.lat, sentiero.centro.lon, r.coord.lat, r.coord.lon))
+        centro = sentiero.centro
+        if centro is not None:
+            ricoveri = await overpass.cerca_ricoveri(lat=centro.lat, lon=centro.lon, raggio_m=5000)
+            ricoveri.sort(key=lambda r: distanza_km(centro.lat, centro.lon, r.coord.lat, r.coord.lon))
             ricoveri = ricoveri[:10]
 
         await ctx.report_progress(3, passi, "Individuo la zona valanghe")

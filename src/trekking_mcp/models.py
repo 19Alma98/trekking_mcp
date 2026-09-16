@@ -5,6 +5,8 @@ from enum import IntEnum, StrEnum
 
 from pydantic import BaseModel, Field
 
+from trekking_mcp.payloads import OverpassElement
+
 
 class SacScale(StrEnum):
     """Valori del tag OSM `sac_scale`."""
@@ -64,7 +66,7 @@ class Sentiero(BaseModel):
     osm_url: str
 
     @classmethod
-    def da_relation(cls, rel: dict) -> Sentiero:
+    def da_relation(cls, rel: OverpassElement) -> Sentiero:
         tags: dict[str, str] = rel.get("tags", {})
         sac = None
         if raw := tags.get("sac_scale"):
@@ -156,7 +158,7 @@ class Ricovero(BaseModel):
     osm_url: str
 
     @classmethod
-    def da_element(cls, el: dict) -> Ricovero:
+    def da_element(cls, el: OverpassElement) -> Ricovero:
         tags: dict[str, str] = el.get("tags", {})
         if tags.get("tourism") == "alpine_hut":
             tipo = TipoRicovero.RIFUGIO

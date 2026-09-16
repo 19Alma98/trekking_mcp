@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from trekking_mcp.models import Bollettino, MeteoQuota
@@ -20,7 +21,7 @@ def registra(mcp: MCPServer) -> None:
             "IMPORTANTE: i dati vanno sempre presentati con il rimando al bollettino "
             "ufficiale; non sono una valutazione del rischio."
         ),
-        annotations={"readOnlyHint": True, "openWorldHint": True},
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
     @gestisci_errori
     async def bollettino_valanghe(
@@ -37,7 +38,7 @@ def registra(mcp: MCPServer) -> None:
             "Previsione oraria per un punto, corretta per l'elevazione indicata. "
             "Include zero termico, raffiche e neve fresca."
         ),
-        annotations={"readOnlyHint": True, "openWorldHint": True},
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
     @gestisci_errori
     async def meteo_quota(

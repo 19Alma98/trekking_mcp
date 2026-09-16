@@ -10,10 +10,12 @@ import logging
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from trekking_mcp.config import CONFIG
 from trekking_mcp.errors import FonteNonDisponibile, NonTrovato
-from trekking_mcp.geo import Riquadro, anelli_di_geometria, contiene, nel_riquadro, riquadro_di
+from trekking_mcp.geo import Anello, Riquadro, anelli_di_geometria, contiene, nel_riquadro, riquadro_di
+from trekking_mcp.payloads import EawsFeatureCollection
 from trekking_mcp.sources.http import CLIENT
 
 log = logging.getLogger(__name__)
@@ -42,7 +44,7 @@ class MicroRegione:
     id_zona: str
     nome: str | None
     riquadro: Riquadro
-    poligoni: list
+    poligoni: list[list[Anello]]
 
     def contiene(self, lat: float, lon: float) -> bool:
         if not nel_riquadro(lat, lon, self.riquadro):
@@ -66,7 +68,7 @@ class IndiceRegioni:
         cartella.mkdir(parents=True, exist_ok=True)
         return cartella / f"eaws_{territorio}.geojson"
 
-    async def _scarica(self, territorio: str) -> dict:
+    async def _scarica(self, territorio: str) -> EawsFeatureCollection:
         """Legge dalla cache su disco, o scarica se assente o scaduta."""
         percorso = self._percorso_cache(territorio)
 
@@ -74,18 +76,18 @@ class IndiceRegioni:
             eta = time.time() - percorso.stat().st_mtime
             if eta < CONFIG.ttl_regioni_s:
                 log.debug("regioni %s dalla cache su disco", territorio)
-                return json.loads(percorso.read_text(encoding="utf-8"))
+                return cast(EawsFeatureCollection, json.loads(percorso.read_text(encoding="utf-8")))
 
         url = f"{CONFIG.eaws_regions_url}/micro-regions/{territorio}_micro-regions.geojson.json"
         log.info("scarico i perimetri %s", territorio)
-        dati = await CLIENT.json("GET", url, fonte="eaws-regions", ttl_s=None)
+        dati = cast(EawsFeatureCollection, await CLIENT.json("GET", url, fonte="eaws-regions", ttl_s=None))
 
         temporaneo = percorso.with_suffix(".tmp")
         temporaneo.write_text(json.dumps(dati), encoding="utf-8")
         temporaneo.replace(percorso)
         return dati
 
-    def _indicizza(self, geojson: dict) -> int:
+    def _indicizza(self, geojson: EawsFeatureCollection) -> int:
         aggiunte = 0
         for feature in geojson.get("features") or []:
             proprieta = feature.get("properties") or {}
