@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import replace
 
 import pytest
@@ -126,6 +127,18 @@ async def test_zona_inesistente_suggerisce_le_valide(httpx2_mock: respx.Router):
         await caaml.leggi_bollettino(zona_id="IT-99-XX-99")
 
     assert "IT-21-TO-05" in exc.value.messaggio_utente()
+
+
+async def test_overpass_usa_al_massimo_due_tentativi(httpx2_mock: respx.Router, monkeypatch):
+    """Overpass: max_retry effettivo 2 (1 retry), indipendente da CONFIG.max_retry=3."""
+    monkeypatch.setattr("trekking_mcp.sources.http.CONFIG", replace(CONFIG, max_retry=3))
+    monkeypatch.setattr("asyncio.sleep", _no_sleep)
+
+    rotta = httpx2_mock.post(url__startswith="https://overpass-api.de").respond(504)
+    with pytest.raises(FonteNonDisponibile):
+        await overpass.cerca_sentieri(sud=45.0, ovest=7.0, nord=45.5, est=7.5)
+
+    assert rotta.call_count == 2
 
 
 async def test_retry_e_poi_fonte_non_disponibile(httpx2_mock: respx.Router, monkeypatch):

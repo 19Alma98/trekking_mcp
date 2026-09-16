@@ -80,6 +80,7 @@ class ClientHttp:
         *,
         fonte: str,
         ttl_s: int | None = None,
+        max_retry: int | None = None,
         **kwargs: Any,
     ) -> Any:
         """Esegue una richiesta e restituisce JSON, con cache e retry.
@@ -99,7 +100,8 @@ class ClientHttp:
             return cachato
 
         ultimo_errore: Exception | None = None
-        for tentativo in range(CONFIG.max_retry):
+        tentativi = CONFIG.max_retry if max_retry is None else max_retry
+        for tentativo in range(tentativi):
             try:
                 risposta = await self._client.request(metodo, url, **kwargs)
                 if risposta.status_code in (429, 502, 503, 504):
@@ -115,7 +117,7 @@ class ClientHttp:
                 return dati
             except (httpx2.HTTPError, ValueError) as exc:
                 ultimo_errore = exc
-                if tentativo < CONFIG.max_retry - 1:
+                if tentativo < tentativi - 1:
                     attesa = 2**tentativo
                     log.warning("%s: tentativo %d fallito (%s), riprovo tra %ds", fonte, tentativo + 1, exc, attesa)
                     await asyncio.sleep(attesa)

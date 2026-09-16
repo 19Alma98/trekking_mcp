@@ -73,9 +73,9 @@ def registra(mcp: MCPServer) -> None:
         title="Profilo altimetrico di un sentiero",
         description=(
             "Calcola lunghezza reale e dislivello positivo e negativo di un sentiero, "
-            "campionando la quota lungo il tracciato. Piu' lento degli altri tool perche' "
-            "scarica la geometria completa: usalo quando serve capire l'impegno di una "
-            "gita, non nelle ricerche."
+            "campionando la quota lungo il tracciato. Usalo solo dopo una ricerca o un "
+            "dettaglio sentiero quando serve il dislivello; non in esplorazione. "
+            "Piu' lento perche' scarica la geometria completa."
         ),
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )

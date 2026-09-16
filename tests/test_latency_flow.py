@@ -1,7 +1,19 @@
 from __future__ import annotations
 
+import pytest
+import respx
+
 from trekking_mcp.models import Coord, Sentiero
+from trekking_mcp.sources import overpass
+from trekking_mcp.sources.http import CLIENT
 from trekking_mcp.tools import sentieri as tool_sentieri
+
+
+@pytest.fixture(autouse=True)
+async def _svuota_cache_latency():
+    await CLIENT.cache.svuota()
+    yield
+    await CLIENT.cache.svuota()
 
 
 def _sentiero(osm_id: int, ref: str | None, lat: float, lon: float) -> Sentiero:
@@ -28,3 +40,25 @@ def test_ordina_sentieri_per_distanza_tiene_i_piu_vicini():
     assert esito[0].distanza_km <= esito[1].distanza_km
     # arrotondato a 0.1 km
     assert esito[0].distanza_km == round(esito[0].distanza_km, 1)
+
+
+async def test_leggi_geometria_senza_way_non_chiama_out_geom(httpx2_mock: respx.Router):
+    rotta = httpx2_mock.post(url__startswith="https://overpass-api.de").respond(
+        200,
+        json={
+            "elements": [
+                {
+                    "type": "relation",
+                    "id": 42,
+                    "tags": {"ref": "X"},
+                    "members": [{"type": "node", "ref": 1, "role": ""}],
+                }
+            ]
+        },
+    )
+    esito = await overpass.leggi_geometria(42)
+    assert esito is not None
+    sentiero, punti = esito
+    assert sentiero.osm_relation_id == 42
+    assert punti == []
+    assert rotta.call_count == 1  # solo query leggera (out;), niente out geom

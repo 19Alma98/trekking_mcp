@@ -86,6 +86,19 @@ def query_relation(osm_relation_id: int) -> str:
     )
 
 
+def ha_membri_way(elemento: OverpassElement) -> bool:
+    return any(m.get("type") == "way" for m in (elemento.get("members") or []))
+
+
+def query_relation_membri(osm_relation_id: int) -> str:
+    """Relation con lista membri (senza geometria dei way)."""
+    return (
+        _INTESTAZIONE.format(timeout=int(CONFIG.timeout_s) - 5)
+        + f"relation({osm_relation_id});"
+        + "out;"
+    )
+
+
 def query_geometria(osm_relation_id: int) -> str:
     """Relation con la geometria completa dei membri.
 
@@ -151,6 +164,7 @@ async def esegui(ql: str, *, ttl_s: int | None = None) -> OverpassResponse:
             CONFIG.overpass_url,
             fonte="overpass",
             ttl_s=ttl_s if ttl_s is not None else CONFIG.ttl_overpass_s,
+            max_retry=2,
             data={"data": ql},
         ),
     )
@@ -191,8 +205,15 @@ async def leggi_geometria(osm_relation_id: int) -> tuple[Sentiero, list[Coord]] 
     Non usa la cache condivisa con TTL breve: la risposta e' grande e la
     geometria dei sentieri e' la cosa piu' stabile che questo server tratti.
     """
-    dati = await esegui(query_geometria(osm_relation_id))
-    relazioni = [el for el in dati.get("elements", []) if el.get("type") == "relation"]
+    meta = await esegui(query_relation_membri(osm_relation_id))
+    relazioni = [el for el in meta.get("elements", []) if el.get("type") == "relation"]
     if not relazioni:
         return None
-    return Sentiero.da_relation(relazioni[0]), polilinea(relazioni[0])
+    if not ha_membri_way(relazioni[0]):
+        return Sentiero.da_relation(relazioni[0]), []
+
+    dati = await esegui(query_geometria(osm_relation_id))
+    relazioni_g = [el for el in dati.get("elements", []) if el.get("type") == "relation"]
+    if not relazioni_g:
+        return None
+    return Sentiero.da_relation(relazioni_g[0]), polilinea(relazioni_g[0])
