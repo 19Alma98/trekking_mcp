@@ -7,9 +7,56 @@ from mcp.server.mcpserver.context import Context
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from trekking_mcp.models import DifficoltaCAI, Ricovero, Sentiero
-from trekking_mcp.sources import overpass
+from trekking_mcp.errors import NonTrovato
+from trekking_mcp.models import DifficoltaCAI, Ricovero, Sentiero, SentieriVersoLocalita
+from trekking_mcp.sources import nominatim, overpass
 from trekking_mcp.tools.comuni import distanza_km, gestisci_errori, riquadro_intorno
+
+_PREFISSI_TOPONIMO = frozenset(
+    {"monte", "mont", "monti", "cima", "pizzo", "col", "colle", "passo", "rifugio", "bivacco"}
+)
+
+
+def testo_da_toponimo(nome: str) -> str:
+    parti = nome.strip().split()
+    if not parti:
+        return nome.strip()
+    if len(parti) >= 2 and parti[0].casefold() in _PREFISSI_TOPONIMO:
+        return parti[-1]
+    return parti[-1]
+
+
+async def esegui_sentieri_verso_localita(
+    *,
+    nome: str,
+    vicino_a_lat: float | None = None,
+    vicino_a_lon: float | None = None,
+    raggio_km: float = 5,
+    limite: int = 15,
+    includi_ricoveri: bool = True,
+) -> SentieriVersoLocalita:
+    candidati = await nominatim.cerca(
+        nome, limite=1, lat=vicino_a_lat, lon=vicino_a_lon
+    )
+    if not candidati:
+        raise NonTrovato("localita'", nome)
+    localita = candidati[0]
+    testo = testo_da_toponimo(nome)
+    sud, ovest, nord, est = riquadro_intorno(localita.coord.lat, localita.coord.lon, raggio_km)
+    grezzi = await overpass.cerca_sentieri(
+        sud=sud, ovest=ovest, nord=nord, est=est, testo=testo
+    )
+    sentieri = ordina_sentieri_per_distanza(
+        grezzi, lat=localita.coord.lat, lon=localita.coord.lon, limite=limite
+    )
+    ricoveri: list[Ricovero] = []
+    if includi_ricoveri:
+        ricoveri = await overpass.cerca_ricoveri(
+            lat=localita.coord.lat,
+            lon=localita.coord.lon,
+            raggio_m=int(raggio_km * 1000),
+        )
+    return SentieriVersoLocalita(localita=localita, sentieri=sentieri, ricoveri=ricoveri)
 
 
 def ordina_sentieri_per_distanza(
@@ -118,3 +165,35 @@ def registra(mcp: MCPServer) -> None:
         raggio_km: Annotated[float, Field(description="Raggio in km", gt=0, le=30)] = 5,
     ) -> list[Ricovero]:
         return await overpass.cerca_ricoveri(lat=lat, lon=lon, raggio_m=int(raggio_km * 1000))
+
+    @mcp.tool(
+        name="sentieri_verso_localita",
+        title="Sentieri verso un luogo per nome",
+        description=(
+            "Punto di ingresso quando l'utente chiede come arrivare a un luogo per nome: "
+            "geocoding + ricerca sentieri (e rifugi) in una sola chiamata. "
+            "Preferisci questo a una catena di cerca_localita + cerca_sentieri."
+        ),
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
+    )
+    @gestisci_errori
+    async def sentieri_verso_localita(
+        nome: Annotated[str, Field(description="Toponimo, es. 'Mucrone' o 'Monte Mucrone'", min_length=2)],
+        vicino_a_lat: Annotated[
+            float | None, Field(description="Lat di contesto (es. partenza)", ge=-90, le=90)
+        ] = None,
+        vicino_a_lon: Annotated[
+            float | None, Field(description="Lon di contesto (es. partenza)", ge=-180, le=180)
+        ] = None,
+        raggio_km: Annotated[float, Field(description="Raggio ricerca sentieri/ricoveri", gt=0, le=50)] = 5,
+        limite: Annotated[int, Field(ge=1, le=100)] = 15,
+        includi_ricoveri: Annotated[bool, Field(description="Includi rifugi/bivacchi vicini")] = True,
+    ) -> SentieriVersoLocalita:
+        return await esegui_sentieri_verso_localita(
+            nome=nome,
+            vicino_a_lat=vicino_a_lat,
+            vicino_a_lon=vicino_a_lon,
+            raggio_km=raggio_km,
+            limite=limite,
+            includi_ricoveri=includi_ricoveri,
+        )

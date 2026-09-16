@@ -72,3 +72,81 @@ async def test_leggi_geometria_senza_way_non_chiama_out_geom(httpx2_mock: respx.
     assert "out;" in ql
     assert "out tags geom" not in ql
     assert "out geom" not in ql
+
+
+async def _no_attendi() -> None:
+    return None
+
+
+def test_testo_da_toponimo_usa_ultima_parola_significativa():
+    from trekking_mcp.tools.sentieri import testo_da_toponimo
+
+    assert testo_da_toponimo("Monte Mucrone") == "Mucrone"
+    assert testo_da_toponimo("Mucrone") == "Mucrone"
+    assert testo_da_toponimo("Rifugio Gastaldi") == "Gastaldi"
+
+
+async def test_esegui_sentieri_verso_localita(httpx2_mock: respx.Router, monkeypatch):
+    import httpx
+    from trekking_mcp.tools.sentieri import esegui_sentieri_verso_localita
+
+    monkeypatch.setattr("trekking_mcp.sources.nominatim.LIMITATORE.attendi", _no_attendi)
+    httpx2_mock.get(url__startswith="https://nominatim.openstreetmap.org").respond(
+        200,
+        json=[
+            {
+                "lat": "45.61",
+                "lon": "7.95",
+                "type": "peak",
+                "display_name": "Monte Mucrone",
+                "osm_type": "node",
+                "osm_id": 1,
+                "extratags": {"ele": "2335"},
+            }
+        ],
+    )
+    httpx2_mock.post(url__startswith="https://overpass-api.de").mock(
+        side_effect=[
+            httpx.Response(
+                200,
+                json={
+                    "elements": [
+                        {
+                            "type": "relation",
+                            "id": 100,
+                            "tags": {"ref": "C19", "name": "verso Mucrone"},
+                            "center": {"lat": 45.60, "lon": 7.96},
+                        }
+                    ]
+                },
+            ),
+            httpx.Response(
+                200,
+                json={
+                    "elements": [
+                        {
+                            "type": "node",
+                            "id": 50,
+                            "lat": 45.60,
+                            "lon": 7.96,
+                            "tags": {"tourism": "alpine_hut", "name": "Rifugio"},
+                        }
+                    ]
+                },
+            ),
+        ]
+    )
+
+    out = await esegui_sentieri_verso_localita(
+        nome="Monte Mucrone",
+        vicino_a_lat=45.57,
+        vicino_a_lon=8.05,
+        raggio_km=5,
+        limite=15,
+        includi_ricoveri=True,
+    )
+    assert out.localita.nome == "Monte Mucrone"
+    assert len(out.sentieri) == 1
+    assert out.sentieri[0].ref == "C19"
+    assert out.sentieri[0].distanza_km is not None
+    assert len(out.ricoveri) == 1

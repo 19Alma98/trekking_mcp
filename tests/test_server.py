@@ -8,6 +8,7 @@ TOOL_ATTESI = {
     "cerca_sentieri",
     "dettaglio_sentiero",
     "cerca_ricoveri",
+    "sentieri_verso_localita",
     "zona_valanghe_da_coordinate",
     "cerca_localita",
     "profilo_altimetrico",
@@ -91,6 +92,10 @@ async def test_le_istruzioni_dichiarano_le_fonti(mcp):
     assert mcp.instructions
     for atteso in ("OpenStreetMap", "AINEVA", "CAAML"):
         assert atteso in mcp.instructions
+
+
+async def test_le_istruzioni_preferiscono_sentieri_verso_localita(mcp):
+    assert "sentieri_verso_localita" in mcp.instructions
 
 
 async def test_le_istruzioni_indirizzano_ai_tool_di_lookup(mcp):

@@ -25,6 +25,10 @@ Regole d'uso:
 - Non emettere verdetti sulla fattibilita' di un'uscita. Fornisci i fatti.
 - Per una zona valanghe usa `zona_valanghe_da_coordinate` invece di indovinare
   l'identificativo; per un toponimo usa `cerca_localita`.
+- Flusso tipico da localita' A a cima/luogo B: preferisci `sentieri_verso_localita`
+  (con coordinate di A in vicino_a_*), poi eventualmente `valuta_gita` o
+  `profilo_altimetrico` sul ref scelto. Evita catene lunghe di cerca + dettaglio
+  + profili in esplorazione.
 - La copertura OSM non e' uniforme: l'assenza di un sentiero non significa che
   non esista, e una difficolta' mancante non significa che sia facile.
 """

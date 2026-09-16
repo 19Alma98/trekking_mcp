@@ -193,6 +193,14 @@ class Ricovero(BaseModel):
         )
 
 
+class SentieriVersoLocalita(BaseModel):
+    """Risposta del tool composito geocode + sentieri (+ ricoveri)."""
+
+    localita: Localita
+    sentieri: list[Sentiero]
+    ricoveri: list[Ricovero] = Field(default_factory=list)
+
+
 class GradoPericolo(IntEnum):
     """Scala europea unificata del pericolo valanghe (EAWS), 5 gradi."""
 
