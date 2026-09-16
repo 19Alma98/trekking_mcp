@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from urllib.parse import parse_qs
+
 import pytest
 import respx
 
@@ -62,3 +64,11 @@ async def test_leggi_geometria_senza_way_non_chiama_out_geom(httpx2_mock: respx.
     assert sentiero.osm_relation_id == 42
     assert punti == []
     assert rotta.call_count == 1  # solo query leggera (out;), niente out geom
+
+    body = rotta.calls[0].request.content
+    if isinstance(body, bytes):
+        body = body.decode()
+    ql = parse_qs(body)["data"][0]
+    assert "out;" in ql
+    assert "out tags geom" not in ql
+    assert "out geom" not in ql
