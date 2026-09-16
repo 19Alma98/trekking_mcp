@@ -45,7 +45,8 @@ def registra(mcp: MCPServer) -> None:
             "Converte un toponimo in coordinate: nomi di rifugi, cime, valichi, paesi e "
             "frazioni. Punto di partenza naturale quando l'utente nomina un posto invece "
             "di fornire coordinate. Restituisce piu' candidati: se sono ambigui, chiedi "
-            "conferma prima di procedere."
+            "conferma prima di procedere. Con lat/lon opzionali restringe la ricerca "
+            "all'area vicina e ordina per distanza."
         ),
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
@@ -53,8 +54,16 @@ def registra(mcp: MCPServer) -> None:
     async def cerca_localita(
         nome: Annotated[str, Field(description="Nome del luogo, es. 'Rifugio Gastaldi'", min_length=2)],
         limite: Annotated[int, Field(ge=1, le=10)] = 5,
+        lat: Annotated[
+            float | None,
+            Field(description="Latitudine di contesto per disambiguare (viewbox)", ge=-90, le=90),
+        ] = None,
+        lon: Annotated[
+            float | None,
+            Field(description="Longitudine di contesto per disambiguare (viewbox)", ge=-180, le=180),
+        ] = None,
     ) -> list[Localita]:
-        risultati = await nominatim.cerca(nome, limite=limite)
+        risultati = await nominatim.cerca(nome, limite=limite, lat=lat, lon=lon)
         if not risultati:
             raise NonTrovato("localita'", nome)
         return risultati

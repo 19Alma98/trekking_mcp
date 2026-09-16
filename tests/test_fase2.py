@@ -233,6 +233,91 @@ def test_polilinea_scarta_i_membri_senza_geometria():
 # --- geocoding ---------------------------------------------------------------
 
 
+async def _no_attendi_nominatim() -> None:
+    return None
+
+
+def _nominatim_senza_cache(monkeypatch) -> None:
+    """Identical Nominatim params must not reuse cached [] between fallback calls."""
+    _orig_json = CLIENT.json
+
+    async def _json_no_cache(*args, **kwargs):
+        kwargs["ttl_s"] = None
+        return await _orig_json(*args, **kwargs)
+
+    monkeypatch.setattr(CLIENT, "json", _json_no_cache)
+
+
+async def test_nominatim_con_coordinate_usa_viewbox_e_bounded(httpx2_mock: respx.Router, monkeypatch):
+    import httpx
+
+    monkeypatch.setattr(nominatim.LIMITATORE, "attendi", _no_attendi_nominatim)
+    _nominatim_senza_cache(monkeypatch)
+    rotta = httpx2_mock.get(url__startswith="https://nominatim.openstreetmap.org").mock(
+        side_effect=[
+            httpx.Response(
+                200,
+                json=[
+                    {
+                        "lat": "39.3",
+                        "lon": "16.3",
+                        "type": "peak",
+                        "display_name": "Mucone CS",
+                        "osm_type": "way",
+                        "osm_id": 9,
+                    },
+                    {
+                        "lat": "45.61",
+                        "lon": "7.95",
+                        "type": "peak",
+                        "display_name": "Monte Mucrone",
+                        "osm_type": "node",
+                        "osm_id": 1,
+                        "extratags": {"ele": "2335"},
+                    },
+                ],
+            )
+        ]
+    )
+    esito = await nominatim.cerca("Mucrone", lat=45.57, lon=8.05, limite=5)
+
+    params = dict(rotta.calls[0].request.url.params)
+    assert params.get("bounded") == "1"
+    assert "viewbox" in params
+    assert esito[0].nome == "Monte Mucrone"
+
+
+async def test_nominatim_fallback_senza_montagna_nella_viewbox(httpx2_mock: respx.Router, monkeypatch):
+    import httpx
+
+    monkeypatch.setattr(nominatim.LIMITATORE, "attendi", _no_attendi_nominatim)
+    _nominatim_senza_cache(monkeypatch)
+    rotta = httpx2_mock.get(url__startswith="https://nominatim.openstreetmap.org").mock(
+        side_effect=[
+            httpx.Response(200, json=[]),  # solo_montagna=True → vuoto
+            httpx.Response(
+                200,
+                json=[
+                    {
+                        "lat": "45.57",
+                        "lon": "8.05",
+                        "type": "suburb",
+                        "display_name": "Quartiere",
+                        "osm_type": "node",
+                        "osm_id": 2,
+                    }
+                ],
+            ),
+        ]
+    )
+    esito = await nominatim.cerca("Xyzzy", lat=45.57, lon=8.05)
+    assert len(esito) == 1
+    assert esito[0].tipo == "suburb"
+    assert rotta.call_count == 2
+    for call in rotta.calls:
+        assert dict(call.request.url.params).get("bounded") == "1"
+
+
 async def test_ricerca_localita_filtra_per_tipo(httpx2_mock: respx.Router):
     httpx2_mock.get(url__startswith="https://nominatim.openstreetmap.org").respond(
         200,
