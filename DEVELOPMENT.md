@@ -1,0 +1,392 @@
+# DEVELOPMENT.md
+
+Documento di sviluppo di `trekking-mcp`: architettura, decisioni prese e perche',
+cosa manca e cosa non verra' fatto.
+
+Chi legge un repo di portfolio guarda tre cose: se il codice funziona, se chi
+l'ha scritto sa perche' l'ha scritto cosi', e se sa dove si ferma. Questo
+documento copre la seconda e la terza.
+
+---
+
+## 1. Obiettivo e non-obiettivi
+
+**Obiettivo.** Esporre a un assistente AI i dati aperti utili a preparare
+un'escursione in montagna in Italia: sentieri numerati, ricoveri, bollettini
+valanghe, meteo di quota. Dimostrare una copertura completa e non superficiale
+del Model Context Protocol.
+
+**Non-obiettivi**, dichiarati per evitare che il progetto si allarghi da solo:
+
+- **Non e' un navigatore.** Niente calcolo di percorso, niente tracce GPX, niente
+  routing. Serve un motore di routing e un modello di elevazione: e' un altro
+  progetto.
+- **Non valuta il rischio valanghe.** Rilegge un documento ufficiale e lo
+  normalizza. La riga di confine e' netta e non va superata: vedi sezione 6.
+- **Non e' un'integrazione CAI.** Il Club Alpino Italiano non espone un'API
+  pubblica e il catasto sentieri non e' accessibile in quel modo. I sentieri
+  numerati arrivano da OpenStreetMap, dove sono mappati dalla community.
+
+---
+
+## 2. Architettura
+
+Tre livelli, con una dipendenza a senso unico: `tools` → `sources` → rete.
+
+```
+src/trekking_mcp/
+├── server.py            # crea_server(): registra tutto, gestisce il lifespan
+├── __main__.py          # CLI: scelta del transport
+├── models.py            # Pydantic: il contratto dati verso il client
+├── errors.py            # errori previsti vs. bug
+├── config.py            # configurazione da env, frozen
+├── geo.py               # point-in-polygon, senza dipendenze binarie
+├── resources.py         # documenti di riferimento + resource template
+├── prompts.py           # workflow riutilizzabili
+├── sources/             # un adapter per fonte esterna
+│   ├── http.py          # client condiviso: retry, backoff, cache TTL
+│   ├── overpass.py      # OpenStreetMap
+│   ├── caaml.py         # bollettini CAAML v6 (AINEVA, SLF)
+│   ├── eaws.py          # perimetri delle zone valanghe, cache su disco
+│   ├── elevation.py     # quote e profili altimetrici
+│   ├── nominatim.py     # geocoding, con rate limiter
+│   └── meteo.py         # Open-Meteo
+└── tools/               # la superficie MCP
+    ├── comuni.py        # decoratore errori, geometria
+    ├── sentieri.py      # ricerca e dettaglio
+    ├── condizioni.py    # bollettino, meteo
+    └── gita.py          # tool composito + elicitation
+```
+
+**Perche' questa separazione.** Gli adapter non sanno di essere dietro un server
+MCP: restituiscono modelli, non risposte di protocollo. Questo rende il layer
+`sources/` testabile senza alcuna infrastruttura MCP e riusabile se un giorno
+serve una CLI o un'API REST sopra gli stessi dati.
+
+**La registrazione e' esplicita.** Ogni modulo di tool espone `registra(mcp)` e
+`crea_server()` li chiama in ordine. Niente autodiscovery: si legge da un punto
+solo cosa espone il server, e l'ordine e' deterministico.
+
+---
+
+## 3. Decisioni di progetto
+
+### 3.1 SDK 2.x, non 1.x
+
+Il codice usa `MCPServer` (`mcp>=2.0`). Nella 1.x la classe si chiamava
+`FastMCP`; nella 2.x e' stata rinominata e l'import vecchio fallisce con un
+messaggio che rimanda alla guida di migrazione.
+
+Conseguenza pratica per chi legge: **gli esempi FastMCP che si trovano in giro
+non compilano su questo repo**. Il vincolo `mcp>=2.0,<3.0` in `pyproject.toml`
+e' volutamente stretto.
+
+### 3.2 Elicitation via resolver, non sampling
+
+Il **sampling e' deprecato dal 2026-07-28** (SEP-2577), insieme ai roots. Un
+repo di portfolio che lo esibisce come feature avanzata ottiene l'effetto
+opposto a quello voluto.
+
+Al suo posto la 2.x offre la dependency injection dei resolver:
+
+```python
+profilo: Annotated[ProfiloUscita, Resolve(chiedi_profilo)]
+```
+
+Il parametro **non compare nello schema di input del tool**. Prima di eseguire
+il corpo, il framework esegue il resolver; se questo restituisce un marker
+`Elicit[T]`, la domanda va al client, l'utente risponde, il valore viene
+iniettato. Se l'utente rifiuta, la chiamata si interrompe.
+
+Perche' conta nel merito, non solo come vetrina: `valuta_gita` ha bisogno di
+sapere se il gruppo ha ARTVA, pala e sonda. Se quel parametro fosse nello schema,
+il modello lo riempirebbe **inventandoselo**. In un dominio di sicurezza
+l'allucinazione di un dato sull'attrezzatura e' inaccettabile. Nasconderlo allo
+schema e' una scelta di sicurezza prima che di stile.
+
+Il test `test_parametro_elicitato_non_e_nello_schema` esiste per impedire che un
+refactoring lo reintroduca per sbaglio.
+
+### 3.3 Un solo parser per tre provider
+
+AINEVA, ALBINA e SLF pubblicano tutti in **CAAML v6, profilo EAWS**. Il parsing
+in `sources/caaml.py` e' scritto una volta e i provider differiscono solo per
+URL e attribuzione.
+
+E' il pezzo di codice che dimostra piu' competenza di dominio: chi wrappa una
+API scrive un parser per endpoint, chi capisce il dominio riconosce che esiste
+uno standard e ci costruisce sopra.
+
+Il parsing e' deliberatamente difensivo. `elevation` puo' essere un intero, una
+stringa o `treeline`; i campi testuali sono a volte stringhe e a volte oggetti.
+Ogni helper degrada a `None` invece di sollevare: un bollettino con un campo
+strano deve arrivare comunque all'utente.
+
+### 3.4 Il numero del sentiero sta in `ref`
+
+Convenzione esplicita del wiki OSM italiano: `ref` e `operator` vanno sulla
+*relation*, non sulle singole way, e il numero **non** va nel tag `name`.
+Cercare "sentiero 103" per nome non trova nulla. Il test
+`test_query_sentieri_filtra_su_ref_non_su_name` blocca la regressione.
+
+### 3.5 Cache con TTL differenziati
+
+| Dato | TTL | Perche' |
+|---|---|---|
+| Overpass | 24h | La geometria dei sentieri cambia di rado |
+| Bollettino | 30 min | Emesso una o due volte al giorno |
+| Meteo | 15 min | Aggiornamento continuo |
+
+Non e' un'ottimizzazione prematura: Overpass impiega secondi e applica rate
+limit aggressivi. Un agente che chiama tre tool di fila **viene bloccato**
+senza cache. Il TTL lungo su Overpass e' anche una forma di rispetto verso
+un'infrastruttura pubblica e gratuita.
+
+### 3.6 Errori previsti contro bug
+
+`ErroreSentieri` e sottoclassi = guasti previsti, tradotti in `ToolError` dal
+decoratore `gestisci_errori`. Arrivano al client come messaggio leggibile e
+azionabile ("zona inesistente, ecco quelle valide") e vengono loggati a INFO
+senza traceback.
+
+Tutto il resto e' un bug: passa, il client riceve un messaggio generico, il
+server logga il traceback a ERROR.
+
+La distinzione conta perche' un modello che riceve "zona non trovata, le zone
+valide sono X, Y, Z" **corregge da solo**; uno che riceve `KeyError` no.
+
+### 3.7 Degradazione parziale in `valuta_gita`
+
+Se il bollettino non si recupera, il tool non fallisce: restituisce gli altri
+dati e aggiunge un segnale di attenzione esplicito. Un'uscita preparata a meta'
+e' meglio di un errore, **a patto che il buco sia dichiarato**. Un buco
+silenzioso sarebbe peggio di un errore.
+
+### 3.8 Segnali da regole scritte a mano
+
+`_segnali()` applica soglie esplicite (grado ≥ 3, raffiche ≥ 60 km/h, neve
+fresca ≥ 5 cm). Nessuna euristica opaca, nessun modello. Sono righe che si
+leggono, si discutono e si testano. In un dominio di sicurezza e' l'unica scelta
+difendibile: se una soglia e' sbagliata, si vede e si corregge.
+
+### 3.9 Log su stderr
+
+Su stdio **stdout e' il canale del protocollo**. Un singolo `print()` corrompe
+la sessione. `logging.basicConfig(stream=sys.stderr)` in `__main__.py` non e'
+una preferenza: e' l'errore piu' comune al primo server MCP ed e' il motivo per
+cui il codice non contiene un solo `print`.
+
+### 3.10 Nessuna API key
+
+Tutte le fonti di default sono aperte. Chi clona il repo lo prova in trenta
+secondi. Un progetto di portfolio che richiede una registrazione per essere
+eseguito non verra' eseguito.
+
+### 3.11 Point-in-polygon senza shapely
+
+Servono due operazioni: bounding box e contenimento. Shapely porta con se' GEOS,
+una dipendenza binaria che complica l'installazione su ogni piattaforma e pesa
+decine di MB, per usarne l'1%.
+
+`geo.py` implementa il ray casting in una settantina di righe, con un prefiltro
+sul riquadro che scarta quasi tutti i candidati in quattro confronti prima di
+toccare l'algoritmo O(vertici). Il modulo e' scritto per essere buttato: se un
+giorno servissero intersezioni, buffer o unioni, shapely diventa la scelta
+giusta e questo file sparisce.
+
+### 3.12 Perimetri EAWS scaricati, non impacchettati
+
+I poligoni delle micro-regioni sono decine di MB e vengono rivisti a ogni
+stagione. Metterli nel repo significherebbe **distribuire dati di sicurezza
+obsoleti**, che e' peggio che non distribuirli affatto.
+
+Vengono scaricati al primo uso e tenuti in una cache su disco con TTL di 30
+giorni. La scrittura e' atomica (file temporaneo piu' `replace`): un download
+interrotto non deve lasciare in cache un JSON troncato che al riavvio verrebbe
+letto come valido.
+
+Un territorio che non si scarica non blocca gli altri: meglio un indice parziale,
+con il buco loggato, che nessun indice.
+
+### 3.13 Il dislivello ha bisogno di una soglia
+
+Sommare ingenuamente le differenze di quota fra punti consecutivi **gonfia il
+dislivello anche del 30%**: il modello di elevazione ha rumore di qualche metro,
+e su mille punti il rumore si accumula tutto in salita.
+
+`_dislivelli()` ignora le variazioni sotto i 5 m rispetto all'ultimo punto
+significativo. E' l'errore piu' comune nel calcolo dei profili altimetrici, e il
+test `test_dislivello_ignora_il_rumore` verifica che una traccia piatta e
+rumorosa dia zero.
+
+### 3.14 Campionamento per distanza, non per indice
+
+La densita' dei vertici in OSM e' irregolare: i tornanti hanno molti punti, i
+lunghi rettilinei pochi. Campionare un punto ogni N indici infittirebbe i
+tornanti e diraderebbe i rettilinei, deformando il profilo.
+
+Si campiona quindi ogni `passo_m` metri di percorso, conservando sempre primo e
+ultimo punto perche' determinano quota di partenza e di arrivo. La lunghezza,
+invece, si calcola sulla polilinea **completa**: il campionamento taglia gli
+angoli e accorcerebbe il totale.
+
+### 3.15 Le way di una relation vanno ricucite
+
+Le way che compongono una relation escursionistica non sono garantite ne'
+ordinate ne' orientate coerentemente: e' normale trovare un tratto memorizzato
+al contrario. `polilinea()` le ricuce confrontando gli estremi e invertendo
+quando serve. Senza questo passaggio il profilo altimetrico risulta un dente di
+sega privo di senso, e il bug e' subdolo perche' il codice non fallisce: produce
+solo numeri sbagliati.
+
+### 3.16 Nominatim va rallentato di proposito
+
+La usage policy impone al massimo una richiesta al secondo e un User-Agent
+identificabile. Il servizio e' gratuito e mantenuto da donazioni; farsi bannare
+l'IP e' facile e meritato.
+
+`Limitatore` serializza le richieste con un lock e aspetta. Rallenta, ed e'
+esattamente quello che deve fare. Il lock non e' decorativo: senza, due coroutine
+concorrenti leggerebbero entrambe il timestamp precedente prima che l'altra lo
+aggiorni, e passerebbero insieme.
+
+### 3.17 Gli errori 4xx non si ritentano
+
+Introdotto dopo aver visto la suite di test passare da 1,5 a 22 secondi: un 404
+finiva nel ciclo di retry con backoff esponenziale, moltiplicato per otto
+territori. Un 4xx diverso da 429 e' definitivo, e riprovare martella una fonte
+che ha gia' risposto chiaramente.
+
+---
+
+## 4. Testing
+
+**46 test, nessuno tocca la rete.** Le chiamate HTTP sono intercettate con
+`pytest-httpx2` (respx su httpcore2). Una suite che dipende da Overpass
+fallisce a caso, e una CI che fallisce a caso viene ignorata dopo due settimane.
+
+Tre famiglie:
+
+- `test_modelli.py` — parsing dei tag OSM, conversione delle scale, casi
+  degeneri (tag mancanti, `sac_scale` fuori standard, `ele` decimale).
+- `test_fonti.py` — costruzione delle query, escaping, parsing CAAML, retry,
+  efficacia della cache.
+- `test_fase2.py` — geometria su poligoni costruiti a mano (dove il risultato
+  atteso e' calcolabile a mente: su un poligono reale da 4000 vertici non si sa
+  dire se una risposta e' giusta), lookup delle zone, campionamento, dislivelli,
+  ricucitura delle polilinee, rate limiter.
+- `test_server.py` — **test di contratto**: quali tool esistono, che tutti
+  abbiano descrizione e `outputSchema`, che siano marcati `readOnly`, che il
+  parametro elicitato resti fuori dallo schema, che i prompt contengano ancora i
+  vincoli di sicurezza.
+
+I test di contratto sono quelli che valgono di piu' nel tempo: proteggono
+l'interfaccia verso i client MCP, che e' la cosa che si rompe silenziosamente.
+
+Cosa **non** e' coperto e andrebbe aggiunto: test end-to-end del giro di
+elicitation con un client in-process, e test su risposte CAAML reali salvate
+come fixture (vedi roadmap).
+
+---
+
+## 5. Limiti noti
+
+| Limite | Impatto | Mitigazione |
+|---|---|---|
+| Cache in memoria, per-processo | Su HTTP multi-worker ogni replica ha la sua cache | Va sostituita con Redis prima di un deploy serio |
+| Nessuna autenticazione sul transport HTTP | Il server e' aperto a chi lo raggiunge | L'SDK supporta OAuth; non implementato (vedi roadmap) |
+| Copertura OSM non uniforme | Un sentiero assente non significa inesistente | Dichiarato nelle `instructions` e nel README |
+| `sac_scale` spesso mancante o datato | Difficolta' sconosciuta | Mai degradata a "facile": resta `SCONOSCIUTA` e genera un segnale |
+| Ray casting sul bordo dei poligoni | Un punto esattamente sul confine puo' cadere di qua o di la' | Irrilevante: le micro-regioni confinanti hanno bollettini simili |
+| Cache dei perimetri per-processo, su disco condiviso | Piu' repliche scrivono lo stesso file | La scrittura e' atomica, quindi al peggio si riscarica |
+| Il profilo altimetrico costa una query Overpass pesante | `valuta_gita` e' piu' lento | Disattivabile con `con_profilo=false` |
+| Solo previsione, nessun dato storico | Niente analisi retrospettive | Fuori scope |
+
+---
+
+## 6. Sicurezza e responsabilita'
+
+Questa sezione e' un vincolo di progetto, non un disclaimer legale.
+
+I bollettini valanghe sono **documenti ufficiali di sicurezza**. Le regole che
+il codice rispetta:
+
+1. **Rileggere, non interpretare.** Nessun tool riassume o riformula il testo
+   del previsore. La sintesi viene passata invariata.
+2. **Nessun verdetto.** `valuta_gita` non emette e non deve mai emettere un
+   giudizio vai/non-vai. Restituisce fatti e segnali; la decisione resta a chi
+   va in montagna.
+3. **Avvertenza nel payload, non solo nel README.** I modelli `Bollettino` e
+   `ValutazioneGita` hanno un campo `avvertenza` con un default non vuoto, cosi'
+   che arrivi al modello insieme ai dati. Un test verifica che non sia vuoto.
+4. **I prompt vincolano il comportamento.** `prepara_gita` vieta esplicitamente
+   il verdetto e impone la citazione delle fonti. Un test controlla che il
+   vincolo sopravviva ai refactoring del testo.
+5. **L'assenza di dato non e' un dato rassicurante.** Difficolta' non mappata →
+   `SCONOSCIUTA` + segnale, mai "facile". Bollettino non recuperato → segnale
+   esplicito, mai silenzio.
+
+Chi rivede questo repo dovrebbe capire che il limite e' stato progettato, non
+aggiunto alla fine.
+
+---
+
+## 7. Roadmap
+
+### Fase 1 — completamento (fatto)
+- [x] Tre primitivi: tool, resource (incluse template), prompt
+- [x] Structured output da modelli Pydantic
+- [x] Elicitation via resolver DI
+- [x] Doppio transport da un solo `crea_server()`
+- [x] Cache TTL, retry con backoff, errori tipizzati
+- [x] Client MCP minimale
+- [x] Test di contratto in CI
+
+### Fase 2 — utilita' reale (fatto)
+- [x] **Lookup zona valanghe da coordinate.** I poligoni delle micro-regioni
+      EAWS sono pubblicati come GeoJSON. Togliere all'utente l'onere di
+      conoscere l'ID e' il singolo miglioramento con piu' impatto.
+- [x] **Dislivello reale.** Query Overpass `out geom` piu' un modello di
+      elevazione, con caching aggressivo: il dislivello conta piu' della
+      lunghezza per capire l'impegno di una gita.
+- [ ] **Fixture da risposte reali.** Salvare risposte CAAML e Overpass vere
+      (anonimizzate) come fixture, per testare il parsing contro la realta' e
+      non contro quello che credo sia la realta'.
+- [x] Ricerca per toponimo via Nominatim, con rispetto della usage policy.
+
+### Fase 3 — deploy
+- [ ] Cache su Redis, dietro la stessa interfaccia di `CacheTTL`
+- [ ] OAuth sul transport HTTP (supportato dall'SDK via `token_verifier`)
+- [ ] Immagine Docker e healthcheck
+- [ ] Metriche: latenza per fonte, hit rate della cache, rate limit incontrati
+
+### Esplicitamente fuori scope
+Routing e tracce GPX, dati storici, previsione autonoma del pericolo valanghe,
+scraping di siti che non espongono dati aperti.
+
+---
+
+## 8. Convenzioni
+
+- **Italiano** per nomi di dominio, docstring e commenti. Il dominio e' italiano
+  e i termini tecnici (rifugio, bivacco, EEA, grado di pericolo) non hanno
+  traducenti puliti. Restano in inglese i termini di protocollo (tool, resource,
+  elicitation) e i tag OSM.
+- **Commenti sul perche', non sul cosa.** Un commento che ripete il codice e'
+  rumore. Il diff delle decisioni non ovvie sta nel codice, non solo qui.
+- `ruff` per lint e ordinamento import, `mypy --strict`, `pytest`.
+- Commit convenzionali (`feat:`, `fix:`, `docs:`, `test:`).
+
+---
+
+## 9. Da fare prima di pubblicare
+
+- [x] URL del repo in `pyproject.toml`, `README.md` e `config.py`
+      (l'User-Agent contiene l'URL del repo: e' richiesto dalla usage policy di
+      Overpass, non e' decorativo)
+- [ ] Mettere il proprio nome in `authors`
+- [ ] Aggiungere il file `LICENSE` (MIT, coerente con `pyproject.toml`)
+- [ ] Registrare una GIF o un asciinema di 20 secondi con un client che usa il
+      server, e metterla in cima al README: vale piu' di tre paragrafi
+- [ ] Verificare che la CI sia verde e aggiungere il badge
+- [ ] Controllare la revisione corrente della spec MCP e dichiararla nel README
