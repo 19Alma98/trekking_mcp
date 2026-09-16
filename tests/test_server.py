@@ -101,3 +101,10 @@ async def test_le_istruzioni_indirizzano_ai_tool_di_lookup(mcp):
     """
     assert "zona_valanghe_da_coordinate" in mcp.instructions
     assert "cerca_localita" in mcp.instructions
+
+
+async def test_dettaglio_sentiero_description_sconsiglia_ridondanza(mcp):
+    dettaglio = next(t for t in await mcp.list_tools() if t.name == "dettaglio_sentiero")
+    testo = (dettaglio.description or "").lower()
+    assert "cerca_sentieri" in testo
+    assert "necessario" in testo or "solo se" in testo

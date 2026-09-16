@@ -89,7 +89,11 @@ def registra(mcp: MCPServer) -> None:
     @mcp.tool(
         name="dettaglio_sentiero",
         title="Dettaglio di un sentiero",
-        description="Restituisce i dati completi di un sentiero dato l'ID della sua relation OSM.",
+        description=(
+            "Restituisce i dati di un sentiero dato l'ID della relation OSM. "
+            "Necessario solo se non hai gia' i campi da cerca_sentieri: non richiama "
+            "dati diversi dalla search sui tag."
+        ),
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
     @gestisci_errori
