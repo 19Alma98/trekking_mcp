@@ -60,6 +60,10 @@ class Sentiero(BaseModel):
     visibilita: str | None = Field(default=None, description="Tag `trail_visibility`")
     lunghezza_km: float | None = None
     centro: Coord | None = Field(default=None, description="Centroide approssimato")
+    distanza_km: float | None = Field(
+        default=None,
+        description="Distanza del centroide dal punto di ricerca, se noto",
+    )
     profilo: ProfiloAltimetrico | None = Field(
         default=None, description="Popolato solo su richiesta esplicita: richiede una query piu' pesante"
     )
