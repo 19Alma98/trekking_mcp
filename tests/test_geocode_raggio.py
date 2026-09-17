@@ -1,10 +1,23 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+from typing import Any
+
 import pytest
 import respx
+from mcp.server.elicitation import AcceptedElicitation, CancelledElicitation, DeclinedElicitation
+from pydantic import BaseModel
 
-from trekking_mcp.sources import nominatim
+from trekking_mcp.errors import FonteNonDisponibile, NonTrovato
+from trekking_mcp.models import Coord, Localita
+from trekking_mcp.sources import luoghi_simili, nominatim
 from trekking_mcp.sources.http import CLIENT
+from trekking_mcp.sources.luoghi_simili import (
+    cerca_simili_nel_raggio,
+    localita_da_elemento,
+    query_luoghi_bbox,
+)
+from trekking_mcp.tools import geocode_risolvi
 
 
 @pytest.fixture(autouse=True)
@@ -29,7 +42,6 @@ def _nominatim_senza_cache(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_nominatim_scarta_hit_oltre_raggio(httpx2_mock: respx.Router, monkeypatch):
-    import httpx
 
     monkeypatch.setattr(nominatim.LIMITATORE, "attendi", _no_attendi)
     _nominatim_senza_cache(monkeypatch)
@@ -77,10 +89,6 @@ async def test_nominatim_contestuale_non_fa_bounded_zero(httpx2_mock: respx.Rout
     assert all(dict(c.request.url.params).get("bounded") == "1" for c in rotta.calls)
 
 
-from trekking_mcp.models import Coord, Localita
-from trekking_mcp.sources import luoghi_simili
-
-
 def test_similarita_mucone_mucrone_sopra_soglia():
     assert luoghi_simili.similarita_nome("Mucone", "Monte Mucrone") >= luoghi_simili.SOGLIA_SIMILARITA
 
@@ -97,17 +105,9 @@ def test_filtra_simili_ordina_per_ratio_poi_distanza():
         Localita(nome="Biella", tipo="town", coord=Coord(lat=45.57, lon=8.05)),
     ]
     out = luoghi_simili.filtra_simili("Mucone", candidati, lat=lat, lon=lon)
-    assert [c.nome for c in out][0] == "Monte Mucrone"
+    assert next(c.nome for c in out) == "Monte Mucrone"
     assert all(luoghi_simili.similarita_nome("Mucone", c.nome) >= luoghi_simili.SOGLIA_SIMILARITA for c in out)
     assert len(out) <= luoghi_simili.MAX_CANDIDATI_SIMILI
-
-
-from trekking_mcp.errors import FonteNonDisponibile
-from trekking_mcp.sources.luoghi_simili import (
-    cerca_simili_nel_raggio,
-    localita_da_elemento,
-    query_luoghi_bbox,
-)
 
 
 def test_query_luoghi_bbox_include_tipi_utili():
@@ -171,16 +171,6 @@ async def test_cerca_simili_overpass_giu_restituisce_lista_vuota(monkeypatch):
     assert out == []
 
 
-from dataclasses import dataclass, field
-from typing import Any
-
-from mcp.server.elicitation import AcceptedElicitation, CancelledElicitation, DeclinedElicitation
-from pydantic import BaseModel
-
-from trekking_mcp.errors import NonTrovato
-from trekking_mcp.tools import geocode_risolvi
-
-
 @dataclass
 class FakeCtx:
     elicit_calls: list[tuple[str, type]] = field(default_factory=list)
@@ -232,11 +222,7 @@ async def test_risolvi_simile_usa_1(httpx2_mock: respx.Router, monkeypatch):
 
     monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.cerca_simili_nel_raggio", _simili)
     ctx = FakeCtx(
-        elicit_results=[
-            AcceptedElicitation(
-                data=geocode_risolvi.SceltaGeocode(azione="usa_1", nuovo_raggio_km=50)
-            )
-        ]
+        elicit_results=[AcceptedElicitation(data=geocode_risolvi.SceltaGeocode(azione="usa_1", nuovo_raggio_km=50))]
     )
     out = await geocode_risolvi.risolvi_localita(ctx, "Mucone", lat=45.57, lon=8.05)  # type: ignore[arg-type]
     assert len(out) == 1
@@ -261,11 +247,7 @@ async def test_risolvi_espandi_poi_match(monkeypatch):
     monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.nominatim.cerca", _cerca)
     monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.cerca_simili_nel_raggio", _nessun_simile)
     ctx = FakeCtx(
-        elicit_results=[
-            AcceptedElicitation(
-                data=geocode_risolvi.SceltaGeocode(azione="espandi", nuovo_raggio_km=50)
-            )
-        ]
+        elicit_results=[AcceptedElicitation(data=geocode_risolvi.SceltaGeocode(azione="espandi", nuovo_raggio_km=50))]
     )
     out = await geocode_risolvi.risolvi_localita(ctx, "Mucone", lat=45.57, lon=8.05, raggio_km=30)  # type: ignore[arg-type]
     assert out[0].nome == "Monte Mucrone"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from mcp.server.elicitation import AcceptedElicitation
 from mcp.server.mcpserver.context import Context
 from pydantic import BaseModel, Field
 
@@ -73,12 +74,10 @@ async def risolvi_localita(
             return esatti
 
         simili = await cerca_simili_nel_raggio(nome, lat=lat, lon=lon, raggio_km=raggio)
-        messaggio = messaggio_scelta_geocode(
-            nome, lat=lat, lon=lon, raggio_km=raggio, simili=simili
-        )
+        messaggio = messaggio_scelta_geocode(nome, lat=lat, lon=lon, raggio_km=raggio, simili=simili)
         esito = await ctx.elicit(messaggio, SceltaGeocode)
 
-        if esito.action in {"decline", "cancel"}:
+        if not isinstance(esito, AcceptedElicitation):
             raise NonTrovato("localita'", nome)
 
         scelta = esito.data

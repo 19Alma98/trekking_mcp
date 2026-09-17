@@ -1,5 +1,3 @@
-"""Candidati toponomastici locali (Overpass) e similarita' di nome."""
-
 from __future__ import annotations
 
 import difflib
