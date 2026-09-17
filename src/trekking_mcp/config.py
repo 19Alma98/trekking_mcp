@@ -39,6 +39,7 @@ class Config:
     cache_dir: str = field(default_factory=lambda: os.getenv("CACHE_DIR", str(Path.home() / ".cache" / "trekking-mcp")))
 
     nominatim_intervallo_s: float = field(default_factory=lambda: float(os.getenv("NOMINATIM_INTERVALLO", "1.0")))
+    overpass_concurrency: int = field(default_factory=lambda: int(os.getenv("OVERPASS_CONCURRENCY", "1")))
 
     cache_max_entry: int = field(default_factory=lambda: int(os.getenv("CACHE_MAX_ENTRY", "512")))
 

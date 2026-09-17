@@ -11,6 +11,7 @@ e viene propagata nei campi `fonti` degli output.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import cast
 
@@ -22,6 +23,8 @@ from trekking_mcp.sources.http import CLIENT
 ATTRIBUZIONE = "Dati sentieri e ricoveri: (c) contributori OpenStreetMap, ODbL"
 _INTESTAZIONE = "[out:json][timeout:{timeout}];"
 _TESTO_MAX_LEN = 64
+# Limite globale: evita fan-out parallelo tipico degli agenti verso Overpass.
+_SEMAFORO = asyncio.Semaphore(max(1, CONFIG.overpass_concurrency))
 
 
 def _bbox(sud: float, ovest: float, nord: float, est: float) -> str:
@@ -153,17 +156,18 @@ def _escape(valore: str) -> str:
 
 
 async def esegui(ql: str, *, ttl_s: int | None = None) -> OverpassResponse:
-    return cast(
-        OverpassResponse,
-        await CLIENT.json(
-            "POST",
-            CONFIG.overpass_url,
-            fonte="overpass",
-            ttl_s=ttl_s if ttl_s is not None else CONFIG.ttl_overpass_s,
-            max_retry=2,
-            data={"data": ql},
-        ),
-    )
+    async with _SEMAFORO:
+        return cast(
+            OverpassResponse,
+            await CLIENT.json(
+                "POST",
+                CONFIG.overpass_url,
+                fonte="overpass",
+                ttl_s=ttl_s if ttl_s is not None else CONFIG.ttl_overpass_s,
+                max_retry=2,
+                data={"data": ql},
+            ),
+        )
 
 
 async def cerca_sentieri(

@@ -9,11 +9,6 @@ Report dettagliato: canvas `report-mcp-sessione-torino` nel progetto Cursor.
 
 ## P0 — bloccanti per andare online
 
-- [ ] **Backpressure su Overpass: coda / semaforo + `Retry-After` + jitter**
-  - Sessione: 429 e 504 con chiamate parallele tipiche di un agente
-  - Oggi: retry 1s/2s senza jitter né rispetto di `Retry-After`; nessun limite globale (a differenza di Nominatim)
-  - Senza questo, un deploy pubblico collassa al primo fan-out di tool
-
 - [ ] **Cache condivisa (Redis o equivalente) per Overpass / meteo / bollettino**
   - TTL già definiti in config; store attuale solo in-memory per processo
   - Su HTTP multi-worker / serverless ogni replica ripaga Overpass
@@ -42,10 +37,20 @@ Report dettagliato: canvas `report-mcp-sessione-torino` nel progetto Cursor.
 - [ ] **Guidance agent: evitare fan-out parallelo su tool Overpass**
   - Le instructions del server aiutano; in sessione Cursor ha comunque chiamato 3 tool Overpass insieme
   - Rafforzare instructions / prompt e, lato server, serializzare comunque le query Overpass
+  - Nota: serializzazione server-side già in P0; resta il pezzo instructions
 
 - [ ] **UX dati OSM incompleti**
   - `difficolta_cai=sconosciuta` e `lunghezza_km` spesso null non sono bug di codice
   - Messaging chiaro + eventuali fallback (non solo campi vuoti)
+
+---
+
+## Futuro — dati OSM senza Overpass a runtime
+
+- [ ] **Estratto OSM (Geofabrik) → PostGIS (o SQLite+SpatiaLite)**
+  - Sync periodico di relation `route=hiking` e ricoveri per IT/Alpi
+  - Ricerche bbox/ref/operator in locale; Overpass solo come fallback o per geometrie rare
+  - Riduce dipendenza da istanze pubbliche e latenza sotto carico multi-utente
 
 ---
 
@@ -55,3 +60,4 @@ Report dettagliato: canvas `report-mcp-sessione-torino` nel progetto Cursor.
 - Nominatim stabile (con `Limitatore`)
 - Tool compositi (`sentieri_verso_localita`, `valuta_gita`) nella direzione giusta
 - Con raggio piccolo, `cerca_sentieri` restituisce ref OSM utili
+- Backpressure Overpass (semaforo + Retry-After + jitter)

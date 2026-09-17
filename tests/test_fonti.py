@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from dataclasses import replace
@@ -149,6 +150,73 @@ async def test_retry_e_poi_fonte_non_disponibile(httpx2_mock: respx.Router, monk
         await overpass.cerca_sentieri(sud=45.0, ovest=7.0, nord=45.5, est=7.5)
 
     assert rotta.call_count == 2
+
+
+async def test_retry_rispetta_retry_after(httpx2_mock: respx.Router, monkeypatch):
+    """Su 429 con Retry-After, l'attesa deve essere almeno quel valore (più jitter)."""
+    attese: list[float] = []
+
+    async def _registra(secondi: float) -> None:
+        attese.append(secondi)
+
+    monkeypatch.setattr("asyncio.sleep", _registra)
+    monkeypatch.setattr("trekking_mcp.sources.http.random.uniform", lambda _a, _b: 0.0)
+
+    rotta = httpx2_mock.post(url__startswith="https://overpass-api.de")
+    rotta.side_effect = [
+        respx.MockResponse(429, headers={"Retry-After": "7"}),
+        respx.MockResponse(200, json={"elements": []}),
+    ]
+
+    await overpass.cerca_sentieri(sud=45.0, ovest=7.0, nord=45.5, est=7.5)
+
+    assert rotta.call_count == 2
+    assert attese == [7.0]
+
+
+async def test_retry_aggiunge_jitter_senza_retry_after(httpx2_mock: respx.Router, monkeypatch):
+    """Senza Retry-After: backoff 2**n più jitter uniforme in [0, base)."""
+    attese: list[float] = []
+
+    async def _registra(secondi: float) -> None:
+        attese.append(secondi)
+
+    monkeypatch.setattr("asyncio.sleep", _registra)
+    monkeypatch.setattr("trekking_mcp.sources.http.random.uniform", lambda _a, _b: 0.25)
+
+    rotta = httpx2_mock.post(url__startswith="https://overpass-api.de")
+    rotta.side_effect = [
+        respx.MockResponse(504),
+        respx.MockResponse(200, json={"elements": []}),
+    ]
+
+    await overpass.cerca_sentieri(sud=45.0, ovest=7.0, nord=45.5, est=7.5)
+
+    assert rotta.call_count == 2
+    assert attese == [1.25]  # base 2**0=1 + jitter 0.25
+
+
+async def test_overpass_serializza_le_query_parallele(monkeypatch):
+    """Il semaforo Overpass impedisce fan-out parallelo verso l'istanza."""
+    in_volo = 0
+    picco = 0
+
+    async def _fake_json(*_a, **_k):
+        nonlocal in_volo, picco
+        in_volo += 1
+        picco = max(picco, in_volo)
+        await asyncio.sleep(0.05)
+        in_volo -= 1
+        return {"elements": []}
+
+    monkeypatch.setattr(overpass.CLIENT, "json", _fake_json)
+
+    await asyncio.gather(
+        overpass.cerca_sentieri(sud=45.0, ovest=7.0, nord=45.5, est=7.5),
+        overpass.cerca_sentieri(sud=46.0, ovest=8.0, nord=46.5, est=8.5),
+    )
+
+    assert picco == 1
 
 
 async def test_la_cache_evita_la_seconda_chiamata(httpx2_mock: respx.Router):

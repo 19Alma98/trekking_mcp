@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import random
 import time
 from collections import OrderedDict
 from typing import Any
@@ -14,6 +15,25 @@ from trekking_mcp.config import CONFIG
 from trekking_mcp.errors import FonteNonDisponibile
 
 log = logging.getLogger(__name__)
+
+
+def secondi_retry_after(risposta: httpx2.Response) -> float | None:
+    """Parse di `Retry-After` in secondi. Solo valori numerici (non HTTP-date)."""
+    grezzo = risposta.headers.get("Retry-After")
+    if grezzo is None:
+        return None
+    try:
+        return max(0.0, float(grezzo.strip()))
+    except ValueError:
+        return None
+
+
+def ritardo_retry(tentativo: int, retry_after: float | None = None) -> float:
+    """Backoff con jitter; se c'è Retry-After, lo rispetta (più jitter piccolo)."""
+    if retry_after is not None:
+        return retry_after + random.uniform(0, 1)
+    base = float(2**tentativo)
+    return base + random.uniform(0, base)
 
 
 class CacheTTL:
@@ -118,8 +138,17 @@ class ClientHttp:
             except (httpx2.HTTPError, ValueError) as exc:
                 ultimo_errore = exc
                 if tentativo < tentativi - 1:
-                    attesa = 2**tentativo
-                    log.warning("%s: tentativo %d fallito (%s), riprovo tra %ds", fonte, tentativo + 1, exc, attesa)
+                    retry_after = None
+                    if isinstance(exc, httpx2.HTTPStatusError) and exc.response is not None:
+                        retry_after = secondi_retry_after(exc.response)
+                    attesa = ritardo_retry(tentativo, retry_after)
+                    log.warning(
+                        "%s: tentativo %d fallito (%s), riprovo tra %.1fs",
+                        fonte,
+                        tentativo + 1,
+                        exc,
+                        attesa,
+                    )
                     await asyncio.sleep(attesa)
 
         raise FonteNonDisponibile(fonte=fonte, dettaglio=str(ultimo_errore)) from ultimo_errore
