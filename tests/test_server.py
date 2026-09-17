@@ -129,3 +129,4 @@ async def test_sentieri_verso_localita_espone_raggio_geocode_km(mcp):
     assert "raggio_geocode_km" in props
     assert "raggio_km" in props
     assert "azione" not in props
+    assert "nuovo_raggio_km" not in props

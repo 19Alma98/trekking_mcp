@@ -174,7 +174,7 @@ async def test_cerca_simili_overpass_giu_restituisce_lista_vuota(monkeypatch):
 from dataclasses import dataclass, field
 from typing import Any
 
-from mcp.server.elicitation import AcceptedElicitation, DeclinedElicitation
+from mcp.server.elicitation import AcceptedElicitation, CancelledElicitation, DeclinedElicitation
 from pydantic import BaseModel
 
 from trekking_mcp.errors import NonTrovato
@@ -281,6 +281,96 @@ async def test_risolvi_decline_solleva_non_trovato(monkeypatch):
     ctx = FakeCtx(elicit_results=[DeclinedElicitation()])
     with pytest.raises(NonTrovato):
         await geocode_risolvi.risolvi_localita(ctx, "Mucone", lat=45.57, lon=8.05)  # type: ignore[arg-type]
+
+
+async def test_risolvi_cancel_solleva_non_trovato(monkeypatch):
+    async def _vuoto(*args, **kwargs):
+        return []
+
+    monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.nominatim.cerca", _vuoto)
+    monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.cerca_simili_nel_raggio", _vuoto)
+    ctx = FakeCtx(elicit_results=[CancelledElicitation()])
+    with pytest.raises(NonTrovato):
+        await geocode_risolvi.risolvi_localita(ctx, "Mucone", lat=45.57, lon=8.05)  # type: ignore[arg-type]
+
+
+async def test_risolvi_terza_espansione_solleva_non_trovato(monkeypatch):
+    async def _vuoto(*args, **kwargs):
+        return []
+
+    async def _nessun_simile(*args, **kwargs):
+        return []
+
+    monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.nominatim.cerca", _vuoto)
+    monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.cerca_simili_nel_raggio", _nessun_simile)
+    ctx = FakeCtx(
+        elicit_results=[
+            AcceptedElicitation(data=geocode_risolvi.SceltaGeocode(azione="espandi", nuovo_raggio_km=50)),
+            AcceptedElicitation(data=geocode_risolvi.SceltaGeocode(azione="espandi", nuovo_raggio_km=80)),
+            AcceptedElicitation(data=geocode_risolvi.SceltaGeocode(azione="espandi", nuovo_raggio_km=110)),
+        ]
+    )
+    with pytest.raises(NonTrovato):
+        await geocode_risolvi.risolvi_localita(ctx, "Mucone", lat=45.57, lon=8.05, raggio_km=30)  # type: ignore[arg-type]
+
+
+async def test_risolvi_usa_n_invalido_solleva_non_trovato(monkeypatch):
+    async def _vuoto(*args, **kwargs):
+        return []
+
+    async def _simili(nome, *, lat, lon, raggio_km):
+        return [
+            Localita(nome="Monte Mucrone", tipo="peak", coord=Coord(lat=45.61, lon=7.95)),
+        ]
+
+    monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.nominatim.cerca", _vuoto)
+    monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.cerca_simili_nel_raggio", _simili)
+    ctx = FakeCtx(
+        elicit_results=[
+            AcceptedElicitation(data=geocode_risolvi.SceltaGeocode(azione="usa_99", nuovo_raggio_km=50)),
+        ]
+    )
+    with pytest.raises(NonTrovato):
+        await geocode_risolvi.risolvi_localita(ctx, "Mucone", lat=45.57, lon=8.05)  # type: ignore[arg-type]
+
+
+async def test_risolvi_raggio_non_crescente_solleva_non_trovato(monkeypatch):
+    async def _vuoto(*args, **kwargs):
+        return []
+
+    monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.nominatim.cerca", _vuoto)
+    monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.cerca_simili_nel_raggio", _vuoto)
+    ctx = FakeCtx(
+        elicit_results=[
+            AcceptedElicitation(data=geocode_risolvi.SceltaGeocode(azione="espandi", nuovo_raggio_km=50)),
+        ]
+    )
+    with pytest.raises(NonTrovato) as exc:
+        await geocode_risolvi.risolvi_localita(ctx, "Mucone", lat=45.57, lon=8.05, raggio_km=60)  # type: ignore[arg-type]
+    assert exc.value.alternative == ["nuovo_raggio_km deve essere > 60"]
+
+
+async def test_cerca_localita_usa_risolvi_con_contesto(monkeypatch):
+    from trekking_mcp.server import crea_server
+
+    async def _risolvi(ctx, nome, *, lat, lon, raggio_km=30, limite=5):
+        assert nome == "Mucone"
+        assert lat == 45.57 and lon == 8.05
+        assert raggio_km == 30
+        assert limite == 5
+        return [Localita(nome="Monte Mucrone", tipo="peak", coord=Coord(lat=45.61, lon=7.95))]
+
+    monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.risolvi_localita", _risolvi)
+    mcp = crea_server()
+    ctx = FakeCtx()
+    esito = await mcp.call_tool(
+        "cerca_localita",
+        {"nome": "Mucone", "lat": 45.57, "lon": 8.05, "raggio_km": 30, "limite": 5},
+        context=ctx,  # type: ignore[arg-type]
+    )
+    assert not esito.is_error
+    localita = esito.structured_content["result"]
+    assert localita[0]["nome"] == "Monte Mucrone"
 
 
 async def test_esegui_sentieri_verso_usa_risolvi_con_contesto(monkeypatch):

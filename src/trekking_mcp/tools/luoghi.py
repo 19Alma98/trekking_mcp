@@ -57,11 +57,25 @@ def registra(mcp: MCPServer) -> None:
         limite: Annotated[int, Field(ge=1, le=10)] = 5,
         lat: Annotated[
             float | None,
-            Field(description="Latitudine di contesto per disambiguare (viewbox)", ge=-90, le=90),
+            Field(
+                description=(
+                    "Latitudine di contesto: con lon impostata filtra per raggio_km e abilita "
+                    "disambiguazione tra nomi simili; altrimenti restringe il viewbox Nominatim."
+                ),
+                ge=-90,
+                le=90,
+            ),
         ] = None,
         lon: Annotated[
             float | None,
-            Field(description="Longitudine di contesto per disambiguare (viewbox)", ge=-180, le=180),
+            Field(
+                description=(
+                    "Longitudine di contesto: con lat impostata filtra per raggio_km e abilita "
+                    "disambiguazione tra nomi simili; altrimenti restringe il viewbox Nominatim."
+                ),
+                ge=-180,
+                le=180,
+            ),
         ] = None,
         raggio_km: Annotated[
             float,
