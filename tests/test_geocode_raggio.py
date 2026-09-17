@@ -75,3 +75,28 @@ async def test_nominatim_contestuale_non_fa_bounded_zero(httpx2_mock: respx.Rout
     assert esito == []
     assert rotta.call_count == 2
     assert all(dict(c.request.url.params).get("bounded") == "1" for c in rotta.calls)
+
+
+from trekking_mcp.models import Coord, Localita
+from trekking_mcp.sources import luoghi_simili
+
+
+def test_similarita_mucone_mucrone_sopra_soglia():
+    assert luoghi_simili.similarita_nome("Mucone", "Monte Mucrone") >= luoghi_simili.SOGLIA_SIMILARITA
+
+
+def test_similarita_biella_mucrone_sotto_soglia():
+    assert luoghi_simili.similarita_nome("Biella", "Monte Mucrone") < luoghi_simili.SOGLIA_SIMILARITA
+
+
+def test_filtra_simili_ordina_per_ratio_poi_distanza():
+    lat, lon = 45.57, 8.05
+    candidati = [
+        Localita(nome="Monte Mucrone", tipo="peak", coord=Coord(lat=45.61, lon=7.95), quota_m=2335),
+        Localita(nome="Mucrone Basso", tipo="peak", coord=Coord(lat=45.575, lon=8.04)),  # piu' vicino, nome meno simile
+        Localita(nome="Biella", tipo="town", coord=Coord(lat=45.57, lon=8.05)),
+    ]
+    out = luoghi_simili.filtra_simili("Mucone", candidati, lat=lat, lon=lon)
+    assert [c.nome for c in out][0] == "Monte Mucrone"
+    assert all(luoghi_simili.similarita_nome("Mucone", c.nome) >= luoghi_simili.SOGLIA_SIMILARITA for c in out)
+    assert len(out) <= luoghi_simili.MAX_CANDIDATI_SIMILI
