@@ -100,3 +100,72 @@ def test_filtra_simili_ordina_per_ratio_poi_distanza():
     assert [c.nome for c in out][0] == "Monte Mucrone"
     assert all(luoghi_simili.similarita_nome("Mucone", c.nome) >= luoghi_simili.SOGLIA_SIMILARITA for c in out)
     assert len(out) <= luoghi_simili.MAX_CANDIDATI_SIMILI
+
+
+from trekking_mcp.errors import FonteNonDisponibile
+from trekking_mcp.sources.luoghi_simili import (
+    cerca_simili_nel_raggio,
+    localita_da_elemento,
+    query_luoghi_bbox,
+)
+
+
+def test_query_luoghi_bbox_include_tipi_utili():
+    ql = query_luoghi_bbox(45.0, 7.0, 46.0, 8.0)
+    assert '["natural"~"^(peak|saddle)$"]' in ql
+    assert '["tourism"~"^(alpine_hut|wilderness_hut)$"]' in ql
+    assert '["place"~"^(village|hamlet|town|locality|isolated_dwelling)$"]' in ql
+    assert "out tags center" in ql
+
+
+def test_localita_da_elemento_peak():
+    loc = localita_da_elemento(
+        {
+            "type": "node",
+            "id": 1,
+            "lat": 45.61,
+            "lon": 7.95,
+            "tags": {"natural": "peak", "name": "Monte Mucrone", "ele": "2335"},
+        }
+    )
+    assert loc is not None
+    assert loc.nome == "Monte Mucrone"
+    assert loc.tipo == "peak"
+    assert loc.quota_m == 2335
+    assert loc.osm_url == "https://www.openstreetmap.org/node/1"
+
+
+async def test_cerca_simili_nel_raggio_mock_overpass(httpx2_mock: respx.Router):
+    httpx2_mock.post(url__startswith="https://overpass-api.de").respond(
+        200,
+        json={
+            "elements": [
+                {
+                    "type": "node",
+                    "id": 1,
+                    "lat": 45.61,
+                    "lon": 7.95,
+                    "tags": {"natural": "peak", "name": "Monte Mucrone", "ele": "2335"},
+                },
+                {
+                    "type": "node",
+                    "id": 2,
+                    "lat": 45.57,
+                    "lon": 8.05,
+                    "tags": {"place": "town", "name": "Biella"},
+                },
+            ]
+        },
+    )
+    out = await cerca_simili_nel_raggio("Mucone", lat=45.57, lon=8.05, raggio_km=30)
+    assert len(out) == 1
+    assert out[0].nome == "Monte Mucrone"
+
+
+async def test_cerca_simili_overpass_giu_restituisce_lista_vuota(monkeypatch):
+    async def _boom(ql: str, *, ttl_s=None):
+        raise FonteNonDisponibile("overpass", "test")
+
+    monkeypatch.setattr("trekking_mcp.sources.overpass.esegui", _boom)
+    out = await cerca_simili_nel_raggio("Mucone", lat=45.57, lon=8.05, raggio_km=30)
+    assert out == []
