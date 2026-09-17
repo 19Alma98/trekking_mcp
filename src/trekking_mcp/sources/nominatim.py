@@ -81,7 +81,7 @@ async def cerca(
     solo_montagna: bool = True,
     lat: float | None = None,
     lon: float | None = None,
-    raggio_km: float = 50,
+    raggio_km: float = 30,
 ) -> list[Localita]:
     """Cerca un toponimo e restituisce i candidati piu' plausibili."""
     contestuale = lat is not None and lon is not None
@@ -122,15 +122,18 @@ async def cerca(
             except (KeyError, ValueError):
                 continue
             osm_tipo, osm_id = voce.get("osm_type"), voce.get("osm_id")
-            risultati.append(
-                Localita(
-                    nome=voce.get("display_name") or nome,
-                    tipo=tipo,
-                    coord=coord,
-                    quota_m=_quota(voce.get("extratags")),
-                    osm_url=(f"https://www.openstreetmap.org/{osm_tipo}/{osm_id}" if osm_tipo and osm_id else None),
-                )
+            loc = Localita(
+                nome=voce.get("display_name") or nome,
+                tipo=tipo,
+                coord=coord,
+                quota_m=_quota(voce.get("extratags")),
+                osm_url=(f"https://www.openstreetmap.org/{osm_tipo}/{osm_id}" if osm_tipo and osm_id else None),
             )
+            if contestuale:
+                assert lat is not None and lon is not None
+                if distanza_km(lat, lon, loc.coord.lat, loc.coord.lon) > raggio_km:
+                    continue
+            risultati.append(loc)
         if contestuale:
             assert lat is not None and lon is not None
             risultati.sort(key=lambda loc: distanza_km(lat, lon, loc.coord.lat, loc.coord.lon))
@@ -139,6 +142,4 @@ async def cerca(
     risultati = await _richiedi(solo_montagna_eff=solo_montagna, bounded_eff=bounded)
     if not risultati and solo_montagna:
         risultati = await _richiedi(solo_montagna_eff=False, bounded_eff=bounded)
-    if not risultati and contestuale and bounded == 1:
-        risultati = await _richiedi(solo_montagna_eff=False, bounded_eff=0)
     return risultati

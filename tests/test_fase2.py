@@ -318,37 +318,22 @@ async def test_nominatim_fallback_senza_montagna_nella_viewbox(httpx2_mock: resp
         assert dict(call.request.url.params).get("bounded") == "1"
 
 
-async def test_nominatim_retry_bounded_zero_dopo_due_vuoti(httpx2_mock: respx.Router, monkeypatch):
+async def test_nominatim_contestuale_non_rilancia_bounded_zero(httpx2_mock: respx.Router, monkeypatch):
     import httpx
 
     monkeypatch.setattr(nominatim.LIMITATORE, "attendi", _no_attendi_nominatim)
     _nominatim_senza_cache(monkeypatch)
     rotta = httpx2_mock.get(url__startswith="https://nominatim.openstreetmap.org").mock(
         side_effect=[
-            httpx.Response(200, json=[]),  # solo_montagna=True, bounded=1
-            httpx.Response(200, json=[]),  # solo_montagna=False, bounded=1
-            httpx.Response(
-                200,
-                json=[
-                    {
-                        "lat": "45.57",
-                        "lon": "8.05",
-                        "type": "suburb",
-                        "display_name": "Quartiere lontano",
-                        "osm_type": "node",
-                        "osm_id": 3,
-                    }
-                ],
-            ),  # solo_montagna=False, bounded=0
+            httpx.Response(200, json=[]),
+            httpx.Response(200, json=[]),
         ]
     )
     esito = await nominatim.cerca("Xyzzy", lat=45.57, lon=8.05)
-
-    assert len(esito) == 1
-    assert esito[0].nome == "Quartiere lontano"
-    assert rotta.call_count == 3
+    assert esito == []
+    assert rotta.call_count == 2
     bounded_values = [dict(call.request.url.params).get("bounded") for call in rotta.calls]
-    assert bounded_values == ["1", "1", "0"]
+    assert bounded_values == ["1", "1"]
 
 
 async def test_ricerca_localita_filtra_per_tipo(httpx2_mock: respx.Router):
