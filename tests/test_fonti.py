@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import replace
 
 import pytest
@@ -8,8 +10,10 @@ import respx
 from trekking_mcp.config import CONFIG
 from trekking_mcp.errors import FonteNonDisponibile, NonTrovato
 from trekking_mcp.models import GradoPericolo
-from trekking_mcp.sources import caaml, overpass
+from trekking_mcp.sources import caaml, meteo, overpass
 from trekking_mcp.sources.http import CLIENT
+
+_RFC3339 = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$")
 
 CAAML_ESEMPIO = {
     "bulletins": [
@@ -153,6 +157,32 @@ async def test_la_cache_evita_la_seconda_chiamata(httpx2_mock: respx.Router):
         await overpass.cerca_sentieri(sud=45.0, ovest=7.0, nord=45.5, est=7.5)
 
     assert rotta.call_count == 1
+
+
+async def test_meteo_serializza_istante_in_rfc3339(httpx2_mock: respx.Router):
+    """Open-Meteo dà `2026-09-17T00:00` (naive); lo schema MCP vuole date-time con offset."""
+    httpx2_mock.get(url__startswith="https://api.open-meteo.com/v1/forecast").respond(
+        200,
+        json={
+            "hourly": {
+                "time": ["2026-09-17T00:00", "2026-09-17T01:00"],
+                "temperature_2m": [5.0, 4.5],
+                "precipitation": [0.0, 0.0],
+                "snowfall": [0.0, 0.0],
+                "cloud_cover": [10, 20],
+                "wind_speed_10m": [10.0, 12.0],
+                "wind_gusts_10m": [20.0, 22.0],
+                "wind_direction_10m": [180, 190],
+                "freezing_level_height": [3000, 2900],
+            }
+        },
+    )
+    esito = await meteo.previsione(lat=45.07, lon=7.68, quota_m=2000, data="2026-09-17", ore_max=2)
+
+    assert len(esito) == 2
+    payload = json.loads(esito[0].model_dump_json())
+    assert _RFC3339.match(payload["istante"]), payload["istante"]
+    assert payload["istante"].endswith("+02:00")
 
 
 async def _no_sleep(_: float) -> None:

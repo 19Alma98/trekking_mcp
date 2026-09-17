@@ -8,13 +8,14 @@ quota neve. Open-Meteo e' gratuito e senza chiave.
 from __future__ import annotations
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from trekking_mcp.config import CONFIG
 from trekking_mcp.models import Coord, MeteoQuota
 from trekking_mcp.sources.http import CLIENT
 
 ATTRIBUZIONE = "Dati meteo: Open-Meteo.com, CC BY 4.0"
-
+_TZ_ROMA = ZoneInfo("Europe/Rome")
 _ORARIE = [
     "temperature_2m",
     "precipitation",
@@ -66,7 +67,7 @@ async def previsione(
             MeteoQuota(
                 coord=coord,
                 quota_m=quota_m,
-                istante=datetime.fromisoformat(istante),
+                istante=_parse_istante(istante),
                 temperatura_c=_v("temperature_2m", i),
                 vento_kmh=_v("wind_speed_10m", i),
                 raffica_kmh=_v("wind_gusts_10m", i),
@@ -78,3 +79,10 @@ async def previsione(
             )
         )
     return esito
+
+
+def _parse_istante(valore: str) -> datetime:
+    dt = datetime.fromisoformat(valore)
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=_TZ_ROMA)
+    return dt
