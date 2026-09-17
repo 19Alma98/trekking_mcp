@@ -44,14 +44,15 @@ def registra(mcp: MCPServer) -> None:
         description=(
             "Converte un toponimo in coordinate: nomi di rifugi, cime, valichi, paesi e "
             "frazioni. Punto di partenza naturale quando l'utente nomina un posto invece "
-            "di fornire coordinate. Restituisce piu' candidati: se sono ambigui, chiedi "
-            "conferma prima di procedere. Con lat/lon opzionali restringe la ricerca "
-            "all'area vicina e ordina per distanza."
+            "di fornire coordinate. Con lat/lon opzionali filtra per raggio (default 30 km) "
+            "e, se serve, chiede disambiguazione tra nomi simili; senza contesto usa "
+            "Nominatim come prima."
         ),
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
     @gestisci_errori
     async def cerca_localita(
+        ctx: Context,
         nome: Annotated[str, Field(description="Nome del luogo, es. 'Rifugio Gastaldi'", min_length=2)],
         limite: Annotated[int, Field(ge=1, le=10)] = 5,
         lat: Annotated[
@@ -62,7 +63,19 @@ def registra(mcp: MCPServer) -> None:
             float | None,
             Field(description="Longitudine di contesto per disambiguare (viewbox)", ge=-180, le=180),
         ] = None,
+        raggio_km: Annotated[
+            float,
+            Field(
+                description="Raggio max (km) se lat/lon sono impostati; default 30. Ignorato senza contesto.",
+                gt=0,
+                le=200,
+            ),
+        ] = 30,
     ) -> list[Localita]:
+        if lat is not None and lon is not None:
+            from trekking_mcp.tools.geocode_risolvi import risolvi_localita
+
+            return await risolvi_localita(ctx, nome, lat=lat, lon=lon, raggio_km=raggio_km, limite=limite)
         risultati = await nominatim.cerca(nome, limite=limite, lat=lat, lon=lon)
         if not risultati:
             raise NonTrovato("localita'", nome)

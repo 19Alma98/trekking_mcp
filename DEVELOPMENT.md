@@ -50,11 +50,13 @@ src/trekking_mcp/
 │   ├── eaws.py          # perimetri delle zone valanghe, cache su disco
 │   ├── elevation.py     # quote e profili altimetrici
 │   ├── nominatim.py     # geocoding, con rate limiter
+│   ├── luoghi_simili.py # candidati simili nel raggio (Overpass + SequenceMatcher)
 │   └── meteo.py         # Open-Meteo
 └── tools/               # la superficie MCP
     ├── comuni.py        # decoratore errori, geometria
     ├── sentieri.py      # ricerca e dettaglio
     ├── condizioni.py    # bollettino, meteo
+    ├── geocode_risolvi.py  # risolvi_localita + elicitation mid-call (SceltaGeocode)
     └── gita.py          # tool composito + elicitation
 ```
 
@@ -106,6 +108,12 @@ schema e' una scelta di sicurezza prima che di stile.
 
 Il test `test_parametro_elicitato_non_e_nello_schema` esiste per impedire che un
 refactoring lo reintroduca per sbaglio.
+
+Per la disambiguazione del geocoding (`cerca_localita`, `sentieri_verso_localita`
+con contesto) si usa invece **`ctx.elicit` mid-call** con schema piatto
+`SceltaGeocode`: la domanda dipende dai risultati di ricerca e non puo' essere
+decisa prima del corpo del tool. `profilo` su `valuta_gita` resta un resolver
+`Resolve` pre-corpo.
 
 ### 3.3 Un solo parser per tre provider
 

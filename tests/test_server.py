@@ -113,3 +113,19 @@ async def test_dettaglio_sentiero_description_sconsiglia_ridondanza(mcp):
     testo = (dettaglio.description or "").lower()
     assert "cerca_sentieri" in testo
     assert "necessario" in testo or "solo se" in testo
+
+
+async def test_cerca_localita_espone_raggio_km_non_scelta_geocode(mcp):
+    tool = next(t for t in await mcp.list_tools() if t.name == "cerca_localita")
+    props = tool.input_schema.get("properties", {})
+    assert "raggio_km" in props
+    assert "azione" not in props
+    assert "nuovo_raggio_km" not in props
+
+
+async def test_sentieri_verso_localita_espone_raggio_geocode_km(mcp):
+    tool = next(t for t in await mcp.list_tools() if t.name == "sentieri_verso_localita")
+    props = tool.input_schema.get("properties", {})
+    assert "raggio_geocode_km" in props
+    assert "raggio_km" in props
+    assert "azione" not in props

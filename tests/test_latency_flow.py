@@ -136,7 +136,12 @@ async def test_esegui_sentieri_verso_localita(httpx2_mock: respx.Router, monkeyp
         ]
     )
 
+    class _Ctx:
+        async def elicit(self, message, schema):
+            raise AssertionError("elicit non atteso con match Nominatim")
+
     out = await esegui_sentieri_verso_localita(
+        ctx=_Ctx(),  # type: ignore[arg-type]
         nome="Monte Mucrone",
         vicino_a_lat=45.57,
         vicino_a_lon=8.05,

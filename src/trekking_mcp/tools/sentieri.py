@@ -11,6 +11,7 @@ from trekking_mcp.errors import NonTrovato
 from trekking_mcp.models import DifficoltaCAI, Ricovero, SentieriVersoLocalita, Sentiero
 from trekking_mcp.sources import nominatim, overpass
 from trekking_mcp.tools.comuni import distanza_km, gestisci_errori, riquadro_intorno
+from trekking_mcp.tools.geocode_risolvi import risolvi_localita
 
 _PREFISSI_TOPONIMO = frozenset(
     {"monte", "mont", "monti", "cima", "pizzo", "col", "colle", "passo", "rifugio", "bivacco"}
@@ -29,13 +30,27 @@ def testo_da_toponimo(nome: str) -> str:
 async def esegui_sentieri_verso_localita(
     *,
     nome: str,
+    ctx: Context | None = None,
     vicino_a_lat: float | None = None,
     vicino_a_lon: float | None = None,
     raggio_km: float = 5,
+    raggio_geocode_km: float = 30,
     limite: int = 15,
     includi_ricoveri: bool = True,
 ) -> SentieriVersoLocalita:
-    candidati = await nominatim.cerca(nome, limite=1, lat=vicino_a_lat, lon=vicino_a_lon)
+    if vicino_a_lat is not None and vicino_a_lon is not None:
+        if ctx is None:
+            raise TypeError("ctx e' obbligatorio quando vicino_a_lat/lon sono impostati")
+        candidati = await risolvi_localita(
+            ctx,
+            nome,
+            lat=vicino_a_lat,
+            lon=vicino_a_lon,
+            raggio_km=raggio_geocode_km,
+            limite=1,
+        )
+    else:
+        candidati = await nominatim.cerca(nome, limite=1, lat=vicino_a_lat, lon=vicino_a_lon)
     if not candidati:
         raise NonTrovato("localita'", nome)
     localita = candidati[0]
@@ -160,12 +175,15 @@ def registra(mcp: MCPServer) -> None:
         description=(
             "Punto di ingresso quando l'utente chiede come arrivare a un luogo per nome: "
             "geocoding + ricerca sentieri (e rifugi) in una sola chiamata. "
+            "Con vicino_a_lat/lon usa raggio_geocode_km (default 30) per il geocoding; "
+            "raggio_km (default 5) vale solo per sentieri e ricoveri. "
             "Preferisci questo a una catena di cerca_localita + cerca_sentieri."
         ),
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
     @gestisci_errori
     async def sentieri_verso_localita(
+        ctx: Context,
         nome: Annotated[str, Field(description="Toponimo, es. 'Mucrone' o 'Monte Mucrone'", min_length=2)],
         vicino_a_lat: Annotated[
             float | None, Field(description="Lat di contesto (es. partenza)", ge=-90, le=90)
@@ -174,14 +192,24 @@ def registra(mcp: MCPServer) -> None:
             float | None, Field(description="Lon di contesto (es. partenza)", ge=-180, le=180)
         ] = None,
         raggio_km: Annotated[float, Field(description="Raggio ricerca sentieri/ricoveri", gt=0, le=50)] = 5,
+        raggio_geocode_km: Annotated[
+            float,
+            Field(
+                description="Raggio max (km) per geocoding se vicino_a_lat/lon sono impostati",
+                gt=0,
+                le=200,
+            ),
+        ] = 30,
         limite: Annotated[int, Field(ge=1, le=100)] = 15,
         includi_ricoveri: Annotated[bool, Field(description="Includi rifugi/bivacchi vicini")] = True,
     ) -> SentieriVersoLocalita:
         return await esegui_sentieri_verso_localita(
+            ctx=ctx,
             nome=nome,
             vicino_a_lat=vicino_a_lat,
             vicino_a_lon=vicino_a_lon,
             raggio_km=raggio_km,
+            raggio_geocode_km=raggio_geocode_km,
             limite=limite,
             includi_ricoveri=includi_ricoveri,
         )

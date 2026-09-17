@@ -281,3 +281,35 @@ async def test_risolvi_decline_solleva_non_trovato(monkeypatch):
     ctx = FakeCtx(elicit_results=[DeclinedElicitation()])
     with pytest.raises(NonTrovato):
         await geocode_risolvi.risolvi_localita(ctx, "Mucone", lat=45.57, lon=8.05)  # type: ignore[arg-type]
+
+
+async def test_esegui_sentieri_verso_usa_risolvi_con_contesto(monkeypatch):
+    from trekking_mcp.tools.sentieri import esegui_sentieri_verso_localita
+
+    async def _risolvi(ctx, nome, *, lat, lon, raggio_km=30, limite=5):
+        assert nome == "Mucone"
+        assert lat == 45.57 and lon == 8.05
+        assert raggio_km == 30
+        assert limite == 1
+        return [Localita(nome="Monte Mucrone", tipo="peak", coord=Coord(lat=45.61, lon=7.95))]
+
+    async def _sentieri(**kwargs):
+        return []
+
+    async def _ricoveri(**kwargs):
+        return []
+
+    monkeypatch.setattr("trekking_mcp.tools.sentieri.risolvi_localita", _risolvi)
+    monkeypatch.setattr("trekking_mcp.tools.sentieri.overpass.cerca_sentieri", _sentieri)
+    monkeypatch.setattr("trekking_mcp.tools.sentieri.overpass.cerca_ricoveri", _ricoveri)
+    ctx = FakeCtx()
+    out = await esegui_sentieri_verso_localita(
+        ctx=ctx,  # type: ignore[arg-type]
+        nome="Mucone",
+        vicino_a_lat=45.57,
+        vicino_a_lon=8.05,
+        raggio_km=5,
+        raggio_geocode_km=30,
+        includi_ricoveri=False,
+    )
+    assert out.localita.nome == "Monte Mucrone"
