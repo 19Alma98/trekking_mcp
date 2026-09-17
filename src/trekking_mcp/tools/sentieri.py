@@ -8,7 +8,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from trekking_mcp.errors import NonTrovato
-from trekking_mcp.models import DifficoltaCAI, Ricovero, Sentiero, SentieriVersoLocalita
+from trekking_mcp.models import DifficoltaCAI, Ricovero, SentieriVersoLocalita, Sentiero
 from trekking_mcp.sources import nominatim, overpass
 from trekking_mcp.tools.comuni import distanza_km, gestisci_errori, riquadro_intorno
 
@@ -35,20 +35,14 @@ async def esegui_sentieri_verso_localita(
     limite: int = 15,
     includi_ricoveri: bool = True,
 ) -> SentieriVersoLocalita:
-    candidati = await nominatim.cerca(
-        nome, limite=1, lat=vicino_a_lat, lon=vicino_a_lon
-    )
+    candidati = await nominatim.cerca(nome, limite=1, lat=vicino_a_lat, lon=vicino_a_lon)
     if not candidati:
         raise NonTrovato("localita'", nome)
     localita = candidati[0]
     testo = testo_da_toponimo(nome)
     sud, ovest, nord, est = riquadro_intorno(localita.coord.lat, localita.coord.lon, raggio_km)
-    grezzi = await overpass.cerca_sentieri(
-        sud=sud, ovest=ovest, nord=nord, est=est, testo=testo
-    )
-    sentieri = ordina_sentieri_per_distanza(
-        grezzi, lat=localita.coord.lat, lon=localita.coord.lon, limite=limite
-    )
+    grezzi = await overpass.cerca_sentieri(sud=sud, ovest=ovest, nord=nord, est=est, testo=testo)
+    sentieri = ordina_sentieri_per_distanza(grezzi, lat=localita.coord.lat, lon=localita.coord.lon, limite=limite)
     ricoveri: list[Ricovero] = []
     if includi_ricoveri:
         ricoveri = await overpass.cerca_ricoveri(
@@ -59,9 +53,7 @@ async def esegui_sentieri_verso_localita(
     return SentieriVersoLocalita(localita=localita, sentieri=sentieri, ricoveri=ricoveri)
 
 
-def ordina_sentieri_per_distanza(
-    risultati: list[Sentiero], *, lat: float, lon: float, limite: int
-) -> list[Sentiero]:
+def ordina_sentieri_per_distanza(risultati: list[Sentiero], *, lat: float, lon: float, limite: int) -> list[Sentiero]:
     """Assegna distanza_km e tiene i sentieri piu' vicini al punto query."""
     arricchiti: list[Sentiero] = []
     for s in risultati:
@@ -71,7 +63,7 @@ def ordina_sentieri_per_distanza(
         d = round(distanza_km(lat, lon, s.centro.lat, s.centro.lon), 1)
         arricchiti.append(s.model_copy(update={"distanza_km": d}))
 
-    def chiave(s: Sentiero) -> tuple:
+    def chiave(s: Sentiero) -> tuple[bool, float, bool, str]:
         senza_centro = s.distanza_km is None
         return (senza_centro, s.distanza_km if s.distanza_km is not None else 0.0, s.ref is None, s.ref or "")
 
@@ -97,13 +89,9 @@ def registra(mcp: MCPServer) -> None:
         ctx: Context,
         lat: Annotated[float, Field(description="Latitudine del centro ricerca", ge=-90, le=90)],
         lon: Annotated[float, Field(description="Longitudine del centro ricerca", ge=-180, le=180)],
-        raggio_km: Annotated[
-            float, Field(description="Raggio di ricerca in km (default 5, max 50)", gt=0, le=50)
-        ] = 5,
+        raggio_km: Annotated[float, Field(description="Raggio di ricerca in km (default 5, max 50)", gt=0, le=50)] = 5,
         ref: Annotated[str | None, Field(description="Numero esatto del sentiero, es. '103'")] = None,
-        operatore: Annotated[
-            str | None, Field(description="Filtro sull'ente, es. 'CAI' (matcha anche C.A.I.)")
-        ] = None,
+        operatore: Annotated[str | None, Field(description="Filtro sull'ente, es. 'CAI' (matcha anche C.A.I.)")] = None,
         testo: Annotated[
             str | None,
             Field(description="Filtro testuale su name/from/to/description, es. 'Mucrone'"),

@@ -30,13 +30,11 @@ def _sentiero(osm_id: int, ref: str | None, lat: float, lon: float) -> Sentiero:
 def test_ordina_sentieri_per_distanza_tiene_i_piu_vicini():
     # Punto query: Biella ~45.57, 8.05
     lontani_prima_per_ref = [
-        _sentiero(1, "Z99", 46.0, 8.5),   # lontano
+        _sentiero(1, "Z99", 46.0, 8.5),  # lontano
         _sentiero(2, "A01", 45.58, 8.06),  # vicino
-        _sentiero(3, None, 45.575, 8.055), # vicinissimo, senza ref
+        _sentiero(3, None, 45.575, 8.055),  # vicinissimo, senza ref
     ]
-    esito = tool_sentieri.ordina_sentieri_per_distanza(
-        lontani_prima_per_ref, lat=45.57, lon=8.05, limite=2
-    )
+    esito = tool_sentieri.ordina_sentieri_per_distanza(lontani_prima_per_ref, lat=45.57, lon=8.05, limite=2)
     assert [s.osm_relation_id for s in esito] == [3, 2]
     assert esito[0].distanza_km is not None
     assert esito[0].distanza_km <= esito[1].distanza_km
@@ -88,6 +86,7 @@ def test_testo_da_toponimo_usa_ultima_parola_significativa():
 
 async def test_esegui_sentieri_verso_localita(httpx2_mock: respx.Router, monkeypatch):
     import httpx
+
     from trekking_mcp.tools.sentieri import esegui_sentieri_verso_localita
 
     monkeypatch.setattr("trekking_mcp.sources.nominatim.LIMITATORE.attendi", _no_attendi)

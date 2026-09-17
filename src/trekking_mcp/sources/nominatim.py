@@ -86,7 +86,7 @@ async def cerca(
     """Cerca un toponimo e restituisce i candidati piu' plausibili."""
     contestuale = lat is not None and lon is not None
     if contestuale:
-        viewbox = _viewbox(lat, lon, raggio_km)
+        viewbox = _viewbox(cast(float, lat), cast(float, lon), raggio_km)
         bounded = 1
     else:
         ovest, sud, est, nord = RIQUADRO_ITALIA
@@ -128,11 +128,7 @@ async def cerca(
                     tipo=tipo,
                     coord=coord,
                     quota_m=_quota(voce.get("extratags")),
-                    osm_url=(
-                        f"https://www.openstreetmap.org/{osm_tipo}/{osm_id}"
-                        if osm_tipo and osm_id
-                        else None
-                    ),
+                    osm_url=(f"https://www.openstreetmap.org/{osm_tipo}/{osm_id}" if osm_tipo and osm_id else None),
                 )
             )
         if contestuale:

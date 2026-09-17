@@ -92,11 +92,7 @@ def ha_membri_way(elemento: OverpassElement) -> bool:
 
 def query_relation_membri(osm_relation_id: int) -> str:
     """Relation con lista membri (senza geometria dei way)."""
-    return (
-        _INTESTAZIONE.format(timeout=int(CONFIG.timeout_s) - 5)
-        + f"relation({osm_relation_id});"
-        + "out;"
-    )
+    return _INTESTAZIONE.format(timeout=int(CONFIG.timeout_s) - 5) + f"relation({osm_relation_id});" + "out;"
 
 
 def query_geometria(osm_relation_id: int) -> str:
@@ -181,9 +177,7 @@ async def cerca_sentieri(
     testo: str | None = None,
 ) -> list[Sentiero]:
     dati = await esegui(
-        query_sentieri(
-            sud=sud, ovest=ovest, nord=nord, est=est, ref=ref, operatore=operatore, testo=testo
-        )
+        query_sentieri(sud=sud, ovest=ovest, nord=nord, est=est, ref=ref, operatore=operatore, testo=testo)
     )
     return [Sentiero.da_relation(el) for el in dati.get("elements", []) if el.get("type") == "relation"]
 
