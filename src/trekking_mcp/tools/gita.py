@@ -166,7 +166,16 @@ def registra(mcp: MCPServer) -> None:
             str | None,
             Field(description="Zona del bollettino. Se assente viene dedotta dalle coordinate del sentiero."),
         ] = None,
-        con_profilo: Annotated[bool, Field(description="Calcola dislivello e lunghezza reali (piu' lento)")] = True,
+        con_profilo: Annotated[
+            bool,
+            Field(
+                description=(
+                    "Calcola dislivello e lunghezza reali scaricando la geometria completa. "
+                    "Molto piu' lento e soggetto a timeout su Overpass: attivalo solo se il "
+                    "dislivello serve davvero."
+                )
+            ),
+        ] = False,
         quota_riferimento_m: Annotated[int, Field(description="Quota per il meteo", ge=0, le=5000)] = 2000,
     ) -> ValutazioneGita:
         giorno = data or date.today().isoformat()
@@ -188,6 +197,9 @@ def registra(mcp: MCPServer) -> None:
             sentiero = trovato
 
         fonti = [overpass.ATTRIBUZIONE, meteo.ATTRIBUZIONE]
+        # Ogni dato che non si e' riusciti a raccogliere diventa un segnale:
+        # un campo vuoto, da solo, si legge come "niente da segnalare".
+        buchi: list[SegnaleAttenzione] = []
 
         if sentiero.centro is None and punti:
             sentiero = sentiero.model_copy(
@@ -207,6 +219,37 @@ def registra(mcp: MCPServer) -> None:
                 fonti.append(elevation.ATTRIBUZIONE)
             except Exception as exc:
                 await ctx.log("warning", f"profilo altimetrico non calcolato: {exc}")
+                buchi.append(
+                    SegnaleAttenzione(
+                        categoria="dati",
+                        severita="info",
+                        messaggio="Dislivello non calcolato: la fonte di elevazione non ha risposto.",
+                    )
+                )
+        elif con_profilo:
+            buchi.append(
+                SegnaleAttenzione(
+                    categoria="dati",
+                    severita="info",
+                    messaggio=(
+                        "La relation non ha way con geometria utilizzabile: dislivello e "
+                        "lunghezza reali non disponibili."
+                    ),
+                )
+            )
+
+        if sentiero.centro is None:
+            buchi.append(
+                SegnaleAttenzione(
+                    categoria="dati",
+                    severita="attenzione",
+                    messaggio=(
+                        "La relation OSM non ha una posizione utilizzabile: rifugi, zona valanghe e "
+                        "meteo non sono stati raccolti. I campi vuoti non significano che non ci sia "
+                        "nulla. Riprova con con_profilo=true, che ricava il centro dalla geometria."
+                    ),
+                )
+            )
 
         await ctx.report_progress(2, passi, "Cerco rifugi e bivacchi")
         ricoveri = []
@@ -226,6 +269,16 @@ def registra(mcp: MCPServer) -> None:
                 fonti.append(eaws.ATTRIBUZIONE)
             except Exception as exc:
                 await ctx.log("warning", f"zona valanghe non determinata: {exc}")
+                buchi.append(
+                    SegnaleAttenzione(
+                        categoria="valanghe",
+                        severita="attenzione",
+                        messaggio=(
+                            "Zona valanghe non determinata per questo punto: nessun bollettino "
+                            "associato. Consultare il servizio valanghe regionale."
+                        ),
+                    )
+                )
 
         await ctx.report_progress(4, passi, "Leggo il bollettino valanghe")
         bollettino = None
@@ -247,6 +300,7 @@ def registra(mcp: MCPServer) -> None:
             )
 
         segnali = _segnali(sentiero.difficolta_cai, profilo, bollettino, previsioni, sentiero.profilo)
+        segnali.extend(buchi)
         if zona_valanghe and bollettino is None:
             segnali.append(
                 SegnaleAttenzione(

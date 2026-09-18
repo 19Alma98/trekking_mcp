@@ -279,7 +279,7 @@ class MeteoQuota(BaseModel):
 
 
 class SegnaleAttenzione(BaseModel):
-    categoria: str = Field(description="valanghe | meteo | difficolta | logistica")
+    categoria: str = Field(description="valanghe | meteo | difficolta | logistica | dati")
     messaggio: str
     severita: str = Field(description="info | attenzione | critico")
 

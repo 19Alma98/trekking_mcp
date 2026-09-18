@@ -65,7 +65,16 @@ async def test_resource_e_template(mcp):
 
     assert "scala://pericolo-valanghe" in uri
     assert "scala://difficolta-escursionistica" in uri
+    assert "metriche://fonti" in uri
     assert "bollettino://{provider}/{zona_id}" in template
+
+
+async def test_valuta_gita_non_calcola_il_profilo_per_default(mcp):
+    """`out geom` su Overpass e' lento e va in 504: si attiva, non si subisce."""
+    valuta = next(t for t in await mcp.list_tools() if t.name == "valuta_gita")
+    con_profilo = valuta.input_schema["properties"]["con_profilo"]
+
+    assert con_profilo["default"] is False
 
 
 async def test_le_resource_statiche_sono_leggibili(mcp):

@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
@@ -62,6 +63,11 @@ class IndiceRegioni:
     @property
     def caricato(self) -> bool:
         return bool(self._regioni)
+
+    @property
+    def regioni(self) -> Sequence[MicroRegione]:
+        """Le micro-regioni in indice, in sola lettura."""
+        return self._regioni
 
     def _percorso_cache(self, territorio: str) -> Path:
         cartella = Path(CONFIG.cache_dir).expanduser()
@@ -177,4 +183,4 @@ def _vicine(lat: float, lon: float, quante: int = 5) -> list[str]:
         dy = max(sud - lat, 0.0, lat - nord)
         return dx * dx + dy * dy
 
-    return [r.id_zona for r in sorted(INDICE._regioni, key=distanza)[:quante]]
+    return [r.id_zona for r in sorted(INDICE.regioni, key=distanza)[:quante]]
