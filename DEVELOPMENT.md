@@ -267,6 +267,18 @@ finiva nel ciclo di retry con backoff esponenziale, moltiplicato per otto
 territori. Un 4xx diverso da 429 e' definitivo, e riprovare martella una fonte
 che ha gia' risposto chiaramente.
 
+### 3.17.1 `Retry-After` ha un tetto
+
+Rispettare `Retry-After` e' corretto; rispettarlo senza limite no. Il semaforo
+di Overpass e' globale al processo: una richiesta ferma in `sleep` per l'ora
+che la fonte ha chiesto non aspetta da sola, tiene fuori ogni altra query del
+server. E il valore arriva da fuori, quindi non e' un numero di cui fidarsi.
+
+Oltre `RETRY_AFTER_MAX_S` (120s) non si aspetta e non si ritenta: si solleva
+subito `FonteNonDisponibile` riportando quanto la fonte chiedeva. Chi legge
+dall'altra parte sa che deve tornare piu' tardi, e intanto le altre chiamate
+passano.
+
 ### 3.18 Il bind pubblico va dichiarato, non subito
 
 L'SDK attiva la protezione da DNS rebinding (validazione di `Host` e `Origin`)
@@ -307,6 +319,24 @@ metrica.
 `hit_rate` e' `None`, non `0.0`, per le fonti che non usano la cache: zero
 direbbe "cache inefficace", che e' un'altra cosa da "cache non prevista".
 
+### 3.19.1 L'indice EAWS si carica sotto lock
+
+`IndiceRegioni` e' pigro: il primo `cerca` scarica gli otto territori. Il
+controllo «ho gia' questo territorio?» stava pero' prima di un `await`, e
+l'insieme dei territori caricati veniva aggiornato solo dopo.
+
+Sequenzialmente non si vede. Con due tool chiamati insieme — il caso normale,
+non l'eccezione: un agente fa fan-out, e i TODO annotano una sessione in cui
+Cursor ha lanciato tre tool Overpass in parallelo — entrambi passavano il
+controllo, scaricavano lo stesso file e appendevano le stesse micro-regioni.
+L'indice restava con i duplicati per tutta la vita del processo: `zona_da_coordinate`
+se ne accorgeva poco, ma i completamenti proponevano lo stesso ID piu' volte.
+
+Un `asyncio.Lock` attorno a `carica()`, con il controllo ripetuto dentro. Il
+caso comune (indice gia' pronto) non paga il lock, perche' `cerca` controlla
+prima di chiamare. I test stanno in `test_concorrenza.py`: senza lock falliscono
+tre su quattro.
+
 ### 3.20 I completamenti non possono scaricare niente
 
 `completion/complete` serve a completare `zona_id`: `IT-21-AO-01` non si
@@ -339,7 +369,7 @@ mente.
 
 ## 4. Testing
 
-**109 test, nessuno tocca la rete.** Le chiamate HTTP sono intercettate con
+**118 test, nessuno tocca la rete.** Le chiamate HTTP sono intercettate con
 `pytest-httpx2` (respx su httpcore2). Una suite che dipende da Overpass
 fallisce a caso, e una CI che fallisce a caso viene ignorata dopo due settimane.
 
@@ -349,6 +379,8 @@ Tre famiglie:
   degeneri (tag mancanti, `sac_scale` fuori standard, `ele` decimale).
 - `test_fonti.py` — costruzione delle query, escaping, parsing CAAML, retry,
   efficacia della cache.
+- `test_concorrenza.py` — cosa succede quando due tool partono insieme. Un
+  agente non chiama in sequenza: le corse che contano si vedono solo qui.
 - `test_fase2.py` — geometria su poligoni costruiti a mano (dove il risultato
   atteso e' calcolabile a mente: su un poligono reale da 4000 vertici non si sa
   dire se una risposta e' giusta), lookup delle zone, campionamento, dislivelli,

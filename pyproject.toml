@@ -10,6 +10,7 @@ keywords = ["mcp", "model-context-protocol", "hiking", "openstreetmap", "caaml",
 classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: GIS",
 ]
 
@@ -20,12 +21,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# I minimi seguono le major effettivamente in uso (vedi uv.lock), non la prima
+# versione che per caso funzionava. mypy 1.x e ruff 0.6 hanno default diversi
+# da 2.x e 0.16: con i floor vecchi, `pip install -e ".[dev]"` poteva dare
+# esiti diversi da `uv sync --frozen`, che e' quello che gira in CI.
 dev = [
-    "pytest>=8.0",
-    "pytest-asyncio>=0.23",
+    "pytest>=9.0",
+    "pytest-asyncio>=1.4",
     "pytest-httpx2>=1.0",
-    "ruff>=0.6",
-    "mypy>=1.11",
+    "ruff>=0.16",
+    "mypy>=2.3",
 ]
 
 [project.scripts]

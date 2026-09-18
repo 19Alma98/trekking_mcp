@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 import pytest
 
 from trekking_mcp.server import crea_server
+
+README = Path(__file__).resolve().parent.parent / "README.md"
 
 TOOL_ATTESI = {
     "cerca_sentieri",
@@ -121,3 +126,20 @@ async def test_sentieri_verso_localita_espone_raggio_geocode_km(mcp):
     assert "raggio_km" in props
     assert "azione" not in props
     assert "nuovo_raggio_km" not in props
+
+
+def test_il_readme_documenta_tutti_i_tool():
+    """La tabella del README deve elencare esattamente i tool registrati.
+
+    Non e' pedanteria: il tool dimenticato l'ultima volta era
+    `sentieri_verso_localita`, cioe' proprio quello che le `instructions`
+    indicano come ingresso da preferire. Chi legge il README si costruiva
+    un'idea sbagliata del server.
+    """
+    documentati = set(re.findall(r"^\| `([a-z_]+)` \|", README.read_text(encoding="utf-8"), re.MULTILINE))
+    registrati = TOOL_ATTESI
+
+    assert documentati == registrati, (
+        f"non documentati: {sorted(registrati - documentati)}; "
+        f"documentati ma inesistenti: {sorted(documentati - registrati)}"
+    )
