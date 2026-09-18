@@ -17,7 +17,7 @@ Questo codice lo rilegge, non lo interpreta.
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TypedDict, cast
 
 from trekking_mcp.config import CONFIG
@@ -65,9 +65,20 @@ _GRADI = {
 
 
 def _data(valore: str | None) -> datetime:
+    """Istante CAAML, sempre timezone-aware.
+
+    Il profilo EAWS vuole `validTime` con offset esplicito, ma non tutti i
+    provider lo rispettano: un istante senza offset viene letto come UTC, ed
+    e' l'unica assunzione documentabile quando l'informazione manca.
+
+    La normalizzazione non e' cosmesi. Con un fallback naive accanto a istanti
+    aware, `valido_da < valido_fino` sullo stesso modello solleva TypeError:
+    il campo deve essere di un tipo solo.
+    """
     if not valore:
-        return datetime.now()
-    return datetime.fromisoformat(valore.replace("Z", "+00:00"))
+        return datetime.now(UTC)
+    istante = datetime.fromisoformat(valore.replace("Z", "+00:00"))
+    return istante if istante.tzinfo is not None else istante.replace(tzinfo=UTC)
 
 
 def _quota(valore: CaamlElevationBound | None) -> int | None:

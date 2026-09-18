@@ -17,6 +17,13 @@ from trekking_mcp.metriche import METRICHE
 
 log = logging.getLogger(__name__)
 
+# Tetto all'attesa chiesta via `Retry-After`. Oltre questo non e' piu' un
+# retry, e' un blocco: il semaforo di Overpass e' globale al processo, quindi
+# una richiesta ferma in sleep tiene fuori tutte le altre. Meglio fallire
+# subito dicendo quanto chiede la fonte, e lasciare che sia chi chiama a
+# decidere se e quando riprovare.
+RETRY_AFTER_MAX_S = 120.0
+
 
 def secondi_retry_after(risposta: httpx2.Response) -> float | None:
     """Parse di `Retry-After` in secondi. Solo valori numerici (non HTTP-date)."""
@@ -145,10 +152,19 @@ class ClientHttp:
                 return dati
             except (httpx2.HTTPError, ValueError) as exc:
                 ultimo_errore = exc
+                retry_after = None
+                if isinstance(exc, httpx2.HTTPStatusError) and exc.response is not None:
+                    retry_after = secondi_retry_after(exc.response)
+
+                if retry_after is not None and retry_after > RETRY_AFTER_MAX_S:
+                    METRICHE.errore(fonte)
+                    raise FonteNonDisponibile(
+                        fonte=fonte,
+                        dettaglio=f"la fonte chiede di attendere {retry_after:.0f}s, oltre il tetto di "
+                        f"{RETRY_AFTER_MAX_S:.0f}s: non resto in attesa",
+                    ) from exc
+
                 if tentativo < tentativi - 1:
-                    retry_after = None
-                    if isinstance(exc, httpx2.HTTPStatusError) and exc.response is not None:
-                        retry_after = secondi_retry_after(exc.response)
                     attesa = ritardo_retry(tentativo, retry_after)
                     METRICHE.retry(fonte)
                     log.warning(

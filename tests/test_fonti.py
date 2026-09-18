@@ -119,6 +119,39 @@ async def test_caaml_normalizza_i_gradi(httpx2_mock: respx.Router):
     assert b.avvertenza  # l'avvertenza non deve mai essere vuota
 
 
+def test_gli_istanti_del_bollettino_sono_sempre_confrontabili():
+    """Naive e aware nello stesso campo farebbero esplodere ogni confronto."""
+    con_offset = caaml._data("2026-02-01T17:00:00Z")
+    senza_offset = caaml._data("2026-02-01T17:00:00")
+    mancante = caaml._data(None)
+
+    assert con_offset.tzinfo is not None
+    assert senza_offset.tzinfo is not None, "istante senza offset lasciato naive"
+    assert mancante.tzinfo is not None, "fallback naive accanto a istanti aware"
+
+    # Il punto vero: questi confronti non devono sollevare TypeError.
+    assert con_offset == senza_offset
+    assert con_offset < mancante
+
+
+async def test_un_bollettino_senza_validtime_resta_utilizzabile(httpx2_mock: respx.Router):
+    """Manca `validTime`: il modello si costruisce e la validita' si confronta."""
+    senza_validita = {
+        "bulletins": [
+            {
+                "bulletinID": "test-002",
+                "regions": [{"regionID": "IT-21-TO-05", "name": "Valli di Lanzo"}],
+                "dangerRatings": [{"mainValue": "moderate"}],
+            }
+        ]
+    }
+    httpx2_mock.get(url__startswith="https://bollettini.aineva.it").respond(200, json=senza_validita)
+
+    b = await caaml.leggi_bollettino(zona_id="IT-21-TO-05")
+
+    assert b.valido_da <= b.valido_fino
+
+
 async def test_zona_inesistente_suggerisce_le_valide(httpx2_mock: respx.Router):
     httpx2_mock.get(url__startswith="https://bollettini.aineva.it").respond(200, json=CAAML_ESEMPIO)
     with pytest.raises(NonTrovato) as exc:
@@ -172,6 +205,52 @@ async def test_retry_rispetta_retry_after(httpx2_mock: respx.Router, monkeypatch
 
     assert rotta.call_count == 2
     assert attese == [7.0]
+
+
+async def test_un_retry_after_enorme_non_blocca_la_chiamata(httpx2_mock: respx.Router, monkeypatch):
+    """Oltre il tetto non si aspetta: si fallisce subito dicendo quanto chiede la fonte.
+
+    Restare in sleep un'ora terrebbe il semaforo di Overpass e con esso ogni
+    altra query del processo. Meglio un errore leggibile, subito.
+    """
+    attese: list[float] = []
+
+    async def _registra(secondi: float) -> None:
+        attese.append(secondi)
+
+    monkeypatch.setattr("asyncio.sleep", _registra)
+
+    rotta = httpx2_mock.post(url__startswith="https://overpass-api.de").respond(429, headers={"Retry-After": "3600"})
+
+    with pytest.raises(FonteNonDisponibile) as errore:
+        await overpass.cerca_sentieri(sud=45.0, ovest=7.0, nord=45.5, est=7.5)
+
+    assert attese == [], "ha atteso nonostante il Retry-After sopra il tetto"
+    assert rotta.call_count == 1, "ha ritentato invece di fermarsi"
+    assert "3600" in str(errore.value)
+    # Il messaggio deve restare azionabile per chi legge dall'altra parte.
+    assert "riprovare" in errore.value.messaggio_utente()
+
+
+async def test_un_retry_after_sotto_il_tetto_viene_rispettato(httpx2_mock: respx.Router, monkeypatch):
+    """Il tetto non deve rompere il caso normale: 30s < 120s si aspettano."""
+    attese: list[float] = []
+
+    async def _registra(secondi: float) -> None:
+        attese.append(secondi)
+
+    monkeypatch.setattr("asyncio.sleep", _registra)
+    monkeypatch.setattr("trekking_mcp.sources.http.random.uniform", lambda _a, _b: 0.0)
+
+    rotta = httpx2_mock.post(url__startswith="https://overpass-api.de")
+    rotta.side_effect = [
+        respx.MockResponse(429, headers={"Retry-After": "30"}),
+        respx.MockResponse(200, json={"elements": []}),
+    ]
+
+    await overpass.cerca_sentieri(sud=45.0, ovest=7.0, nord=45.5, est=7.5)
+
+    assert attese == [30.0]
 
 
 async def test_retry_aggiunge_jitter_senza_retry_after(httpx2_mock: respx.Router, monkeypatch):
