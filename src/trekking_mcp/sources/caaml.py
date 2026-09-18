@@ -17,10 +17,10 @@ Questo codice lo rilegge, non lo interpreta.
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
-from typing import TypedDict, cast
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, TypedDict, cast
 
-from trekking_mcp.config import CONFIG
+from trekking_mcp.config import Config
 from trekking_mcp.errors import NonTrovato
 from trekking_mcp.models import (
     Bollettino,
@@ -36,21 +36,25 @@ from trekking_mcp.payloads import (
     CaamlResponse,
     CaamlTextBlock,
 )
-from trekking_mcp.sources.http import CLIENT
+
+if TYPE_CHECKING:
+    from trekking_mcp.risorse import Risorse
 
 
 class _Provider(TypedDict):
-    url: Callable[[str], str]
+    url: Callable[[Config, str], str]
     attribuzione: str
 
 
+# L'URL e' funzione del Config, non di un singleton letto alla definizione:
+# cosi' due server con configurazioni diverse non si contendono il modulo.
 PROVIDER: dict[str, _Provider] = {
     "aineva": {
-        "url": lambda lang: f"{CONFIG.aineva_url}/albina_files/latest/{lang}.json",
+        "url": lambda cfg, lang: f"{cfg.aineva_url}/albina_files/latest/{lang}.json",
         "attribuzione": "Bollettino valanghe: AINEVA / servizi valanghe regionali",
     },
     "slf": {
-        "url": lambda lang: f"{CONFIG.slf_url}/{lang}/json",
+        "url": lambda cfg, lang: f"{cfg.slf_url}/{lang}/json",
         "attribuzione": "Bollettino valanghe: WSL-SLF, CC BY 4.0",
     },
 }
@@ -65,9 +69,11 @@ _GRADI = {
 
 
 def _data(valore: str | None) -> datetime:
+    """Istante CAAML, sempre timezone-aware."""
     if not valore:
-        return datetime.now()
-    return datetime.fromisoformat(valore.replace("Z", "+00:00"))
+        return datetime.now(UTC)
+    istante = datetime.fromisoformat(valore.replace("Z", "+00:00"))
+    return istante if istante.tzinfo is not None else istante.replace(tzinfo=UTC)
 
 
 def _quota(valore: CaamlElevationBound | None) -> int | None:
@@ -150,13 +156,18 @@ def normalizza(grezzo: CaamlBulletin, *, zona_id: str, provider: str, url: str) 
     )
 
 
-async def leggi_bollettino(*, zona_id: str, provider: str = "aineva", lingua: str = "it") -> Bollettino:
+async def leggi_bollettino(
+    risorse: Risorse, *, zona_id: str, provider: str = "aineva", lingua: str = "it"
+) -> Bollettino:
     """Scarica il bollettino corrente e ne estrae la zona richiesta."""
     if provider not in PROVIDER:
         raise NonTrovato("provider", provider, list(PROVIDER))
 
-    url = PROVIDER[provider]["url"](lingua)
-    dati = cast(CaamlResponse, await CLIENT.json("GET", url, fonte=provider, ttl_s=CONFIG.ttl_bollettino_s))
+    url = PROVIDER[provider]["url"](risorse.config, lingua)
+    dati = cast(
+        CaamlResponse,
+        await risorse.http.json("GET", url, fonte=provider, ttl_s=risorse.config.ttl_bollettino_s),
+    )
 
     bollettini = dati.get("bulletins") or [f.get("properties") or {} for f in dati.get("features") or []]
 

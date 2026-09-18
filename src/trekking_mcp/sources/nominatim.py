@@ -5,13 +5,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
-from trekking_mcp.config import CONFIG
 from trekking_mcp.models import Coord, Localita
 from trekking_mcp.payloads import NominatimExtratags, NominatimResult
-from trekking_mcp.sources.http import CLIENT
 from trekking_mcp.tools.comuni import distanza_km, riquadro_intorno
+
+if TYPE_CHECKING:
+    from trekking_mcp.risorse import Risorse
 
 log = logging.getLogger(__name__)
 
@@ -53,9 +54,6 @@ class Limitatore:
             self._ultima = time.monotonic()
 
 
-LIMITATORE = Limitatore(CONFIG.nominatim_intervallo_s)
-
-
 def _quota(extratags: NominatimExtratags | None) -> int | None:
     if not extratags:
         return None
@@ -75,6 +73,7 @@ def _viewbox(lat: float, lon: float, raggio_km: float) -> str:
 
 
 async def cerca(
+    risorse: Risorse,
     nome: str,
     *,
     limite: int = 5,
@@ -94,12 +93,12 @@ async def cerca(
         bounded = 0
 
     async def _richiedi(*, solo_montagna_eff: bool, bounded_eff: int) -> list[Localita]:
-        await LIMITATORE.attendi()
-        grezzo = await CLIENT.json(
+        await risorse.nominatim.attendi()
+        grezzo = await risorse.http.json(
             "GET",
-            CONFIG.nominatim_url,
+            risorse.config.nominatim_url,
             fonte="nominatim",
-            ttl_s=CONFIG.ttl_overpass_s,
+            ttl_s=risorse.config.ttl_overpass_s,
             params={
                 "q": nome,
                 "format": "jsonv2",

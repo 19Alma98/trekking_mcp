@@ -11,11 +11,14 @@ from typing import Any
 
 import httpx2
 
-from trekking_mcp.config import CONFIG
+from trekking_mcp.config import Config
 from trekking_mcp.errors import FonteNonDisponibile
-from trekking_mcp.metriche import METRICHE
+from trekking_mcp.metriche import Metriche
 
 log = logging.getLogger(__name__)
+
+# Tetto all'attesa chiesta via `Retry-After`
+RETRY_AFTER_MAX_S = 120.0
 
 
 def secondi_retry_after(risposta: httpx2.Response) -> float | None:
@@ -77,15 +80,17 @@ class CacheTTL:
 class ClientHttp:
     """Wrapper su httpx2 con retry esponenziale e cache opzionale."""
 
-    def __init__(self, cache: CacheTTL | None = None) -> None:
+    def __init__(self, config: Config, metriche: Metriche, cache: CacheTTL | None = None) -> None:
         self._client: httpx2.AsyncClient | None = None
-        self.cache = cache or CacheTTL(CONFIG.cache_max_entry)
+        self.config = config
+        self.metriche = metriche
+        self.cache = cache or CacheTTL(config.cache_max_entry)
 
     async def avvia(self) -> None:
         if self._client is None:
             self._client = httpx2.AsyncClient(
-                timeout=CONFIG.timeout_s,
-                headers={"User-Agent": CONFIG.user_agent, "Accept-Encoding": "gzip"},
+                timeout=self.config.timeout_s,
+                headers={"User-Agent": self.config.user_agent, "Accept-Encoding": "gzip"},
                 follow_redirects=True,
             )
 
@@ -118,25 +123,25 @@ class ClientHttp:
 
         if usa_cache:
             if (cachato := await self.cache.get(chiave)) is not None:
-                METRICHE.cache_hit(fonte)
+                self.metriche.cache_hit(fonte)
                 log.debug("cache hit %s %s", fonte, url)
                 return cachato
-            METRICHE.cache_miss(fonte)
+            self.metriche.cache_miss(fonte)
 
         ultimo_errore: Exception | None = None
-        tentativi = CONFIG.max_retry if max_retry is None else max_retry
+        tentativi = self.config.max_retry if max_retry is None else max_retry
         for tentativo in range(tentativi):
             avvio = time.perf_counter()
             try:
                 risposta = await self._client.request(metodo, url, **kwargs)
-                METRICHE.chiamata(fonte, (time.perf_counter() - avvio) * 1000)
-                METRICHE.stato_http(fonte, risposta.status_code)
+                self.metriche.chiamata(fonte, (time.perf_counter() - avvio) * 1000)
+                self.metriche.stato_http(fonte, risposta.status_code)
                 if risposta.status_code in (429, 502, 503, 504):
                     raise httpx2.HTTPStatusError(
                         f"HTTP {risposta.status_code}", request=risposta.request, response=risposta
                     )
                 if 400 <= risposta.status_code < 500:
-                    METRICHE.errore(fonte)
+                    self.metriche.errore(fonte)
                     raise FonteNonDisponibile(fonte=fonte, dettaglio=f"HTTP {risposta.status_code} (errore definitivo)")
                 risposta.raise_for_status()
                 dati = risposta.json()
@@ -145,12 +150,21 @@ class ClientHttp:
                 return dati
             except (httpx2.HTTPError, ValueError) as exc:
                 ultimo_errore = exc
+                retry_after = None
+                if isinstance(exc, httpx2.HTTPStatusError) and exc.response is not None:
+                    retry_after = secondi_retry_after(exc.response)
+
+                if retry_after is not None and retry_after > RETRY_AFTER_MAX_S:
+                    self.metriche.errore(fonte)
+                    raise FonteNonDisponibile(
+                        fonte=fonte,
+                        dettaglio=f"la fonte chiede di attendere {retry_after:.0f}s, oltre il tetto di "
+                        f"{RETRY_AFTER_MAX_S:.0f}s: non resto in attesa",
+                    ) from exc
+
                 if tentativo < tentativi - 1:
-                    retry_after = None
-                    if isinstance(exc, httpx2.HTTPStatusError) and exc.response is not None:
-                        retry_after = secondi_retry_after(exc.response)
                     attesa = ritardo_retry(tentativo, retry_after)
-                    METRICHE.retry(fonte)
+                    self.metriche.retry(fonte)
                     log.warning(
                         "%s: tentativo %d fallito (%s), riprovo tra %.1fs",
                         fonte,
@@ -160,8 +174,5 @@ class ClientHttp:
                     )
                     await asyncio.sleep(attesa)
 
-        METRICHE.errore(fonte)
+        self.metriche.errore(fonte)
         raise FonteNonDisponibile(fonte=fonte, dettaglio=str(ultimo_errore)) from ultimo_errore
-
-
-CLIENT = ClientHttp()

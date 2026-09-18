@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from mcp.server.elicitation import AcceptedElicitation
 from mcp.server.mcpserver.context import Context
 from pydantic import BaseModel, Field
 
 from trekking_mcp.errors import NonTrovato
 from trekking_mcp.models import Localita
+from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import nominatim
 from trekking_mcp.sources.luoghi_simili import cerca_simili_nel_raggio
 from trekking_mcp.tools.comuni import distanza_km
@@ -13,10 +16,26 @@ from trekking_mcp.tools.comuni import distanza_km
 MAX_ESPANSIONI = 2
 
 
-class SceltaGeocode(BaseModel):
-    """Risposta elicitation: schema piatto (vincolo protocollo)."""
+# Le azioni ammesse sono un insieme chiuso: `cerca_simili_nel_raggio` ne
+# restituisce al massimo MAX_CANDIDATI_SIMILI (3), piu' l'espansione del raggio.
+# `test_elicitation.py` verifica che i due restino allineati.
+AzioneGeocode = Literal["usa_1", "usa_2", "usa_3", "espandi"]
 
-    azione: str = Field(description="usa_1 | usa_2 | usa_3 | espandi")
+
+class SceltaGeocode(BaseModel):
+    """Risposta elicitation: schema piatto (vincolo protocollo).
+
+    `azione` e' un `Literal`, non una stringa con le opzioni scritte nella
+    description: cosi' l'enum finisce nel JSON Schema che il client riceve, e
+    il client puo' mostrare tre bottoni invece di un campo di testo libero.
+
+    Un `StrEnum` qui **non** funzionerebbe: Pydantic lo rende come `$ref` a
+    `$defs`, e l'SDK lo rifiuta perche' non e' una `PrimitiveSchemaDefinition`.
+    Il vincolo del protocollo e' sui campi piatti, e `Literal` e' il modo di
+    avere un enum restando piatti.
+    """
+
+    azione: AzioneGeocode = Field(description="Quale candidato usare, o espandi per allargare il raggio")
     nuovo_raggio_km: int = Field(
         default=50,
         ge=31,
@@ -58,6 +77,7 @@ def messaggio_scelta_geocode(
 
 
 async def risolvi_localita(
+    risorse: Risorse,
     ctx: Context,
     nome: str,
     *,
@@ -69,11 +89,11 @@ async def risolvi_localita(
     raggio = float(raggio_km)
     espansioni = 0
     while True:
-        esatti = await nominatim.cerca(nome, limite=limite, lat=lat, lon=lon, raggio_km=raggio)
+        esatti = await nominatim.cerca(risorse, nome, limite=limite, lat=lat, lon=lon, raggio_km=raggio)
         if esatti:
             return esatti
 
-        simili = await cerca_simili_nel_raggio(nome, lat=lat, lon=lon, raggio_km=raggio)
+        simili = await cerca_simili_nel_raggio(risorse, nome, lat=lat, lon=lon, raggio_km=raggio)
         messaggio = messaggio_scelta_geocode(nome, lat=lat, lon=lon, raggio_km=raggio, simili=simili)
         esito = await ctx.elicit(messaggio, SceltaGeocode)
 
@@ -94,12 +114,10 @@ async def risolvi_localita(
             espansioni += 1
             continue
 
-        if scelta.azione.startswith("usa_") and simili:
-            try:
-                indice = int(scelta.azione.split("_", 1)[1]) - 1
-            except ValueError as exc:
-                raise NonTrovato("localita'", nome) from exc
-            if 0 <= indice < len(simili):
-                return [simili[indice]]
+        # L'enum garantisce la forma "usa_N"; non garantisce che il candidato
+        # N-esimo esista, perche' i simili trovati possono essere meno di tre.
+        indice = int(scelta.azione.removeprefix("usa_")) - 1
+        if 0 <= indice < len(simili):
+            return [simili[indice]]
 
         raise NonTrovato("localita'", nome)

@@ -10,14 +10,15 @@ Non e' un wrapper 1:1 su una API. Copre i tre primitivi del protocollo e un paio
 
 | | |
 |---|---|
-| **Tools** | 9 tool, uno dei quali compone sei fonti diverse in un unico risultato |
+| **Tools** | 10 tool, due dei quali compongono piu' fonti in un unico risultato |
 | **Resources** | Documenti di riferimento statici + una resource template con URI parametrico |
 | **Prompts** | Workflow riutilizzabili che fissano il metodo, non solo il tono |
-| **Elicitation** | Il server chiede dati all'utente *a meta' chiamata*, via dependency injection |
+| **Elicitation** | Il server chiede dati all'utente *a meta' chiamata*, via dependency injection, con le scelte come `enum` nello schema |
 | **Completions** | Autocompletamento degli ID di zona valanghe, con il provider gia' scelto a restringere |
 | **Structured output** | Ogni tool ha un `outputSchema` derivato dai modelli Pydantic |
 | **Dual transport** | stdio e Streamable HTTP dallo stesso `crea_server()` |
 | **Osservabilita'** | Latenza p50/p95, 429 e hit rate per fonte, esposti come resource |
+| **Cache hints** | Ogni risposta dichiara per quanto vale (`ttlMs`/`cacheScope`), resource per resource |
 | **Client incluso** | Un client MCP minimale, per dimostrare di conoscere entrambi i lati |
 | **Geometria** | Point-in-polygon e profili altimetrici in Python puro, senza dipendenze binarie |
 
@@ -65,6 +66,7 @@ quando non serve. Vedi [DEVELOPMENT.md](DEVELOPMENT.md) §3.18.
 |---|---|
 | `cerca_localita` | Da un toponimo alle coordinate: rifugi, cime, valichi, paesi |
 | `cerca_sentieri` | Sentieri numerati in un raggio, filtrabili per numero, ente e difficolta' massima |
+| `sentieri_verso_localita` | Geocoding + sentieri + rifugi in una chiamata: l'ingresso da preferire quando il punto e' un nome |
 | `dettaglio_sentiero` | Dati completi di una relation OSM |
 | `profilo_altimetrico` | Lunghezza reale e dislivello, campionando le quote sul tracciato |
 | `cerca_ricoveri` | Rifugi gestiti, bivacchi e ripari entro un raggio |
@@ -73,9 +75,11 @@ quando non serve. Vedi [DEVELOPMENT.md](DEVELOPMENT.md) §3.18.
 | `meteo_quota` | Previsione oraria corretta per l'elevazione, con zero termico e raffiche |
 | `valuta_gita` | Compone tutto quanto sopra per un sentiero e una data |
 
-Il flusso tipico non richiede che l'utente conosca un solo codice: `cerca_localita`
-per trovare il punto, `cerca_sentieri` per i percorsi attorno, `valuta_gita` per il
-resto. La zona del bollettino viene dedotta dalle coordinate.
+Il flusso tipico non richiede che l'utente conosca un solo codice. Quando il punto
+di arrivo e' un nome, `sentieri_verso_localita` fa da solo geocoding, ricerca sentieri
+e rifugi: e' l'ingresso che le `instructions` del server indicano per primo, al posto
+della catena `cerca_localita` + `cerca_sentieri`. Da li', `valuta_gita` per il resto.
+La zona del bollettino viene dedotta dalle coordinate.
 
 Le resource sono `scala://pericolo-valanghe`, `scala://difficolta-escursionistica`,
 `metriche://fonti` (latenza, errori e hit rate per fonte) e la template
@@ -108,11 +112,16 @@ I sentieri numerati CAI sono mappati **dalla community OSM**: questo progetto no
 ## Sviluppo
 
 ```bash
-pytest              # test
-ruff check .        # lint
-mypy                # type check
-python client/ispeziona.py     # client MCP minimale: elenca tool e resource
+uv run pytest              # test
+uv run ruff check .        # lint
+uv run ruff format --check .
+uv run mypy                # type check
+uv run python client/ispeziona.py   # client MCP minimale: elenca tool e resource
 ```
+
+Sono gli stessi comandi che gira la CI, sulla stessa risoluzione: `uv.lock` e'
+versionato e la CI installa con `uv sync --frozen`, quindi le versioni degli
+strumenti sono identiche a quelle locali.
 
 Architettura, decisioni di progetto e roadmap: [DEVELOPMENT.md](DEVELOPMENT.md).
 

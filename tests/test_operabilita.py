@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 
 import httpx
@@ -12,19 +10,9 @@ from trekking_mcp import completamenti
 from trekking_mcp.__main__ import impostazioni_sicurezza, main
 from trekking_mcp.errors import FonteNonDisponibile
 from trekking_mcp.geo import Riquadro
-from trekking_mcp.metriche import METRICHE, Metriche, _percentile
+from trekking_mcp.metriche import Metriche, _percentile
 from trekking_mcp.server import crea_server
 from trekking_mcp.sources import eaws
-from trekking_mcp.sources.http import CLIENT
-
-
-@pytest.fixture(autouse=True)
-async def _stato_pulito():
-    await CLIENT.cache.svuota()
-    METRICHE.azzera()
-    yield
-    await CLIENT.cache.svuota()
-    METRICHE.azzera()
 
 
 async def _no_sleep(_: float) -> None:
@@ -96,7 +84,7 @@ def test_la_finestra_delle_latenze_non_cresce():
     assert m.istantanea().fonti["meteo"].chiamate == 1000
 
 
-async def test_il_client_http_registra_429_retry_e_cache(httpx2_mock: respx.Router, monkeypatch):
+async def test_il_client_http_registra_429_retry_e_cache(httpx2_mock: respx.Router, monkeypatch, risorse):
     monkeypatch.setattr("asyncio.sleep", _no_sleep)
     httpx2_mock.get(url__startswith="https://esempio.test").mock(
         side_effect=[
@@ -105,10 +93,10 @@ async def test_il_client_http_registra_429_retry_e_cache(httpx2_mock: respx.Rout
         ]
     )
 
-    await CLIENT.json("GET", "https://esempio.test/x", fonte="prova", ttl_s=60)
-    await CLIENT.json("GET", "https://esempio.test/x", fonte="prova", ttl_s=60)  # dalla cache
+    await risorse.http.json("GET", "https://esempio.test/x", fonte="prova", ttl_s=60)
+    await risorse.http.json("GET", "https://esempio.test/x", fonte="prova", ttl_s=60)  # dalla cache
 
-    fonte = METRICHE.istantanea().fonti["prova"]
+    fonte = risorse.metriche.istantanea().fonti["prova"]
     assert fonte.chiamate == 2  # il 429 e' comunque una richiesta uscita
     assert fonte.rate_limit == 1
     assert fonte.retry == 1
@@ -117,20 +105,20 @@ async def test_il_client_http_registra_429_retry_e_cache(httpx2_mock: respx.Rout
     assert fonte.cache_miss == 1
 
 
-async def test_un_4xx_definitivo_conta_come_errore_e_non_come_retry(httpx2_mock: respx.Router):
+async def test_un_4xx_definitivo_conta_come_errore_e_non_come_retry(httpx2_mock: respx.Router, risorse):
     httpx2_mock.get(url__startswith="https://esempio.test").respond(404)
 
     with pytest.raises(FonteNonDisponibile):
-        await CLIENT.json("GET", "https://esempio.test/x", fonte="prova", ttl_s=None)
+        await risorse.http.json("GET", "https://esempio.test/x", fonte="prova", ttl_s=None)
 
-    fonte = METRICHE.istantanea().fonti["prova"]
+    fonte = risorse.metriche.istantanea().fonti["prova"]
     assert fonte.errori == 1
     assert fonte.retry == 0
 
 
-async def test_la_resource_metriche_e_leggibile():
-    METRICHE.chiamata("overpass", 42.0)
-    async with Client(crea_server()) as client:
+async def test_la_resource_metriche_e_leggibile(risorse):
+    risorse.metriche.chiamata("overpass", 42.0)
+    async with Client(crea_server(risorse=risorse)) as client:
         esito = await client.read_resource("metriche://fonti")
     dati = json.loads(esito.contents[0].text or "{}")
     assert dati["fonti"]["overpass"]["chiamate"] == 1
@@ -143,28 +131,25 @@ def _micro_regione(id_zona: str) -> eaws.MicroRegione:
 
 
 @pytest.fixture
-def indice_finto(monkeypatch):
-    indice = eaws.IndiceRegioni()
+def risorse_con_zone(risorse):
     for id_zona in ("IT-21-AO-01", "IT-21-AO-02", "IT-25-SO-01", "CH-7121"):
-        indice._regioni.append(_micro_regione(id_zona))
-    monkeypatch.setattr(eaws, "INDICE", indice)
-    return indice
+        risorse.eaws._regioni.append(_micro_regione(id_zona))
+    return risorse
 
 
-def test_zone_note_filtrate_per_provider(indice_finto):
-    assert completamenti.zone_note("aineva") == ["IT-21-AO-01", "IT-21-AO-02", "IT-25-SO-01"]
-    assert completamenti.zone_note("slf") == ["CH-7121"]
-    assert len(completamenti.zone_note()) == 4
+def test_zone_note_filtrate_per_provider(risorse_con_zone):
+    assert completamenti.zone_note(risorse_con_zone, "aineva") == ["IT-21-AO-01", "IT-21-AO-02", "IT-25-SO-01"]
+    assert completamenti.zone_note(risorse_con_zone, "slf") == ["CH-7121"]
+    assert len(completamenti.zone_note(risorse_con_zone)) == 4
 
 
-def test_zone_note_non_scarica_nulla(httpx2_mock: respx.Router, monkeypatch):
-    monkeypatch.setattr(eaws, "INDICE", eaws.IndiceRegioni())
-    assert completamenti.zone_note() == []
+def test_zone_note_non_scarica_nulla(httpx2_mock: respx.Router, risorse):
+    assert completamenti.zone_note(risorse) == []
     assert not httpx2_mock.calls
 
 
-async def test_completa_zona_id_della_resource_template(indice_finto):
-    async with Client(crea_server()) as client:
+async def test_completa_zona_id_della_resource_template(risorse_con_zone, risorse):
+    async with Client(crea_server(risorse=risorse_con_zone)) as client:
         esito = await client.complete(
             ResourceTemplateReference(uri="bollettino://{provider}/{zona_id}"),
             {"name": "zona_id", "value": "IT-21"},
@@ -173,8 +158,8 @@ async def test_completa_zona_id_della_resource_template(indice_finto):
     assert esito.completion.total == 2
 
 
-async def test_il_provider_gia_scelto_restringe_le_zone(indice_finto):
-    async with Client(crea_server()) as client:
+async def test_il_provider_gia_scelto_restringe_le_zone(risorse_con_zone, risorse):
+    async with Client(crea_server(risorse=risorse_con_zone)) as client:
         esito = await client.complete(
             ResourceTemplateReference(uri="bollettino://{provider}/{zona_id}"),
             {"name": "zona_id", "value": ""},
@@ -183,8 +168,8 @@ async def test_il_provider_gia_scelto_restringe_le_zone(indice_finto):
     assert esito.completion.values == ["CH-7121"]
 
 
-async def test_completa_il_provider():
-    async with Client(crea_server()) as client:
+async def test_completa_il_provider(risorse_con_zone):
+    async with Client(crea_server(risorse=risorse_con_zone)) as client:
         esito = await client.complete(
             ResourceTemplateReference(uri="bollettino://{provider}/{zona_id}"),
             {"name": "provider", "value": "a"},
@@ -192,8 +177,8 @@ async def test_completa_il_provider():
     assert esito.completion.values == ["aineva"]
 
 
-async def test_completa_l_argomento_del_prompt(indice_finto):
-    async with Client(crea_server()) as client:
+async def test_completa_l_argomento_del_prompt(risorse_con_zone, risorse):
+    async with Client(crea_server(risorse=risorse_con_zone)) as client:
         esito = await client.complete(
             PromptReference(name="spiega_bollettino"),
             {"name": "zona_id", "value": "CH"},
@@ -201,8 +186,8 @@ async def test_completa_l_argomento_del_prompt(indice_finto):
     assert esito.completion.values == ["CH-7121"]
 
 
-async def test_nessun_completamento_per_riferimenti_sconosciuti():
-    async with Client(crea_server()) as client:
+async def test_nessun_completamento_per_riferimenti_sconosciuti(risorse_con_zone):
+    async with Client(crea_server(risorse=risorse_con_zone)) as client:
         esito = await client.complete(
             PromptReference(name="prepara_gita"),
             {"name": "sentiero", "value": "1"},

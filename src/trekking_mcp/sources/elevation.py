@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import logging
 from itertools import pairwise
+from typing import TYPE_CHECKING
 
-from trekking_mcp.config import CONFIG
 from trekking_mcp.models import Coord, ProfiloAltimetrico, PuntoQuotato
-from trekking_mcp.sources.http import CLIENT
 from trekking_mcp.tools.comuni import distanza_km
+
+if TYPE_CHECKING:
+    from trekking_mcp.risorse import Risorse
 
 log = logging.getLogger(__name__)
 
@@ -47,7 +49,7 @@ def campiona(punti: list[Coord], passo_m: float = 100.0, massimo: int = 100) -> 
     return scelti
 
 
-async def quote(punti: list[Coord]) -> list[float | None]:
+async def quote(risorse: Risorse, punti: list[Coord]) -> list[float | None]:
     """Quota del terreno per ogni punto, nell'ordine dato."""
     if not punti:
         return []
@@ -55,11 +57,11 @@ async def quote(punti: list[Coord]) -> list[float | None]:
     risultato: list[float | None] = []
     for inizio in range(0, len(punti), PUNTI_PER_RICHIESTA):
         blocco = punti[inizio : inizio + PUNTI_PER_RICHIESTA]
-        dati = await CLIENT.json(
+        dati = await risorse.http.json(
             "GET",
-            CONFIG.elevazione_url,
+            risorse.config.elevazione_url,
             fonte="open-meteo-elevation",
-            ttl_s=CONFIG.ttl_elevazione_s,
+            ttl_s=risorse.config.ttl_elevazione_s,
             params={
                 "latitude": ",".join(f"{p.lat:.5f}" for p in blocco),
                 "longitude": ",".join(f"{p.lon:.5f}" for p in blocco),
@@ -95,10 +97,10 @@ def _dislivelli(quote_m: list[float], soglia_m: float = 5.0) -> tuple[int, int]:
     return round(salita), round(discesa)
 
 
-async def profilo(punti: list[Coord], *, passo_m: float = 100.0) -> ProfiloAltimetrico:
+async def profilo(risorse: Risorse, punti: list[Coord], *, passo_m: float = 100.0) -> ProfiloAltimetrico:
     """Profilo altimetrico di una polilinea."""
     campionati = campiona(punti, passo_m=passo_m)
-    elevazioni = await quote(campionati)
+    elevazioni = await quote(risorse, campionati)
 
     quotati = [
         PuntoQuotato(coord=coord, quota_m=quota)

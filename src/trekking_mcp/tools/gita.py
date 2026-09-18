@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import logging
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.context import Context
 from mcp.server.mcpserver.resolve import Elicit, Resolve
-from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field
 
 from trekking_mcp.errors import NonTrovato
@@ -22,8 +22,17 @@ from trekking_mcp.models import (
     ValutazioneGita,
     ZonaValanghe,
 )
+from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import caaml, eaws, elevation, meteo, overpass
-from trekking_mcp.tools.comuni import distanza_km, gestisci_errori
+from trekking_mcp.tools.comuni import distanza_km, extended_tool
+
+log = logging.getLogger(__name__)
+
+
+# I quattro gradi CAI dichiarabili: `DifficoltaCAI` meno SCONOSCIUTA, che non e'
+# una risposta che un utente possa dare. `test_elicitation.py` tiene allineati
+# i due elenchi.
+DifficoltaDichiarata = Literal["T", "E", "EE", "EEA"]
 
 
 class ProfiloUscita(BaseModel):
@@ -31,9 +40,15 @@ class ProfiloUscita(BaseModel):
 
     Lo schema di elicitation ammette solo campi primitivi e piatti: niente
     oggetti annidati. E' un vincolo del protocollo, non una scelta di stile.
+
+    `difficolta_max` e' un `Literal` e non una stringa libera: i quattro valori
+    ammessi arrivano al client come `enum` nel JSON Schema, quindi la scelta si
+    presenta come tale e una risposta fuori scala viene respinta dalla
+    validazione invece di arrivare fino a `_segnali`. Un `StrEnum` non andrebbe
+    bene: Pydantic lo rende come `$ref`, che l'SDK rifiuta.
     """
 
-    difficolta_max: str = Field(
+    difficolta_max: DifficoltaDichiarata = Field(
         description="Difficolta' massima che ti senti di affrontare: T, E, EE o EEA",
         default="E",
     )
@@ -76,11 +91,7 @@ def _segnali(
                 messaggio="Difficolta' non mappata in OSM: verificare su una guida o carta prima di partire.",
             )
         )
-    elif (
-        profilo.difficolta_max in [d.value for d in ordine]
-        and difficolta in ordine
-        and ordine.index(difficolta) > ordine.index(DifficoltaCAI(profilo.difficolta_max))
-    ):
+    elif difficolta in ordine and ordine.index(difficolta) > ordine.index(DifficoltaCAI(profilo.difficolta_max)):
         segnali.append(
             SegnaleAttenzione(
                 categoria="difficolta",
@@ -144,8 +155,9 @@ def _segnali(
     return segnali
 
 
-def registra(mcp: MCPServer) -> None:
-    @mcp.tool(
+def registra(mcp: MCPServer, risorse: Risorse) -> None:
+    @extended_tool(
+        mcp,
         name="valuta_gita",
         title="Raccogli le condizioni per una gita",
         description=(
@@ -154,9 +166,7 @@ def registra(mcp: MCPServer) -> None:
             "Restituisce fatti normalizzati e segnali di attenzione, NON un verdetto "
             "vai/non-vai: la decisione resta a chi va in montagna."
         ),
-        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
-    @gestisci_errori
     async def valuta_gita(
         ctx: Context,
         osm_relation_id: Annotated[int, Field(description="Relation OSM del sentiero", gt=0)],
@@ -186,12 +196,12 @@ def registra(mcp: MCPServer) -> None:
         punti: list[Coord] = []
         sentiero: Sentiero
         if con_profilo:
-            esito = await overpass.leggi_geometria(osm_relation_id)
+            esito = await overpass.leggi_geometria(risorse, osm_relation_id)
             if esito is None:
                 raise NonTrovato("sentiero", str(osm_relation_id))
             sentiero, punti = esito
         else:
-            trovato = await overpass.leggi_sentiero(osm_relation_id)
+            trovato = await overpass.leggi_sentiero(risorse, osm_relation_id)
             if trovato is None:
                 raise NonTrovato("sentiero", str(osm_relation_id))
             sentiero = trovato
@@ -214,11 +224,11 @@ def registra(mcp: MCPServer) -> None:
         if con_profilo and len(punti) >= 2:
             await ctx.report_progress(1, passi, "Calcolo il dislivello")
             try:
-                profilo_alt = await elevation.profilo(punti)
+                profilo_alt = await elevation.profilo(risorse, punti)
                 sentiero = sentiero.model_copy(update={"profilo": profilo_alt})
                 fonti.append(elevation.ATTRIBUZIONE)
             except Exception as exc:
-                await ctx.log("warning", f"profilo altimetrico non calcolato: {exc}")
+                log.warning("profilo altimetrico non calcolato: %s", exc)
                 buchi.append(
                     SegnaleAttenzione(
                         categoria="dati",
@@ -255,7 +265,7 @@ def registra(mcp: MCPServer) -> None:
         ricoveri = []
         centro = sentiero.centro
         if centro is not None:
-            ricoveri = await overpass.cerca_ricoveri(lat=centro.lat, lon=centro.lon, raggio_m=5000)
+            ricoveri = await overpass.cerca_ricoveri(risorse, lat=centro.lat, lon=centro.lon, raggio_m=5000)
             ricoveri.sort(key=lambda r: distanza_km(centro.lat, centro.lon, r.coord.lat, r.coord.lon))
             ricoveri = ricoveri[:10]
 
@@ -263,12 +273,12 @@ def registra(mcp: MCPServer) -> None:
         zona: ZonaValanghe | None = None
         if zona_valanghe is None and sentiero.centro:
             try:
-                regione = await eaws.zona_da_coordinate(sentiero.centro.lat, sentiero.centro.lon)
+                regione = await eaws.zona_da_coordinate(risorse.eaws, sentiero.centro.lat, sentiero.centro.lon)
                 zona_valanghe = regione.id_zona
                 zona = ZonaValanghe(id_zona=regione.id_zona, nome=regione.nome, coord_richiesta=sentiero.centro)
                 fonti.append(eaws.ATTRIBUZIONE)
             except Exception as exc:
-                await ctx.log("warning", f"zona valanghe non determinata: {exc}")
+                log.warning("zona valanghe non determinata: %s", exc)
                 buchi.append(
                     SegnaleAttenzione(
                         categoria="valanghe",
@@ -284,15 +294,16 @@ def registra(mcp: MCPServer) -> None:
         bollettino = None
         if zona_valanghe:
             try:
-                bollettino = await caaml.leggi_bollettino(zona_id=zona_valanghe)
+                bollettino = await caaml.leggi_bollettino(risorse, zona_id=zona_valanghe)
                 fonti.append(caaml.PROVIDER["aineva"]["attribuzione"])
             except Exception as exc:
-                await ctx.log("warning", f"bollettino non disponibile: {exc}")
+                log.warning("bollettino non disponibile: %s", exc)
 
         await ctx.report_progress(5, passi, "Scarico il meteo")
         previsioni: list[MeteoQuota] = []
         if sentiero.centro:
             previsioni = await meteo.previsione(
+                risorse,
                 lat=sentiero.centro.lat,
                 lon=sentiero.centro.lon,
                 quota_m=quota_riferimento_m,

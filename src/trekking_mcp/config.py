@@ -9,6 +9,8 @@ UA_DEFAULT = "trekking-mcp/0.1 (+https://github.com/19Alma98/trekking_mcp)"
 
 @dataclass(frozen=True)
 class Config:
+    """Configurazione del server, letta dall'ambiente al momento dell'istanza."""
+
     overpass_url: str = field(
         default_factory=lambda: os.getenv("OVERPASS_URL", "https://overpass-api.de/api/interpreter")
     )
@@ -42,6 +44,3 @@ class Config:
     overpass_concurrency: int = field(default_factory=lambda: int(os.getenv("OVERPASS_CONCURRENCY", "1")))
 
     cache_max_entry: int = field(default_factory=lambda: int(os.getenv("CACHE_MAX_ENTRY", "512")))
-
-
-CONFIG = Config()

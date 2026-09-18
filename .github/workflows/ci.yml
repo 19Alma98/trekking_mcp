@@ -20,27 +20,31 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Installa le dipendenze
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+      - name: Installa uv
+        run: python -m pip install --upgrade uv
+
+      - name: Verifica che il lock sia allineato a pyproject.toml
+        run: uv lock --check
+
+      - name: Installa le dipendenze dal lock
+        run: uv sync --frozen --extra dev --python "${{ matrix.python-version }}"
 
       - name: Lint
-        run: ruff check .
+        run: uv run ruff check .
 
       - name: Formattazione
-        run: ruff format --check .
+        run: uv run ruff format --check .
 
       - name: Type check
-        run: mypy
+        run: uv run mypy
 
       - name: Test
-        run: pytest -v
+        run: uv run pytest -v
 
       # I test non toccano la rete: se questo step fallisce, e' perche'
       # qualcuno ha introdotto una chiamata HTTP reale in un test.
       - name: Verifica che i test siano offline
-        run: pytest -v
+        run: uv run pytest -v
         env:
           HTTP_PROXY: http://127.0.0.1:9
           HTTPS_PROXY: http://127.0.0.1:9

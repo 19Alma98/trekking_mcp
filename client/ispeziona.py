@@ -31,14 +31,30 @@ async def rispondi_elicitation(context: ClientRequestContext, params: ElicitRequ
     return ElicitResult(action="accept", content=contenuto)
 
 
+def _freschezza(esito: object) -> str:
+    """Come il server dice al client per quanto vale questa risposta (SEP-2549)."""
+    ttl = getattr(esito, "ttl_ms", None)
+    scope = getattr(esito, "cache_scope", None)
+    if ttl is None:
+        return ""
+    if ttl == 0:
+        return f"  [non cacheabile, {scope}]"
+    return f"  [valido {ttl // 1000}s, {scope}]"
+
+
 async def ispeziona(client: Client) -> None:
     print(f"Server: {client.server_info.name} v{client.server_info.version}")
+    if client.server_info.website_url:
+        print(f"Sito: {client.server_info.website_url}")
+    if client.server_info.icons:
+        print(f"Icone: {len(client.server_info.icons)}")
     if client.instructions:
         prima_riga = client.instructions.strip().splitlines()[0]
         print(f"Istruzioni: {prima_riga}")
 
-    print("\n--- TOOL ---")
-    for t in (await client.list_tools()).tools:
+    elenco_tool = await client.list_tools()
+    print(f"\n--- TOOL ---{_freschezza(elenco_tool)}")
+    for t in elenco_tool.tools:
         argomenti = ", ".join((t.input_schema or {}).get("properties", {}))
         strutturato = "si" if t.output_schema else "no"
         print(f"  {t.name}({argomenti})")
@@ -61,8 +77,12 @@ async def prova_lettura(client: Client) -> None:
     print("\n--- LETTURA RESOURCE ---")
     esito = await client.read_resource("scala://difficolta-escursionistica")
     testo = esito.contents[0].text or ""
-    print(f"  scala://difficolta-escursionistica -> {len(testo)} caratteri")
+    print(f"  scala://difficolta-escursionistica -> {len(testo)} caratteri{_freschezza(esito)}")
     print("  " + testo.strip().splitlines()[0])
+
+    # Stessa richiesta, freschezza opposta: i contatori valgono solo adesso.
+    metriche = await client.read_resource("metriche://fonti")
+    print(f"  metriche://fonti -> {len(metriche.contents[0].text or '')} caratteri{_freschezza(metriche)}")
 
 
 async def main(argv: list[str] | None = None) -> int:

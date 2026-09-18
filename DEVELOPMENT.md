@@ -40,6 +40,8 @@ src/trekking_mcp/
 ├── models.py            # Pydantic: il contratto dati verso il client
 ├── errors.py            # errori previsti vs. bug
 ├── config.py            # configurazione da env, frozen
+├── risorse.py           # il contenitore delle dipendenze condivise
+├── cache.py             # ttlMs/cacheScope: la freschezza dichiarata al client
 ├── geo.py               # point-in-polygon, senza dipendenze binarie
 ├── metriche.py          # contatori per fonte, in memoria
 ├── resources.py         # documenti di riferimento + resource template + metriche
@@ -55,7 +57,7 @@ src/trekking_mcp/
 │   ├── luoghi_simili.py # candidati simili nel raggio (Overpass + SequenceMatcher)
 │   └── meteo.py         # Open-Meteo
 └── tools/               # la superficie MCP
-    ├── comuni.py        # decoratore errori, geometria
+    ├── comuni.py        # extended_tool(): registrazione + errori; geometria
     ├── sentieri.py      # ricerca e dettaglio
     ├── condizioni.py    # bollettino, meteo
     ├── geocode_risolvi.py  # risolvi_localita + elicitation mid-call (SceltaGeocode)
@@ -67,9 +69,16 @@ MCP: restituiscono modelli, non risposte di protocollo. Questo rende il layer
 `sources/` testabile senza alcuna infrastruttura MCP e riusabile se un giorno
 serve una CLI o un'API REST sopra gli stessi dati.
 
-**La registrazione e' esplicita.** Ogni modulo di tool espone `registra(mcp)` e
-`crea_server()` li chiama in ordine. Niente autodiscovery: si legge da un punto
-solo cosa espone il server, e l'ordine e' deterministico.
+**La registrazione e' esplicita.** Ogni modulo di tool espone
+`registra(mcp, risorse)` e `crea_server()` li chiama in ordine. Niente
+autodiscovery: si legge da un punto solo cosa espone il server, e l'ordine e'
+deterministico.
+
+**Le dipendenze scendono, non si cercano.** `Risorse` (config, client HTTP,
+metriche, indice EAWS, i due limitatori) si costruisce una volta in
+`crea_server()` e si passa a ogni `registra()`; da li' scende nelle funzioni
+delle fonti come primo argomento. Nessun modulo va a prendersi da solo quello
+che gli serve. Vedi §3.22.
 
 ---
 
@@ -179,12 +188,40 @@ fresca ≥ 5 cm). Nessuna euristica opaca, nessun modello. Sono righe che si
 leggono, si discutono e si testano. In un dominio di sicurezza e' l'unica scelta
 difendibile: se una soglia e' sbagliata, si vede e si corregge.
 
-### 3.9 Log su stderr
+### 3.9 Log su stderr, non verso il client
 
 Su stdio **stdout e' il canale del protocollo**. Un singolo `print()` corrompe
 la sessione. `logging.basicConfig(stream=sys.stderr)` in `__main__.py` non e'
 una preferenza: e' l'errore piu' comune al primo server MCP ed e' il motivo per
 cui il codice non contiene un solo `print`.
+
+Il server non manda log nemmeno al client. La *logging capability* del
+protocollo — `ctx.log()` e i suoi alias — e' deprecata dalla revisione
+2026-07-28 (SEP-2577), insieme a sampling e roots. `ctx.report_progress` no:
+il progresso server -> client resta, ed e' quello che usano
+`profilo_altimetrico` e `valuta_gita`.
+
+I cinque `ctx.log` che c'erano non hanno perso niente nel passaggio a stderr,
+e il motivo dice qualcosa sul disegno:
+
+- I tre `warning` di `valuta_gita` (profilo, zona, bollettino non recuperati)
+  erano gia' accompagnati, ognuno, da un `SegnaleAttenzione` nell'output
+  strutturato. Il modello li vedeva li', dove non puo' non vederli; la notifica
+  di log era una copia peggiore. Il dettaglio dell'eccezione, che al modello
+  non serve, ora va a chi opera il server.
+- I due `info` (`cerca_sentieri`, `zona_valanghe_da_coordinate`) narravano
+  un'operazione a un passo solo. Non c'era progresso da riportare: inventare
+  un `report_progress` con un passo su uno sarebbe stato rumore.
+
+La regola generale e' quella di §3.7: cio' che il modello deve sapere sta nel
+risultato, non in un canale laterale che il client puo' ignorare.
+
+**La deprecazione e' una build rotta, non una riga di warning.**
+`filterwarnings = ["error::mcp.shared.exceptions.MCPDeprecationWarning"]` in
+`pyproject.toml` fa fallire i test su qualunque API deprecata dell'SDK. Un
+warning nell'output dei test non lo legge nessuno; e' cosi' che ci si accorge
+di una revisione del protocollo quando il supporto viene rimosso, invece che
+quando esce.
 
 ### 3.10 Nessuna API key
 
@@ -267,6 +304,18 @@ finiva nel ciclo di retry con backoff esponenziale, moltiplicato per otto
 territori. Un 4xx diverso da 429 e' definitivo, e riprovare martella una fonte
 che ha gia' risposto chiaramente.
 
+### 3.17.1 `Retry-After` ha un tetto
+
+Rispettare `Retry-After` e' corretto; rispettarlo senza limite no. Il semaforo
+di Overpass e' globale al processo: una richiesta ferma in `sleep` per l'ora
+che la fonte ha chiesto non aspetta da sola, tiene fuori ogni altra query del
+server. E il valore arriva da fuori, quindi non e' un numero di cui fidarsi.
+
+Oltre `RETRY_AFTER_MAX_S` (120s) non si aspetta e non si ritenta: si solleva
+subito `FonteNonDisponibile` riportando quanto la fonte chiedeva. Chi legge
+dall'altra parte sa che deve tornare piu' tardi, e intanto le altre chiamate
+passano.
+
 ### 3.18 Il bind pubblico va dichiarato, non subito
 
 L'SDK attiva la protezione da DNS rebinding (validazione di `Host` e `Origin`)
@@ -307,6 +356,24 @@ metrica.
 `hit_rate` e' `None`, non `0.0`, per le fonti che non usano la cache: zero
 direbbe "cache inefficace", che e' un'altra cosa da "cache non prevista".
 
+### 3.19.1 L'indice EAWS si carica sotto lock
+
+`IndiceRegioni` e' pigro: il primo `cerca` scarica gli otto territori. Il
+controllo «ho gia' questo territorio?» stava pero' prima di un `await`, e
+l'insieme dei territori caricati veniva aggiornato solo dopo.
+
+Sequenzialmente non si vede. Con due tool chiamati insieme — il caso normale,
+non l'eccezione: un agente fa fan-out, e i TODO annotano una sessione in cui
+Cursor ha lanciato tre tool Overpass in parallelo — entrambi passavano il
+controllo, scaricavano lo stesso file e appendevano le stesse micro-regioni.
+L'indice restava con i duplicati per tutta la vita del processo: `zona_da_coordinate`
+se ne accorgeva poco, ma i completamenti proponevano lo stesso ID piu' volte.
+
+Un `asyncio.Lock` attorno a `carica()`, con il controllo ripetuto dentro. Il
+caso comune (indice gia' pronto) non paga il lock, perche' `cerca` controlla
+prima di chiamare. I test stanno in `test_concorrenza.py`: senza lock falliscono
+tre su quattro.
+
 ### 3.20 I completamenti non possono scaricare niente
 
 `completion/complete` serve a completare `zona_id`: `IT-21-AO-01` non si
@@ -335,11 +402,109 @@ Ogni dato non raccolto e' ora un `SegnaleAttenzione` di categoria `dati`. E'
 la regola di §3.7 applicata anche al caso banale: un campo vuoto, da solo,
 mente.
 
+### 3.22 Le dipendenze si passano, non si cercano
+
+Il server aveva sei singleton costruiti all'import: `CONFIG`, `CLIENT`,
+`METRICHE`, `INDICE`, il semaforo Overpass, il limitatore Nominatim. Funzionava.
+Il sintomo era nei test: per cambiare un timeout si scriveva
+
+```python
+monkeypatch.setattr("trekking_mcp.sources.http.CONFIG", replace(CONFIG, max_retry=3))
+```
+
+cioe' si riscriveva una variabile di un altro modulo per il resto della
+sessione. E siccome cache, metriche e indice EAWS erano condivisi da tutti,
+servivano fixture `autouse` che li svuotassero prima e dopo ogni test: 17
+chiamate a `svuota()`/`azzera()` sparse in sei file, tutte li' per rimediare a
+un accoppiamento che non era necessario.
+
+`Risorse` raccoglie le sei dipendenze e le passa per argomento. Il grafo e'
+descritto in un posto solo (`Risorse.crea`), e i numeri dicono il resto: da 6
+singleton a 0, da 17 pulizie di stato a 1. I `monkeypatch` rimasti sostituiscono
+*funzioni* — quello e' il loro mestiere — non configurazione.
+
+`crea_server(risorse=...)` accetta risorse gia' pronte: e' la giuntura che
+permette a un test di consegnare al server un indice EAWS finto invece di
+riscrivere `eaws.INDICE`.
+
+**Closure, non solo `lifespan_context`.** L'SDK inietta il `Context` nei tool e
+nelle resource template, ma **non** nelle resource statiche (rifiuta proprio la
+registrazione) ne' nell'handler dei completamenti, che ha firma fissa. Visto che
+`metriche://fonti` e' statica e i completamenti leggono l'indice EAWS, legare le
+risorse alla registrazione e' l'unico meccanismo valido per tutti e cinque i
+primitivi. Il `lifespan` resta padrone del ciclo di vita e le restituisce
+comunque, cosi' chi preferisce la porta idiomatica ce l'ha: stesso oggetto, due
+porte.
+
+### 3.23 Un tool non si puo' registrare senza traduzione degli errori
+
+Ogni tool portava due decoratori: `@mcp.tool(...)` e `@gestisci_errori`.
+Ricordarsene due su dieci riesce; all'undicesimo, prima o poi, no — e il tool
+dimenticato manda al modello un traceback invece di una frase utile.
+
+`extended_tool()` compone i due in uno. Non e' zucchero sintattico: e' che la
+versione sbagliata non si puo' piu' scrivere. Porta con se' anche le
+annotazioni `read_only_hint`/`open_world_hint`, che erano copiate identiche
+dieci volte.
+
+La traduzione degli errori era anche il pezzo piu' importante non testato:
+`test_registrazione.py` copre ora la traduzione in se', il fatto che un bug
+vero **non** venga mascherato, cosa arriva davvero al client (`is_error` e un
+messaggio azionabile, non un traceback) e la regola strutturale — nessun modulo
+chiama `mcp.tool` per conto suo.
+
+### 3.24 La freschezza si dichiara, non si tiene per se'
+
+`Config` ha un TTL per fonte e `CacheTTL` lo usa per la cache HTTP interna. Quella
+conoscenza pero' si fermava al processo: un client che rileggeva
+`bollettino://aineva/IT-21-AO-01` tre volte in cinque minuti faceva tre
+richieste, e il server rispondeva tre volte dalla propria cache. Lavoro inutile
+su entrambi i lati, che nessuno dei due poteva evitare — la freschezza non era
+scritta da nessuna parte.
+
+`ttlMs` e `cacheScope` (SEP-2549, revisione 2026-07-28) la scrivono. Servono
+due meccanismi, perche' l'SDK ne offre due:
+
+- **Gli elenchi** prendono un hint per metodo, via `MCPServer(cache_hints=...)`.
+  Qui sono statici: si registra tutto in `crea_server()` e non cambia piu'.
+- **Le resource** hanno freschezze diverse fra loro — i documenti di riferimento
+  valgono un giorno, un bollettino trenta minuti, i contatori di
+  `metriche://fonti` zero — e l'hint per metodo e' uno solo. Le distingue un
+  middleware, che e' l'unico punto a vedere insieme l'URI richiesto e il
+  risultato che torna indietro: le funzioni `@mcp.resource` restituiscono una
+  stringa e non hanno modo di parlare dei campi del risultato.
+
+Il TTL del bollettino non e' un numero nuovo: e' `ttl_bollettino_s`, lo stesso
+che governa la cache interna. Un bollettino non puo' valere trenta minuti per il
+server e un'ora per il client.
+
+`tools/call` non compare: `CallToolResult` non ha quei campi, ed e' giusto cosi'
+— quanto valga il risultato di un tool dipende dagli argomenti, e non spetta al
+protocollo deciderlo.
+
+I test leggono i campi attraverso un `Client` vero, mai dalle funzioni interne.
+Sul filo i nomi sono in camelCase (`ttlMs`, `cacheScope`) e il middleware li
+scrive su un dict gia' serializzato: e' un dettaglio dell'SDK, quindi va
+verificato dall'altro capo invece che assunto.
+
+### 3.25 Icona e sito, per farsi riconoscere
+
+`website_url` e `icons` sono quello che un client mostra quando qualcuno sceglie
+fra piu' server. L'icona e' un SVG inline come data URI: nessun file binario nel
+repo, nessun hosting da tenere in piedi, e funziona a un client offline. Usa
+`currentColor`, quindi non servono le due varianti chiaro/scuro che `theme`
+permetterebbe.
+
+Il protocollo ammette icone anche per singoli tool, resource e prompt. Qui non
+ce ne sono: dieci glifi inventati per mostrare che il campo esiste sarebbero
+rumore, e un repo di riferimento dovrebbe insegnare anche quando *non* riempire
+un campo.
+
 ---
 
 ## 4. Testing
 
-**109 test, nessuno tocca la rete.** Le chiamate HTTP sono intercettate con
+**154 test, nessuno tocca la rete.** Le chiamate HTTP sono intercettate con
 `pytest-httpx2` (respx su httpcore2). Una suite che dipende da Overpass
 fallisce a caso, e una CI che fallisce a caso viene ignorata dopo due settimane.
 
@@ -349,6 +514,13 @@ Tre famiglie:
   degeneri (tag mancanti, `sac_scale` fuori standard, `ele` decimale).
 - `test_fonti.py` — costruzione delle query, escaping, parsing CAAML, retry,
   efficacia della cache.
+- `test_concorrenza.py` — cosa succede quando due tool partono insieme. Un
+  agente non chiama in sequenza: le corse che contano si vedono solo qui.
+- `test_registrazione.py` — il contratto d'errore verso il client, e la regola
+  che nessun tool si registri scavalcando `extended_tool()`.
+- `test_elicitation.py` — cosa arriva davvero al client quando il server fa una
+  domanda: gli enum nello schema, e i due elenchi agganciati alla loro fonte.
+- `test_freschezza.py` — `ttlMs`/`cacheScope`, riletti da un Client vero.
 - `test_fase2.py` — geometria su poligoni costruiti a mano (dove il risultato
   atteso e' calcolabile a mente: su un poligono reale da 4000 vertici non si sa
   dire se una risposta e' giusta), lookup delle zone, campionamento, dislivelli,

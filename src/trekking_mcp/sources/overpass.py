@@ -11,20 +11,19 @@ e viene propagata nei campi `fonti` degli output.
 
 from __future__ import annotations
 
-import asyncio
 import re
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
-from trekking_mcp.config import CONFIG
+from trekking_mcp.config import Config
 from trekking_mcp.models import Coord, Ricovero, Sentiero
 from trekking_mcp.payloads import OverpassElement, OverpassResponse
-from trekking_mcp.sources.http import CLIENT
+
+if TYPE_CHECKING:
+    from trekking_mcp.risorse import Risorse
 
 ATTRIBUZIONE = "Dati sentieri e ricoveri: (c) contributori OpenStreetMap, ODbL"
 _INTESTAZIONE = "[out:json][timeout:{timeout}];"
 _TESTO_MAX_LEN = 64
-# Limite globale: evita fan-out parallelo tipico degli agenti verso Overpass.
-_SEMAFORO = asyncio.Semaphore(max(1, CONFIG.overpass_concurrency))
 
 
 def _bbox(sud: float, ovest: float, nord: float, est: float) -> str:
@@ -44,6 +43,7 @@ def _escape_regex(valore: str) -> str:
 
 
 def query_sentieri(
+    config: Config,
     *,
     sud: float,
     ovest: float,
@@ -64,16 +64,16 @@ def query_sentieri(
 
     catena = "".join(filtri)
     return (
-        _INTESTAZIONE.format(timeout=int(CONFIG.timeout_s) - 5)
+        _INTESTAZIONE.format(timeout=int(config.timeout_s) - 5)
         + f"relation{catena}({_bbox(sud, ovest, nord, est)});"
         + "out tags center;"
     )
 
 
-def query_ricoveri(*, lat: float, lon: float, raggio_m: int) -> str:
+def query_ricoveri(config: Config, *, lat: float, lon: float, raggio_m: int) -> str:
     """Rifugi gestiti, bivacchi e ripari entro un raggio."""
     return (
-        _INTESTAZIONE.format(timeout=int(CONFIG.timeout_s) - 5)
+        _INTESTAZIONE.format(timeout=int(config.timeout_s) - 5)
         + "("
         + f'node["tourism"~"^(alpine_hut|wilderness_hut)$"](around:{raggio_m},{lat},{lon});'
         + f'way["tourism"~"^(alpine_hut|wilderness_hut)$"](around:{raggio_m},{lat},{lon});'
@@ -83,9 +83,9 @@ def query_ricoveri(*, lat: float, lon: float, raggio_m: int) -> str:
     )
 
 
-def query_relation(osm_relation_id: int) -> str:
+def query_relation(config: Config, osm_relation_id: int) -> str:
     return (
-        _INTESTAZIONE.format(timeout=int(CONFIG.timeout_s) - 5) + f"relation({osm_relation_id});" + "out tags center;"
+        _INTESTAZIONE.format(timeout=int(config.timeout_s) - 5) + f"relation({osm_relation_id});" + "out tags center;"
     )
 
 
@@ -93,19 +93,19 @@ def ha_membri_way(elemento: OverpassElement) -> bool:
     return any(m.get("type") == "way" for m in (elemento.get("members") or []))
 
 
-def query_relation_membri(osm_relation_id: int) -> str:
+def query_relation_membri(config: Config, osm_relation_id: int) -> str:
     """Relation con lista membri (senza geometria dei way)."""
-    return _INTESTAZIONE.format(timeout=int(CONFIG.timeout_s) - 5) + f"relation({osm_relation_id});" + "out;"
+    return _INTESTAZIONE.format(timeout=int(config.timeout_s) - 5) + f"relation({osm_relation_id});" + "out;"
 
 
-def query_geometria(osm_relation_id: int) -> str:
+def query_geometria(config: Config, osm_relation_id: int) -> str:
     """Relation con la geometria completa dei membri.
 
     `out geom` restituisce ogni vertice di ogni way: per un sentiero alpino
     sono facilmente migliaia di punti e centinaia di KB. Va usata solo quando
     serve davvero il profilo, mai nelle ricerche.
     """
-    return _INTESTAZIONE.format(timeout=int(CONFIG.timeout_s) - 5) + f"relation({osm_relation_id});" + "out tags geom;"
+    return _INTESTAZIONE.format(timeout=int(config.timeout_s) - 5) + f"relation({osm_relation_id});" + "out tags geom;"
 
 
 def polilinea(elemento: OverpassElement) -> list[Coord]:
@@ -155,15 +155,15 @@ def _escape(valore: str) -> str:
     return valore.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
 
 
-async def esegui(ql: str, *, ttl_s: int | None = None) -> OverpassResponse:
-    async with _SEMAFORO:
+async def esegui(risorse: Risorse, ql: str, *, ttl_s: int | None = None) -> OverpassResponse:
+    async with risorse.overpass:
         return cast(
             OverpassResponse,
-            await CLIENT.json(
+            await risorse.http.json(
                 "POST",
-                CONFIG.overpass_url,
+                risorse.config.overpass_url,
                 fonte="overpass",
-                ttl_s=ttl_s if ttl_s is not None else CONFIG.ttl_overpass_s,
+                ttl_s=ttl_s if ttl_s is not None else risorse.config.ttl_overpass_s,
                 max_retry=2,
                 data={"data": ql},
             ),
@@ -171,6 +171,7 @@ async def esegui(ql: str, *, ttl_s: int | None = None) -> OverpassResponse:
 
 
 async def cerca_sentieri(
+    risorse: Risorse,
     *,
     sud: float,
     ovest: float,
@@ -181,36 +182,39 @@ async def cerca_sentieri(
     testo: str | None = None,
 ) -> list[Sentiero]:
     dati = await esegui(
-        query_sentieri(sud=sud, ovest=ovest, nord=nord, est=est, ref=ref, operatore=operatore, testo=testo)
+        risorse,
+        query_sentieri(
+            risorse.config, sud=sud, ovest=ovest, nord=nord, est=est, ref=ref, operatore=operatore, testo=testo
+        ),
     )
     return [Sentiero.da_relation(el) for el in dati.get("elements", []) if el.get("type") == "relation"]
 
 
-async def cerca_ricoveri(*, lat: float, lon: float, raggio_m: int) -> list[Ricovero]:
-    dati = await esegui(query_ricoveri(lat=lat, lon=lon, raggio_m=raggio_m))
+async def cerca_ricoveri(risorse: Risorse, *, lat: float, lon: float, raggio_m: int) -> list[Ricovero]:
+    dati = await esegui(risorse, query_ricoveri(risorse.config, lat=lat, lon=lon, raggio_m=raggio_m))
     return [Ricovero.da_element(el) for el in dati.get("elements", []) if el.get("tags")]
 
 
-async def leggi_sentiero(osm_relation_id: int) -> Sentiero | None:
-    dati = await esegui(query_relation(osm_relation_id))
+async def leggi_sentiero(risorse: Risorse, osm_relation_id: int) -> Sentiero | None:
+    dati = await esegui(risorse, query_relation(risorse.config, osm_relation_id))
     elementi = [el for el in dati.get("elements", []) if el.get("type") == "relation"]
     return Sentiero.da_relation(elementi[0]) if elementi else None
 
 
-async def leggi_geometria(osm_relation_id: int) -> tuple[Sentiero, list[Coord]] | None:
+async def leggi_geometria(risorse: Risorse, osm_relation_id: int) -> tuple[Sentiero, list[Coord]] | None:
     """Sentiero piu' la sua polilinea completa.
 
     Non usa la cache condivisa con TTL breve: la risposta e' grande e la
     geometria dei sentieri e' la cosa piu' stabile che questo server tratti.
     """
-    meta = await esegui(query_relation_membri(osm_relation_id))
+    meta = await esegui(risorse, query_relation_membri(risorse.config, osm_relation_id))
     relazioni = [el for el in meta.get("elements", []) if el.get("type") == "relation"]
     if not relazioni:
         return None
     if not ha_membri_way(relazioni[0]):
         return Sentiero.da_relation(relazioni[0]), []
 
-    dati = await esegui(query_geometria(osm_relation_id))
+    dati = await esegui(risorse, query_geometria(risorse.config, osm_relation_id))
     relazioni_g = [el for el in dati.get("elements", []) if el.get("type") == "relation"]
     if not relazioni_g:
         return None

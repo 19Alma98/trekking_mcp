@@ -1,17 +1,14 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
 import respx
 from mcp.server.elicitation import AcceptedElicitation, CancelledElicitation, DeclinedElicitation
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from trekking_mcp.errors import FonteNonDisponibile, NonTrovato
 from trekking_mcp.models import Coord, Localita
 from trekking_mcp.sources import luoghi_simili, nominatim
-from trekking_mcp.sources.http import CLIENT
 from trekking_mcp.sources.luoghi_simili import (
     cerca_simili_nel_raggio,
     localita_da_elemento,
@@ -20,31 +17,24 @@ from trekking_mcp.sources.luoghi_simili import (
 from trekking_mcp.tools import geocode_risolvi
 
 
-@pytest.fixture(autouse=True)
-async def _svuota_cache():
-    await CLIENT.cache.svuota()
-    yield
-    await CLIENT.cache.svuota()
-
-
 async def _no_attendi() -> None:
     return None
 
 
-def _nominatim_senza_cache(monkeypatch: pytest.MonkeyPatch) -> None:
-    _orig_json = CLIENT.json
+def _nominatim_senza_cache(monkeypatch: pytest.MonkeyPatch, risorse) -> None:
+    _orig_json = risorse.http.json
 
     async def _json_no_cache(*args, **kwargs):
         kwargs["ttl_s"] = None
         return await _orig_json(*args, **kwargs)
 
-    monkeypatch.setattr(CLIENT, "json", _json_no_cache)
+    monkeypatch.setattr(risorse.http, "json", _json_no_cache)
 
 
-async def test_nominatim_scarta_hit_oltre_raggio(httpx2_mock: respx.Router, monkeypatch):
+async def test_nominatim_scarta_hit_oltre_raggio(httpx2_mock: respx.Router, monkeypatch, risorse):
 
-    monkeypatch.setattr(nominatim.LIMITATORE, "attendi", _no_attendi)
-    _nominatim_senza_cache(monkeypatch)
+    monkeypatch.setattr(risorse.nominatim, "attendi", _no_attendi)
+    _nominatim_senza_cache(monkeypatch, risorse)
     httpx2_mock.get(url__startswith="https://nominatim.openstreetmap.org").respond(
         200,
         json=[
@@ -67,23 +57,23 @@ async def test_nominatim_scarta_hit_oltre_raggio(httpx2_mock: respx.Router, monk
             },
         ],
     )
-    esito = await nominatim.cerca("Mucone", lat=45.57, lon=8.05, raggio_km=30, limite=5)
+    esito = await nominatim.cerca(risorse, "Mucone", lat=45.57, lon=8.05, raggio_km=30, limite=5)
     assert len(esito) == 1
     assert esito[0].nome == "Monte Mucrone"
 
 
-async def test_nominatim_contestuale_non_fa_bounded_zero(httpx2_mock: respx.Router, monkeypatch):
+async def test_nominatim_contestuale_non_fa_bounded_zero(httpx2_mock: respx.Router, monkeypatch, risorse):
     import httpx
 
-    monkeypatch.setattr(nominatim.LIMITATORE, "attendi", _no_attendi)
-    _nominatim_senza_cache(monkeypatch)
+    monkeypatch.setattr(risorse.nominatim, "attendi", _no_attendi)
+    _nominatim_senza_cache(monkeypatch, risorse)
     rotta = httpx2_mock.get(url__startswith="https://nominatim.openstreetmap.org").mock(
         side_effect=[
             httpx.Response(200, json=[]),
             httpx.Response(200, json=[]),
         ]
     )
-    esito = await nominatim.cerca("Xyzzy", lat=45.57, lon=8.05, raggio_km=30)
+    esito = await nominatim.cerca(risorse, "Xyzzy", lat=45.57, lon=8.05, raggio_km=30)
     assert esito == []
     assert rotta.call_count == 2
     assert all(dict(c.request.url.params).get("bounded") == "1" for c in rotta.calls)
@@ -110,8 +100,8 @@ def test_filtra_simili_ordina_per_ratio_poi_distanza():
     assert len(out) <= luoghi_simili.MAX_CANDIDATI_SIMILI
 
 
-def test_query_luoghi_bbox_include_tipi_utili():
-    ql = query_luoghi_bbox(45.0, 7.0, 46.0, 8.0)
+def test_query_luoghi_bbox_include_tipi_utili(config):
+    ql = query_luoghi_bbox(config, 45.0, 7.0, 46.0, 8.0)
     assert '["natural"~"^(peak|saddle)$"]' in ql
     assert '["tourism"~"^(alpine_hut|wilderness_hut)$"]' in ql
     assert '["place"~"^(village|hamlet|town|locality|isolated_dwelling)$"]' in ql
@@ -135,7 +125,7 @@ def test_localita_da_elemento_peak():
     assert loc.osm_url == "https://www.openstreetmap.org/node/1"
 
 
-async def test_cerca_simili_nel_raggio_mock_overpass(httpx2_mock: respx.Router):
+async def test_cerca_simili_nel_raggio_mock_overpass(httpx2_mock: respx.Router, risorse):
     httpx2_mock.post(url__startswith="https://overpass-api.de").respond(
         200,
         json={
@@ -157,17 +147,17 @@ async def test_cerca_simili_nel_raggio_mock_overpass(httpx2_mock: respx.Router):
             ]
         },
     )
-    out = await cerca_simili_nel_raggio("Mucone", lat=45.57, lon=8.05, raggio_km=30)
+    out = await cerca_simili_nel_raggio(risorse, "Mucone", lat=45.57, lon=8.05, raggio_km=30)
     assert len(out) == 1
     assert out[0].nome == "Monte Mucrone"
 
 
-async def test_cerca_simili_overpass_giu_restituisce_lista_vuota(monkeypatch):
-    async def _boom(ql: str, *, ttl_s=None):
+async def test_cerca_simili_overpass_giu_restituisce_lista_vuota(monkeypatch, risorse):
+    async def _boom(risorse, ql: str, *, ttl_s=None):
         raise FonteNonDisponibile("overpass", "test")
 
     monkeypatch.setattr("trekking_mcp.sources.overpass.esegui", _boom)
-    out = await cerca_simili_nel_raggio("Mucone", lat=45.57, lon=8.05, raggio_km=30)
+    out = await cerca_simili_nel_raggio(risorse, "Mucone", lat=45.57, lon=8.05, raggio_km=30)
     assert out == []
 
 
@@ -181,9 +171,9 @@ class FakeCtx:
         return self.elicit_results.pop(0)
 
 
-async def test_risolvi_match_esatto_non_elicit(httpx2_mock: respx.Router, monkeypatch):
-    monkeypatch.setattr(nominatim.LIMITATORE, "attendi", _no_attendi)
-    _nominatim_senza_cache(monkeypatch)
+async def test_risolvi_match_esatto_non_elicit(httpx2_mock: respx.Router, monkeypatch, risorse):
+    monkeypatch.setattr(risorse.nominatim, "attendi", _no_attendi)
+    _nominatim_senza_cache(monkeypatch, risorse)
     httpx2_mock.get(url__startswith="https://nominatim.openstreetmap.org").respond(
         200,
         json=[
@@ -199,18 +189,18 @@ async def test_risolvi_match_esatto_non_elicit(httpx2_mock: respx.Router, monkey
         ],
     )
     ctx = FakeCtx()
-    out = await geocode_risolvi.risolvi_localita(ctx, "Mucrone", lat=45.57, lon=8.05)  # type: ignore[arg-type]
+    out = await geocode_risolvi.risolvi_localita(risorse, ctx, "Mucrone", lat=45.57, lon=8.05)  # type: ignore[arg-type]
     assert len(out) == 1
     assert out[0].nome == "Monte Mucrone"
     assert ctx.elicit_calls == []
 
 
-async def test_risolvi_simile_usa_1(httpx2_mock: respx.Router, monkeypatch):
-    monkeypatch.setattr(nominatim.LIMITATORE, "attendi", _no_attendi)
-    _nominatim_senza_cache(monkeypatch)
+async def test_risolvi_simile_usa_1(httpx2_mock: respx.Router, monkeypatch, risorse):
+    monkeypatch.setattr(risorse.nominatim, "attendi", _no_attendi)
+    _nominatim_senza_cache(monkeypatch, risorse)
     httpx2_mock.get(url__startswith="https://nominatim.openstreetmap.org").respond(200, json=[])
 
-    async def _simili(nome, *, lat, lon, raggio_km):
+    async def _simili(risorse, nome, *, lat, lon, raggio_km):
         return [
             Localita(
                 nome="Monte Mucrone",
@@ -224,7 +214,7 @@ async def test_risolvi_simile_usa_1(httpx2_mock: respx.Router, monkeypatch):
     ctx = FakeCtx(
         elicit_results=[AcceptedElicitation(data=geocode_risolvi.SceltaGeocode(azione="usa_1", nuovo_raggio_km=50))]
     )
-    out = await geocode_risolvi.risolvi_localita(ctx, "Mucone", lat=45.57, lon=8.05)  # type: ignore[arg-type]
+    out = await geocode_risolvi.risolvi_localita(risorse, ctx, "Mucone", lat=45.57, lon=8.05)  # type: ignore[arg-type]
     assert len(out) == 1
     assert out[0].nome == "Monte Mucrone"
     assert len(ctx.elicit_calls) == 1
@@ -232,16 +222,16 @@ async def test_risolvi_simile_usa_1(httpx2_mock: respx.Router, monkeypatch):
     assert "usa_1" in ctx.elicit_calls[0][0] or "1)" in ctx.elicit_calls[0][0]
 
 
-async def test_risolvi_espandi_poi_match(monkeypatch):
+async def test_risolvi_espandi_poi_match(monkeypatch, risorse):
     chiamate: list[float] = []
 
-    async def _cerca(nome, *, limite=5, solo_montagna=True, lat=None, lon=None, raggio_km=30):
+    async def _cerca(risorse, nome, *, limite=5, solo_montagna=True, lat=None, lon=None, raggio_km=30):
         chiamate.append(raggio_km)
         if raggio_km >= 50:
             return [Localita(nome="Monte Mucrone", tipo="peak", coord=Coord(lat=45.61, lon=7.95))]
         return []
 
-    async def _nessun_simile(nome, *, lat, lon, raggio_km):
+    async def _nessun_simile(risorse, nome, *, lat, lon, raggio_km):
         return []
 
     monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.nominatim.cerca", _cerca)
@@ -249,12 +239,12 @@ async def test_risolvi_espandi_poi_match(monkeypatch):
     ctx = FakeCtx(
         elicit_results=[AcceptedElicitation(data=geocode_risolvi.SceltaGeocode(azione="espandi", nuovo_raggio_km=50))]
     )
-    out = await geocode_risolvi.risolvi_localita(ctx, "Mucone", lat=45.57, lon=8.05, raggio_km=30)  # type: ignore[arg-type]
+    out = await geocode_risolvi.risolvi_localita(risorse, ctx, "Mucone", lat=45.57, lon=8.05, raggio_km=30)  # type: ignore[arg-type]
     assert out[0].nome == "Monte Mucrone"
     assert chiamate == [30.0, 50.0]
 
 
-async def test_risolvi_decline_solleva_non_trovato(monkeypatch):
+async def test_risolvi_decline_solleva_non_trovato(monkeypatch, risorse):
     async def _vuoto(*args, **kwargs):
         return []
 
@@ -262,10 +252,10 @@ async def test_risolvi_decline_solleva_non_trovato(monkeypatch):
     monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.cerca_simili_nel_raggio", _vuoto)
     ctx = FakeCtx(elicit_results=[DeclinedElicitation()])
     with pytest.raises(NonTrovato):
-        await geocode_risolvi.risolvi_localita(ctx, "Mucone", lat=45.57, lon=8.05)  # type: ignore[arg-type]
+        await geocode_risolvi.risolvi_localita(risorse, ctx, "Mucone", lat=45.57, lon=8.05)  # type: ignore[arg-type]
 
 
-async def test_risolvi_cancel_solleva_non_trovato(monkeypatch):
+async def test_risolvi_cancel_solleva_non_trovato(monkeypatch, risorse):
     async def _vuoto(*args, **kwargs):
         return []
 
@@ -273,10 +263,10 @@ async def test_risolvi_cancel_solleva_non_trovato(monkeypatch):
     monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.cerca_simili_nel_raggio", _vuoto)
     ctx = FakeCtx(elicit_results=[CancelledElicitation()])
     with pytest.raises(NonTrovato):
-        await geocode_risolvi.risolvi_localita(ctx, "Mucone", lat=45.57, lon=8.05)  # type: ignore[arg-type]
+        await geocode_risolvi.risolvi_localita(risorse, ctx, "Mucone", lat=45.57, lon=8.05)  # type: ignore[arg-type]
 
 
-async def test_risolvi_terza_espansione_solleva_non_trovato(monkeypatch):
+async def test_risolvi_terza_espansione_solleva_non_trovato(monkeypatch, risorse):
     async def _vuoto(*args, **kwargs):
         return []
 
@@ -293,14 +283,31 @@ async def test_risolvi_terza_espansione_solleva_non_trovato(monkeypatch):
         ]
     )
     with pytest.raises(NonTrovato):
-        await geocode_risolvi.risolvi_localita(ctx, "Mucone", lat=45.57, lon=8.05, raggio_km=30)  # type: ignore[arg-type]
+        await geocode_risolvi.risolvi_localita(risorse, ctx, "Mucone", lat=45.57, lon=8.05, raggio_km=30)  # type: ignore[arg-type]
 
 
-async def test_risolvi_usa_n_invalido_solleva_non_trovato(monkeypatch):
+def test_un_azione_fuori_enum_non_arriva_nemmeno_al_tool():
+    """Con `azione` come Literal il valore assurdo muore nella validazione.
+
+    Prima `azione` era una `str` e "usa_99" viaggiava fino al corpo di
+    `risolvi_localita`, che doveva accorgersene da solo. Ora lo schema che il
+    client riceve porta l'enum, e Pydantic rifiuta quello che non c'e' dentro.
+    """
+    with pytest.raises(ValidationError):
+        geocode_risolvi.SceltaGeocode(azione="usa_99", nuovo_raggio_km=50)  # type: ignore[arg-type]
+
+
+async def test_un_candidato_valido_ma_assente_solleva_non_trovato(monkeypatch, risorse):
+    """`usa_3` e' nell'enum, ma i simili trovati possono essere meno di tre.
+
+    E' il pezzo che l'enum non puo' garantire, quindi il controllo a runtime
+    resta: qui c'e' un solo candidato e si chiede il terzo.
+    """
+
     async def _vuoto(*args, **kwargs):
         return []
 
-    async def _simili(nome, *, lat, lon, raggio_km):
+    async def _simili(risorse, nome, *, lat, lon, raggio_km):
         return [
             Localita(nome="Monte Mucrone", tipo="peak", coord=Coord(lat=45.61, lon=7.95)),
         ]
@@ -309,14 +316,14 @@ async def test_risolvi_usa_n_invalido_solleva_non_trovato(monkeypatch):
     monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.cerca_simili_nel_raggio", _simili)
     ctx = FakeCtx(
         elicit_results=[
-            AcceptedElicitation(data=geocode_risolvi.SceltaGeocode(azione="usa_99", nuovo_raggio_km=50)),
+            AcceptedElicitation(data=geocode_risolvi.SceltaGeocode(azione="usa_3", nuovo_raggio_km=50)),
         ]
     )
     with pytest.raises(NonTrovato):
-        await geocode_risolvi.risolvi_localita(ctx, "Mucone", lat=45.57, lon=8.05)  # type: ignore[arg-type]
+        await geocode_risolvi.risolvi_localita(risorse, ctx, "Mucone", lat=45.57, lon=8.05)  # type: ignore[arg-type]
 
 
-async def test_risolvi_raggio_non_crescente_solleva_non_trovato(monkeypatch):
+async def test_risolvi_raggio_non_crescente_solleva_non_trovato(monkeypatch, risorse):
     async def _vuoto(*args, **kwargs):
         return []
 
@@ -328,14 +335,14 @@ async def test_risolvi_raggio_non_crescente_solleva_non_trovato(monkeypatch):
         ]
     )
     with pytest.raises(NonTrovato) as exc:
-        await geocode_risolvi.risolvi_localita(ctx, "Mucone", lat=45.57, lon=8.05, raggio_km=60)  # type: ignore[arg-type]
+        await geocode_risolvi.risolvi_localita(risorse, ctx, "Mucone", lat=45.57, lon=8.05, raggio_km=60)  # type: ignore[arg-type]
     assert exc.value.alternative == ["nuovo_raggio_km deve essere > 60"]
 
 
-async def test_cerca_localita_usa_risolvi_con_contesto(monkeypatch):
+async def test_cerca_localita_usa_risolvi_con_contesto(monkeypatch, risorse):
     from trekking_mcp.server import crea_server
 
-    async def _risolvi(ctx, nome, *, lat, lon, raggio_km=30, limite=5):
+    async def _risolvi(risorse, ctx, nome, *, lat, lon, raggio_km=30, limite=5):
         assert nome == "Mucone"
         assert lat == 45.57 and lon == 8.05
         assert raggio_km == 30
@@ -343,7 +350,7 @@ async def test_cerca_localita_usa_risolvi_con_contesto(monkeypatch):
         return [Localita(nome="Monte Mucrone", tipo="peak", coord=Coord(lat=45.61, lon=7.95))]
 
     monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.risolvi_localita", _risolvi)
-    mcp = crea_server()
+    mcp = crea_server(risorse=risorse)
     ctx = FakeCtx()
     esito = await mcp.call_tool(
         "cerca_localita",
@@ -355,20 +362,20 @@ async def test_cerca_localita_usa_risolvi_con_contesto(monkeypatch):
     assert localita[0]["nome"] == "Monte Mucrone"
 
 
-async def test_esegui_sentieri_verso_usa_risolvi_con_contesto(monkeypatch):
+async def test_esegui_sentieri_verso_usa_risolvi_con_contesto(monkeypatch, risorse):
     from trekking_mcp.tools.sentieri import esegui_sentieri_verso_localita
 
-    async def _risolvi(ctx, nome, *, lat, lon, raggio_km=30, limite=5):
+    async def _risolvi(risorse, ctx, nome, *, lat, lon, raggio_km=30, limite=5):
         assert nome == "Mucone"
         assert lat == 45.57 and lon == 8.05
         assert raggio_km == 30
         assert limite == 1
         return [Localita(nome="Monte Mucrone", tipo="peak", coord=Coord(lat=45.61, lon=7.95))]
 
-    async def _sentieri(**kwargs):
+    async def _sentieri(risorse, **kwargs):
         return []
 
-    async def _ricoveri(**kwargs):
+    async def _ricoveri(risorse, **kwargs):
         return []
 
     monkeypatch.setattr("trekking_mcp.tools.sentieri.risolvi_localita", _risolvi)
@@ -376,6 +383,7 @@ async def test_esegui_sentieri_verso_usa_risolvi_con_contesto(monkeypatch):
     monkeypatch.setattr("trekking_mcp.tools.sentieri.overpass.cerca_ricoveri", _ricoveri)
     ctx = FakeCtx()
     out = await esegui_sentieri_verso_localita(
+        risorse,
         ctx=ctx,  # type: ignore[arg-type]
         nome="Mucone",
         vicino_a_lat=45.57,

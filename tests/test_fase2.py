@@ -1,14 +1,13 @@
-from __future__ import annotations
+from dataclasses import replace
 
 import pytest
 import respx
 
+from trekking_mcp.config import Config
 from trekking_mcp.geo import anelli_di_geometria, contiene, nel_riquadro, riquadro_di
 from trekking_mcp.models import Coord
 from trekking_mcp.sources import eaws, elevation, nominatim, overpass
-from trekking_mcp.sources.http import CLIENT
 
-# Quadrato unitario con un buco quadrato al centro.
 QUADRATO_CON_BUCO = {
     "type": "Polygon",
     "coordinates": [
@@ -40,23 +39,9 @@ GEOJSON_ZONE = {
 }
 
 
-@pytest.fixture(autouse=True)
-async def _pulisci(tmp_path, monkeypatch):
-    """Cache HTTP e su disco isolate per ogni test."""
-    from dataclasses import replace
-
-    from trekking_mcp.config import CONFIG
-
-    finta = replace(CONFIG, cache_dir=str(tmp_path))
-    monkeypatch.setattr("trekking_mcp.sources.eaws.CONFIG", finta)
-    await CLIENT.cache.svuota()
-    eaws.INDICE.svuota()
-    yield
-    await CLIENT.cache.svuota()
-    eaws.INDICE.svuota()
-
-
-# --- geometria ---------------------------------------------------------------
+@pytest.fixture
+def config(tmp_path) -> Config:
+    return replace(Config(), cache_dir=str(tmp_path))
 
 
 def test_riquadro_e_prefiltro():
@@ -76,7 +61,6 @@ def test_punto_dentro_e_fuori():
 
 
 def test_il_buco_e_fuori():
-    """Un punto nel buco e' dentro l'anello esterno ma fuori dal poligono."""
     poligoni = anelli_di_geometria(QUADRATO_CON_BUCO)
 
     assert not contiene(lat=5, lon=5, poligoni=poligoni)
@@ -103,57 +87,50 @@ def test_geometria_non_supportata_non_esplode():
     assert anelli_di_geometria({}) == []
 
 
-# --- zone valanghe -----------------------------------------------------------
-
-
-async def test_lookup_zona_da_coordinate(httpx2_mock: respx.Router):
+async def test_lookup_zona_da_coordinate(httpx2_mock: respx.Router, risorse):
     httpx2_mock.get(url__startswith="https://regions.avalanches.org").respond(200, json=GEOJSON_ZONE)
-    zona = await eaws.zona_da_coordinate(45.25, 7.25)
+    zona = await eaws.zona_da_coordinate(risorse.eaws, 45.25, 7.25)
 
     assert zona.id_zona == "IT-21-TO-05"
     assert zona.nome == "Valli di Lanzo"
 
 
-async def test_zone_confinanti_non_si_confondono(httpx2_mock: respx.Router):
+async def test_zone_confinanti_non_si_confondono(httpx2_mock: respx.Router, risorse):
     httpx2_mock.get(url__startswith="https://regions.avalanches.org").respond(200, json=GEOJSON_ZONE)
-    ovest = await eaws.zona_da_coordinate(45.25, 6.75)
+    ovest = await eaws.zona_da_coordinate(risorse.eaws, 45.25, 6.75)
 
     assert ovest.id_zona == "IT-21-TO-06"
 
 
-async def test_punto_fuori_suggerisce_le_zone_vicine(httpx2_mock: respx.Router):
+async def test_punto_fuori_suggerisce_le_zone_vicine(httpx2_mock: respx.Router, risorse):
     httpx2_mock.get(url__startswith="https://regions.avalanches.org").respond(200, json=GEOJSON_ZONE)
     from trekking_mcp.errors import NonTrovato
 
     with pytest.raises(NonTrovato) as exc:
-        await eaws.zona_da_coordinate(41.9, 12.5)  # Roma: fuori dall'arco alpino
+        await eaws.zona_da_coordinate(risorse.eaws, 41.9, 12.5)  # Roma: fuori dall'arco alpino
 
     messaggio = exc.value.messaggio_utente()
     assert "IT-21-TO-0" in messaggio
 
 
-async def test_la_cache_su_disco_evita_il_riscarico(httpx2_mock: respx.Router):
+async def test_la_cache_su_disco_evita_il_riscarico(httpx2_mock: respx.Router, risorse):
     rotta = httpx2_mock.get(url__startswith="https://regions.avalanches.org").respond(200, json=GEOJSON_ZONE)
-    await eaws.zona_da_coordinate(45.25, 7.25)
+    await eaws.zona_da_coordinate(risorse.eaws, 45.25, 7.25)
     chiamate_primo_giro = rotta.call_count
 
-    eaws.INDICE.svuota()  # simula un riavvio del processo
-    await eaws.zona_da_coordinate(45.25, 7.25)
+    risorse.eaws.svuota()  # simula un riavvio del processo
+    await eaws.zona_da_coordinate(risorse.eaws, 45.25, 7.25)
 
     assert rotta.call_count == chiamate_primo_giro
 
 
-async def test_un_territorio_mancante_non_blocca_gli_altri(httpx2_mock: respx.Router):
-    """Meglio un indice parziale che nessun indice."""
+async def test_un_territorio_mancante_non_blocca_gli_altri(httpx2_mock: respx.Router, risorse):
     httpx2_mock.get(url__regex=r".*IT-21_micro.*").respond(200, json=GEOJSON_ZONE)
     httpx2_mock.get(url__startswith="https://regions.avalanches.org").respond(404)
 
-    trovate = await eaws.INDICE.cerca(45.25, 7.25)
+    trovate = await risorse.eaws.cerca(45.25, 7.25)
 
     assert [r.id_zona for r in trovate] == ["IT-21-TO-05"]
-
-
-# --- profilo altimetrico -----------------------------------------------------
 
 
 def test_campionamento_conserva_gli_estremi():
@@ -171,11 +148,6 @@ def test_campionamento_su_polilinea_corta():
 
 
 def test_dislivello_ignora_il_rumore():
-    """Oscillazioni sotto soglia non devono gonfiare il dislivello.
-
-    Senza filtro, 1000 micro-oscillazioni da 1 m darebbero centinaia di metri
-    di salita inesistente. E' l'errore piu' comune nel calcolo dei profili.
-    """
     piatto_rumoroso = [1000 + (1 if i % 2 else -1) for i in range(200)]
     salita, discesa = elevation._dislivelli(piatto_rumoroso)
 
@@ -191,27 +163,22 @@ def test_dislivello_reale():
     assert discesa == 200
 
 
-async def test_profilo_completo(httpx2_mock: respx.Router):
+async def test_profilo_completo(httpx2_mock: respx.Router, risorse):
     httpx2_mock.get(url__startswith="https://api.open-meteo.com/v1/elevation").respond(
         200, json={"elevation": [1000, 1400, 1800]}
     )
     punti = [Coord(lat=45.0, lon=7.0), Coord(lat=45.05, lon=7.0), Coord(lat=45.1, lon=7.0)]
-    profilo = await elevation.profilo(punti, passo_m=1000)
+    profilo = await elevation.profilo(risorse, punti, passo_m=1000)
 
     assert profilo.dislivello_positivo_m == 800
     assert profilo.quota_massima_m == 1800
     assert profilo.lunghezza_km > 0
 
 
-# --- polilinea ---------------------------------------------------------------
-
-
 def test_ricucitura_inverte_il_tratto_al_contrario():
-    """Le way di una relation non sono ne' ordinate ne' orientate."""
     elemento = {
         "members": [
             {"type": "way", "geometry": [{"lat": 45.0, "lon": 7.0}, {"lat": 45.1, "lon": 7.1}]},
-            # Questo tratto e' memorizzato al contrario.
             {"type": "way", "geometry": [{"lat": 45.3, "lon": 7.3}, {"lat": 45.1, "lon": 7.1}]},
         ]
     }
@@ -230,29 +197,25 @@ def test_polilinea_scarta_i_membri_senza_geometria():
     assert overpass.polilinea(elemento) == []
 
 
-# --- geocoding ---------------------------------------------------------------
-
-
 async def _no_attendi_nominatim() -> None:
     return None
 
 
-def _nominatim_senza_cache(monkeypatch) -> None:
-    """Identical Nominatim params must not reuse cached [] between fallback calls."""
-    _orig_json = CLIENT.json
+def _nominatim_senza_cache(monkeypatch, risorse) -> None:
+    _orig_json = risorse.http.json
 
     async def _json_no_cache(*args, **kwargs):
         kwargs["ttl_s"] = None
         return await _orig_json(*args, **kwargs)
 
-    monkeypatch.setattr(CLIENT, "json", _json_no_cache)
+    monkeypatch.setattr(risorse.http, "json", _json_no_cache)
 
 
-async def test_nominatim_con_coordinate_usa_viewbox_e_bounded(httpx2_mock: respx.Router, monkeypatch):
+async def test_nominatim_con_coordinate_usa_viewbox_e_bounded(httpx2_mock: respx.Router, monkeypatch, risorse):
     import httpx
 
-    monkeypatch.setattr(nominatim.LIMITATORE, "attendi", _no_attendi_nominatim)
-    _nominatim_senza_cache(monkeypatch)
+    monkeypatch.setattr(risorse.nominatim, "attendi", _no_attendi_nominatim)
+    _nominatim_senza_cache(monkeypatch, risorse)
     rotta = httpx2_mock.get(url__startswith="https://nominatim.openstreetmap.org").mock(
         side_effect=[
             httpx.Response(
@@ -279,7 +242,7 @@ async def test_nominatim_con_coordinate_usa_viewbox_e_bounded(httpx2_mock: respx
             )
         ]
     )
-    esito = await nominatim.cerca("Mucrone", lat=45.57, lon=8.05, limite=5)
+    esito = await nominatim.cerca(risorse, "Mucrone", lat=45.57, lon=8.05, limite=5)
 
     params = dict(rotta.calls[0].request.url.params)
     assert params.get("bounded") == "1"
@@ -287,11 +250,11 @@ async def test_nominatim_con_coordinate_usa_viewbox_e_bounded(httpx2_mock: respx
     assert esito[0].nome == "Monte Mucrone"
 
 
-async def test_nominatim_fallback_senza_montagna_nella_viewbox(httpx2_mock: respx.Router, monkeypatch):
+async def test_nominatim_fallback_senza_montagna_nella_viewbox(httpx2_mock: respx.Router, monkeypatch, risorse):
     import httpx
 
-    monkeypatch.setattr(nominatim.LIMITATORE, "attendi", _no_attendi_nominatim)
-    _nominatim_senza_cache(monkeypatch)
+    monkeypatch.setattr(risorse.nominatim, "attendi", _no_attendi_nominatim)
+    _nominatim_senza_cache(monkeypatch, risorse)
     rotta = httpx2_mock.get(url__startswith="https://nominatim.openstreetmap.org").mock(
         side_effect=[
             httpx.Response(200, json=[]),  # solo_montagna=True → vuoto
@@ -310,7 +273,7 @@ async def test_nominatim_fallback_senza_montagna_nella_viewbox(httpx2_mock: resp
             ),
         ]
     )
-    esito = await nominatim.cerca("Xyzzy", lat=45.57, lon=8.05)
+    esito = await nominatim.cerca(risorse, "Xyzzy", lat=45.57, lon=8.05)
     assert len(esito) == 1
     assert esito[0].tipo == "suburb"
     assert rotta.call_count == 2
@@ -318,25 +281,25 @@ async def test_nominatim_fallback_senza_montagna_nella_viewbox(httpx2_mock: resp
         assert dict(call.request.url.params).get("bounded") == "1"
 
 
-async def test_nominatim_contestuale_non_rilancia_bounded_zero(httpx2_mock: respx.Router, monkeypatch):
+async def test_nominatim_contestuale_non_rilancia_bounded_zero(httpx2_mock: respx.Router, monkeypatch, risorse):
     import httpx
 
-    monkeypatch.setattr(nominatim.LIMITATORE, "attendi", _no_attendi_nominatim)
-    _nominatim_senza_cache(monkeypatch)
+    monkeypatch.setattr(risorse.nominatim, "attendi", _no_attendi_nominatim)
+    _nominatim_senza_cache(monkeypatch, risorse)
     rotta = httpx2_mock.get(url__startswith="https://nominatim.openstreetmap.org").mock(
         side_effect=[
             httpx.Response(200, json=[]),
             httpx.Response(200, json=[]),
         ]
     )
-    esito = await nominatim.cerca("Xyzzy", lat=45.57, lon=8.05)
+    esito = await nominatim.cerca(risorse, "Xyzzy", lat=45.57, lon=8.05)
     assert esito == []
     assert rotta.call_count == 2
     bounded_values = [dict(call.request.url.params).get("bounded") for call in rotta.calls]
     assert bounded_values == ["1", "1"]
 
 
-async def test_ricerca_localita_filtra_per_tipo(httpx2_mock: respx.Router):
+async def test_ricerca_localita_filtra_per_tipo(httpx2_mock: respx.Router, risorse):
     httpx2_mock.get(url__startswith="https://nominatim.openstreetmap.org").respond(
         200,
         json=[
@@ -352,14 +315,13 @@ async def test_ricerca_localita_filtra_per_tipo(httpx2_mock: respx.Router):
             {"lat": "45.0", "lon": "7.0", "type": "restaurant", "display_name": "Pizzeria"},
         ],
     )
-    esito = await nominatim.cerca("Rifugio Gastaldi")
+    esito = await nominatim.cerca(risorse, "Rifugio Gastaldi")
 
     assert len(esito) == 1
     assert esito[0].quota_m == 2659
 
 
 async def test_il_limitatore_serializza_le_richieste():
-    """La usage policy di Nominatim impone una richiesta al secondo."""
     import time
 
     limitatore = nominatim.Limitatore(0.05)

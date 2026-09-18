@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import pytest
 
 from trekking_mcp.models import (
@@ -41,7 +39,6 @@ def test_relation_completa():
 
 
 def test_relation_minima():
-    """Una relation senza tag utili non deve far esplodere il parsing."""
     s = Sentiero.da_relation({"type": "relation", "id": 1, "tags": {"route": "hiking"}})
 
     assert s.ref is None
@@ -50,7 +47,6 @@ def test_relation_minima():
 
 
 def test_sac_scale_ignoto_non_rompe():
-    """Valori fuori standard capitano in OSM: vanno degradati, non propagati."""
     s = Sentiero.da_relation({"type": "relation", "id": 2, "tags": {"sac_scale": "molto_difficile"}})
 
     assert s.sac_scale is None
@@ -93,7 +89,6 @@ def test_ricovero_da_nodo():
 
 
 def test_ricovero_quota_decimale():
-    """Il tag `ele` in OSM e' spesso '2659.4': va accettato, non scartato."""
     el = {"type": "node", "id": 1, "lat": 45.0, "lon": 7.0, "tags": {"tourism": "wilderness_hut", "ele": "2659.4"}}
     r = Ricovero.da_element(el)
 

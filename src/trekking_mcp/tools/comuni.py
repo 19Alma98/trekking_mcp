@@ -6,7 +6,9 @@ import math
 from collections.abc import Awaitable, Callable
 from typing import ParamSpec, TypeVar
 
+from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.types import ToolAnnotations
 
 from trekking_mcp.errors import ErroreSentieri
 
@@ -31,7 +33,29 @@ def gestisci_errori(fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
             log.info("errore previsto in %s: %s", fn.__name__, exc)
             raise ToolError(exc.messaggio_utente()) from exc
 
+    wrapper.errori_tradotti = True  # type: ignore[attr-defined]
     return wrapper
+
+
+# Ogni tool di questo server legge e basta interrogando fonti esterne
+SOLA_LETTURA = ToolAnnotations(read_only_hint=True, open_world_hint=True)
+
+
+def extended_tool(
+    mcp: MCPServer,
+    *,
+    name: str,
+    title: str,
+    description: str,
+    annotations: ToolAnnotations = SOLA_LETTURA,
+) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
+    """Registra un tool con la traduzione degli errori gia' dentro."""
+
+    def decoratore(fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+        registrato = mcp.tool(name=name, title=title, description=description, annotations=annotations)
+        return registrato(gestisci_errori(fn))
+
+    return decoratore
 
 
 def riquadro_intorno(lat: float, lon: float, raggio_km: float) -> tuple[float, float, float, float]:

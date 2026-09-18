@@ -5,7 +5,7 @@ from importlib import resources as pkg_resources
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceError
 
-from trekking_mcp.metriche import METRICHE
+from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import caaml
 
 
@@ -16,7 +16,7 @@ def _leggi_dato(nome: str) -> str:
         raise ResourceError(f"Documento di riferimento '{nome}' non incluso nel pacchetto") from exc
 
 
-def registra(mcp: MCPServer) -> None:
+def registra(mcp: MCPServer, risorse: Risorse) -> None:
     @mcp.resource(
         "scala://pericolo-valanghe",
         name="Scala europea del pericolo valanghe",
@@ -45,7 +45,7 @@ def registra(mcp: MCPServer) -> None:
         mime_type="application/json",
     )
     def metriche_fonti() -> str:
-        return METRICHE.istantanea().model_dump_json(indent=2)
+        return risorse.metriche.istantanea().model_dump_json(indent=2)
 
     @mcp.resource(
         "bollettino://{provider}/{zona_id}",
@@ -60,7 +60,7 @@ def registra(mcp: MCPServer) -> None:
         allegare al contesto e ri-leggere senza una chiamata a tool.
         """
         try:
-            b = await caaml.leggi_bollettino(zona_id=zona_id, provider=provider)
+            b = await caaml.leggi_bollettino(risorse, zona_id=zona_id, provider=provider)
         except Exception as exc:
             raise ResourceError(str(exc)) from exc
         return b.model_dump_json(indent=2)

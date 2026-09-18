@@ -1,20 +1,24 @@
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.context import Context
-from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from trekking_mcp.errors import NonTrovato
 from trekking_mcp.models import Coord, Localita, ProfiloAltimetrico, ZonaValanghe
+from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import eaws, elevation, nominatim, overpass
-from trekking_mcp.tools.comuni import gestisci_errori
+from trekking_mcp.tools.comuni import extended_tool
+
+log = logging.getLogger(__name__)
 
 
-def registra(mcp: MCPServer) -> None:
-    @mcp.tool(
+def registra(mcp: MCPServer, risorse: Risorse) -> None:
+    @extended_tool(
+        mcp,
         name="zona_valanghe_da_coordinate",
         title="Trova la zona del bollettino valanghe",
         description=(
@@ -22,23 +26,21 @@ def registra(mcp: MCPServer) -> None:
             "per cui viene emesso il bollettino valanghe. Usa questo tool prima di "
             "`bollettino_valanghe` invece di indovinare l'identificativo della zona."
         ),
-        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
-    @gestisci_errori
     async def zona_valanghe_da_coordinate(
-        ctx: Context,
         lat: Annotated[float, Field(ge=-90, le=90)],
         lon: Annotated[float, Field(ge=-180, le=180)],
     ) -> ZonaValanghe:
-        await ctx.log("info", "cerco la micro-regione EAWS del punto")
-        regione = await eaws.zona_da_coordinate(lat, lon)
+        log.info("cerco la micro-regione EAWS del punto")
+        regione = await eaws.zona_da_coordinate(risorse.eaws, lat, lon)
         return ZonaValanghe(
             id_zona=regione.id_zona,
             nome=regione.nome,
             coord_richiesta=Coord(lat=lat, lon=lon),
         )
 
-    @mcp.tool(
+    @extended_tool(
+        mcp,
         name="cerca_localita",
         title="Cerca un luogo per nome",
         description=(
@@ -48,9 +50,7 @@ def registra(mcp: MCPServer) -> None:
             "e, se serve, chiede disambiguazione tra nomi simili; senza contesto usa "
             "Nominatim come prima."
         ),
-        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
-    @gestisci_errori
     async def cerca_localita(
         ctx: Context,
         nome: Annotated[str, Field(description="Nome del luogo, es. 'Rifugio Gastaldi'", min_length=2)],
@@ -89,13 +89,14 @@ def registra(mcp: MCPServer) -> None:
         if lat is not None and lon is not None:
             from trekking_mcp.tools.geocode_risolvi import risolvi_localita
 
-            return await risolvi_localita(ctx, nome, lat=lat, lon=lon, raggio_km=raggio_km, limite=limite)
-        risultati = await nominatim.cerca(nome, limite=limite, lat=lat, lon=lon)
+            return await risolvi_localita(risorse, ctx, nome, lat=lat, lon=lon, raggio_km=raggio_km, limite=limite)
+        risultati = await nominatim.cerca(risorse, nome, limite=limite, lat=lat, lon=lon)
         if not risultati:
             raise NonTrovato("localita'", nome)
         return risultati
 
-    @mcp.tool(
+    @extended_tool(
+        mcp,
         name="profilo_altimetrico",
         title="Profilo altimetrico di un sentiero",
         description=(
@@ -104,16 +105,14 @@ def registra(mcp: MCPServer) -> None:
             "dettaglio sentiero quando serve il dislivello; non in esplorazione. "
             "Piu' lento perche' scarica la geometria completa."
         ),
-        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
-    @gestisci_errori
     async def profilo_altimetrico(
         ctx: Context,
         osm_relation_id: Annotated[int, Field(description="Relation OSM del sentiero", gt=0)],
         passo_m: Annotated[float, Field(description="Distanza fra i punti campionati, in metri", ge=25, le=500)] = 100,
     ) -> ProfiloAltimetrico:
         await ctx.report_progress(0, 2, "Scarico la geometria del sentiero")
-        esito = await overpass.leggi_geometria(osm_relation_id)
+        esito = await overpass.leggi_geometria(risorse, osm_relation_id)
         if esito is None:
             raise NonTrovato("sentiero", str(osm_relation_id))
 
@@ -126,6 +125,6 @@ def registra(mcp: MCPServer) -> None:
             )
 
         await ctx.report_progress(1, 2, f"Campiono le quote su {len(punti)} punti")
-        profilo = await elevation.profilo(punti, passo_m=passo_m)
+        profilo = await elevation.profilo(risorse, punti, passo_m=passo_m)
         await ctx.report_progress(2, 2, "Fatto")
         return profilo
