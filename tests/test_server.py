@@ -143,3 +143,24 @@ def test_il_readme_documenta_tutti_i_tool():
         f"non documentati: {sorted(registrati - documentati)}; "
         f"documentati ma inesistenti: {sorted(documentati - registrati)}"
     )
+
+
+# --- identita' del server ----------------------------------------------------
+
+
+async def test_il_server_si_presenta_con_sito_e_icona(mcp):
+    """`website_url` e `icons` sono come un client sceglie e mostra un server."""
+    assert str(mcp.website_url) == "https://github.com/19Alma98/trekking_mcp"
+
+    icone = mcp.icons or []
+    assert len(icone) == 1
+    assert icone[0].mime_type == "image/svg+xml"
+
+
+def test_l_icona_e_autoconsistente():
+    """Data URI, non un link: niente hosting da tenere in piedi, funziona offline."""
+    from trekking_mcp.server import ICONA
+
+    assert ICONA.src.startswith("data:image/svg+xml,")
+    # Il tetto e' arbitrario ma serve: un'icona non deve diventare un payload.
+    assert len(ICONA.src) < 2048, "icona troppo pesante per un data URI inline"

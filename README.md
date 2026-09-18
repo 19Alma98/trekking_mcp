@@ -13,11 +13,12 @@ Non e' un wrapper 1:1 su una API. Copre i tre primitivi del protocollo e un paio
 | **Tools** | 10 tool, due dei quali compongono piu' fonti in un unico risultato |
 | **Resources** | Documenti di riferimento statici + una resource template con URI parametrico |
 | **Prompts** | Workflow riutilizzabili che fissano il metodo, non solo il tono |
-| **Elicitation** | Il server chiede dati all'utente *a meta' chiamata*, via dependency injection |
+| **Elicitation** | Il server chiede dati all'utente *a meta' chiamata*, via dependency injection, con le scelte come `enum` nello schema |
 | **Completions** | Autocompletamento degli ID di zona valanghe, con il provider gia' scelto a restringere |
 | **Structured output** | Ogni tool ha un `outputSchema` derivato dai modelli Pydantic |
 | **Dual transport** | stdio e Streamable HTTP dallo stesso `crea_server()` |
 | **Osservabilita'** | Latenza p50/p95, 429 e hit rate per fonte, esposti come resource |
+| **Cache hints** | Ogni risposta dichiara per quanto vale (`ttlMs`/`cacheScope`), resource per resource |
 | **Client incluso** | Un client MCP minimale, per dimostrare di conoscere entrambi i lati |
 | **Geometria** | Point-in-polygon e profili altimetrici in Python puro, senza dipendenze binarie |
 

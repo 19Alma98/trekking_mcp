@@ -41,6 +41,7 @@ src/trekking_mcp/
 ├── errors.py            # errori previsti vs. bug
 ├── config.py            # configurazione da env, frozen
 ├── risorse.py           # il contenitore delle dipendenze condivise
+├── cache.py             # ttlMs/cacheScope: la freschezza dichiarata al client
 ├── geo.py               # point-in-polygon, senza dipendenze binarie
 ├── metriche.py          # contatori per fonte, in memoria
 ├── resources.py         # documenti di riferimento + resource template + metriche
@@ -452,11 +453,58 @@ vero **non** venga mascherato, cosa arriva davvero al client (`is_error` e un
 messaggio azionabile, non un traceback) e la regola strutturale — nessun modulo
 chiama `mcp.tool` per conto suo.
 
+### 3.24 La freschezza si dichiara, non si tiene per se'
+
+`Config` ha un TTL per fonte e `CacheTTL` lo usa per la cache HTTP interna. Quella
+conoscenza pero' si fermava al processo: un client che rileggeva
+`bollettino://aineva/IT-21-AO-01` tre volte in cinque minuti faceva tre
+richieste, e il server rispondeva tre volte dalla propria cache. Lavoro inutile
+su entrambi i lati, che nessuno dei due poteva evitare — la freschezza non era
+scritta da nessuna parte.
+
+`ttlMs` e `cacheScope` (SEP-2549, revisione 2026-07-28) la scrivono. Servono
+due meccanismi, perche' l'SDK ne offre due:
+
+- **Gli elenchi** prendono un hint per metodo, via `MCPServer(cache_hints=...)`.
+  Qui sono statici: si registra tutto in `crea_server()` e non cambia piu'.
+- **Le resource** hanno freschezze diverse fra loro — i documenti di riferimento
+  valgono un giorno, un bollettino trenta minuti, i contatori di
+  `metriche://fonti` zero — e l'hint per metodo e' uno solo. Le distingue un
+  middleware, che e' l'unico punto a vedere insieme l'URI richiesto e il
+  risultato che torna indietro: le funzioni `@mcp.resource` restituiscono una
+  stringa e non hanno modo di parlare dei campi del risultato.
+
+Il TTL del bollettino non e' un numero nuovo: e' `ttl_bollettino_s`, lo stesso
+che governa la cache interna. Un bollettino non puo' valere trenta minuti per il
+server e un'ora per il client.
+
+`tools/call` non compare: `CallToolResult` non ha quei campi, ed e' giusto cosi'
+— quanto valga il risultato di un tool dipende dagli argomenti, e non spetta al
+protocollo deciderlo.
+
+I test leggono i campi attraverso un `Client` vero, mai dalle funzioni interne.
+Sul filo i nomi sono in camelCase (`ttlMs`, `cacheScope`) e il middleware li
+scrive su un dict gia' serializzato: e' un dettaglio dell'SDK, quindi va
+verificato dall'altro capo invece che assunto.
+
+### 3.25 Icona e sito, per farsi riconoscere
+
+`website_url` e `icons` sono quello che un client mostra quando qualcuno sceglie
+fra piu' server. L'icona e' un SVG inline come data URI: nessun file binario nel
+repo, nessun hosting da tenere in piedi, e funziona a un client offline. Usa
+`currentColor`, quindi non servono le due varianti chiaro/scuro che `theme`
+permetterebbe.
+
+Il protocollo ammette icone anche per singoli tool, resource e prompt. Qui non
+ce ne sono: dieci glifi inventati per mostrare che il campo esiste sarebbero
+rumore, e un repo di riferimento dovrebbe insegnare anche quando *non* riempire
+un campo.
+
 ---
 
 ## 4. Testing
 
-**128 test, nessuno tocca la rete.** Le chiamate HTTP sono intercettate con
+**154 test, nessuno tocca la rete.** Le chiamate HTTP sono intercettate con
 `pytest-httpx2` (respx su httpcore2). Una suite che dipende da Overpass
 fallisce a caso, e una CI che fallisce a caso viene ignorata dopo due settimane.
 
@@ -470,6 +518,9 @@ Tre famiglie:
   agente non chiama in sequenza: le corse che contano si vedono solo qui.
 - `test_registrazione.py` — il contratto d'errore verso il client, e la regola
   che nessun tool si registri scavalcando `strumento()`.
+- `test_elicitation.py` — cosa arriva davvero al client quando il server fa una
+  domanda: gli enum nello schema, e i due elenchi agganciati alla loro fonte.
+- `test_freschezza.py` — `ttlMs`/`cacheScope`, riletti da un Client vero.
 - `test_fase2.py` — geometria su poligoni costruiti a mano (dove il risultato
   atteso e' calcolabile a mente: su un poligono reale da 4000 vertici non si sa
   dire se una risposta e' giusta), lookup delle zone, campionamento, dislivelli,
