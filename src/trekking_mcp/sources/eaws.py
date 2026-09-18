@@ -5,6 +5,7 @@ Fonte: progetto EAWS Regions (regions.avalanches.org).
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -59,6 +60,7 @@ class IndiceRegioni:
     def __init__(self) -> None:
         self._regioni: list[MicroRegione] = []
         self._territori_caricati: set[str] = set()
+        self._lock = asyncio.Lock()
 
     @property
     def caricato(self) -> bool:
@@ -122,19 +124,29 @@ class IndiceRegioni:
 
         Un territorio che non si scarica non blocca gli altri: meglio un indice
         parziale che nessun indice. Il buco viene loggato.
-        """
-        for territorio in territori or TERRITORI_ITALIA:
-            if territorio in self._territori_caricati:
-                continue
-            try:
-                geojson = await self._scarica(territorio)
-            except (FonteNonDisponibile, json.JSONDecodeError) as exc:
-                log.warning("perimetri %s non disponibili: %s", territorio, exc)
-                continue
 
-            aggiunte = self._indicizza(geojson)
-            self._territori_caricati.add(territorio)
-            log.info("indicizzate %d micro-regioni per %s", aggiunte, territorio)
+        Il lock serializza i caricamenti concorrenti, e non e' un lusso: il
+        controllo su `_territori_caricati` sta prima di un await, ma l'insieme
+        viene aggiornato solo dopo. Due tool chiamati insieme -- il caso
+        normale con un agente che fa fan-out -- passerebbero entrambi il
+        controllo, scaricherebbero lo stesso territorio due volte e lascerebbero
+        in indice micro-regioni duplicate, per sempre: `zona_da_coordinate` se
+        ne accorge poco, ma i completamenti e i suggerimenti di `_vicine`
+        finiscono per proporre lo stesso ID piu' volte.
+        """
+        async with self._lock:
+            for territorio in territori or TERRITORI_ITALIA:
+                if territorio in self._territori_caricati:
+                    continue
+                try:
+                    geojson = await self._scarica(territorio)
+                except (FonteNonDisponibile, json.JSONDecodeError) as exc:
+                    log.warning("perimetri %s non disponibili: %s", territorio, exc)
+                    continue
+
+                aggiunte = self._indicizza(geojson)
+                self._territori_caricati.add(territorio)
+                log.info("indicizzate %d micro-regioni per %s", aggiunte, territorio)
 
     async def cerca(self, lat: float, lon: float) -> list[MicroRegione]:
         """Micro-regioni che contengono il punto.
@@ -144,6 +156,9 @@ class IndiceRegioni:
         di qualche metro: in quel caso si restituiscono tutte e si lascia
         decidere a chi chiama.
         """
+        # Controllo fuori dal lock per non pagarlo sul caso comune (indice
+        # gia' pronto); `carica` lo riprende e ricontrolla, quindi il secondo
+        # chiamante concorrente non riscarica niente.
         if not self.caricato:
             await self.carica()
         return [r for r in self._regioni if r.contiene(lat, lon)]
