@@ -24,8 +24,6 @@ from trekking_mcp.sources.http import ClientHttp
 
 log = logging.getLogger(__name__)
 
-ATTRIBUZIONE = "Perimetri delle zone valanghe: progetto EAWS Regions (regions.avalanches.org)"
-
 
 @dataclass(frozen=True)
 class MicroRegione:
@@ -84,14 +82,7 @@ class IndiceRegioni:
         temporaneo.replace(percorso)
 
     async def _scarica(self, territorio: str) -> EawsFeatureCollection:
-        """Legge dalla cache su disco, o scarica se assente o scaduta.
-
-        Lettura, scrittura e `json.loads` passano da `anyio.to_thread`: sono file
-        da qualche MB, e farli sull'event loop blocca *tutto* il server — la prima
-        ricerca di una zona valanghe fermava anche le richieste che non
-        c'entravano nulla. Un `await` che non cede il controllo e' peggio di un
-        `await` lento, perche' non si vede.
-        """
+        """Legge dalla cache su disco, o scarica se assente o scaduta."""
         if (da_disco := await anyio.to_thread.run_sync(self._leggi_da_disco, territorio)) is not None:
             return da_disco
 
@@ -104,12 +95,7 @@ class IndiceRegioni:
 
     @staticmethod
     def _micro_regioni(geojson: EawsFeatureCollection) -> list[MicroRegione]:
-        """Normalizza i perimetri in oggetti pronti all'uso.
-
-        Pura e statica perche' gira in un thread (vedi `carica`): un poligono
-        EAWS ha migliaia di vertici e ognuno diventa una tupla di float, il che
-        per nove territori e' un lavoro che l'event loop non deve fare.
-        """
+        """Normalizza i perimetri in oggetti pronti all'uso."""
         regioni: list[MicroRegione] = []
         for feature in geojson.get("features") or []:
             proprieta = feature.get("properties") or {}
@@ -133,13 +119,7 @@ class IndiceRegioni:
         return regioni
 
     async def carica(self, territori: Sequence[str] | None = None) -> None:
-        """Carica i territori richiesti, saltando quelli gia' in indice.
-
-        L'elenco di default e' `Config.eaws_territori`: e' li' perche' quali
-        territori indicizzare decide anche quali zone sa risolvere
-        `zona_valanghe_da_coordinate` e quali `zona_id` si autocompletano, quindi
-        e' configurazione, non una costante di questo modulo.
-        """
+        """Carica i territori richiesti, saltando quelli gia' in indice."""
         async with self._lock:
             for territorio in territori if territori is not None else self._config.eaws_territori:
                 if territorio in self._territori_caricati:
@@ -151,9 +131,6 @@ class IndiceRegioni:
                     continue
 
                 nuove = await anyio.to_thread.run_sync(self._micro_regioni, geojson)
-                # L'append e' l'unico pezzo che tocca lo stato condiviso, e sta
-                # sull'event loop senza await in mezzo: nessuno puo' vedere
-                # l'indice a meta'.
                 self._regioni.extend(nuove)
                 self._territori_caricati.add(territorio)
                 log.info("indicizzate %d micro-regioni per %s", len(nuove), territorio)

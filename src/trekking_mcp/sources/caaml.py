@@ -66,12 +66,7 @@ PROVIDER: dict[str, _Provider] = {
 
 
 def provider_per_zona(zona_id: str) -> str:
-    """Il provider che emette il bollettino di questa zona, dal prefisso dell'ID.
-
-    Sta qui, accanto agli URL, perche' il legame zona -> provider e' una
-    proprieta' del provider: tenerne una seconda copia altrove (era in
-    `completamenti.py`) significa che un terzo provider ne aggiorna una sola.
-    """
+    """Il provider che emette il bollettino di questa zona, dal prefisso dell'ID."""
     for nome, dati in PROVIDER.items():
         if zona_id.startswith(dati["prefisso_zone"]):
             return nome
@@ -180,9 +175,7 @@ async def leggi_bollettino(
 ) -> Bollettino:
     """Scarica il bollettino corrente e ne estrae la zona richiesta.
 
-    Con `provider=None` lo deduce dall'ID di zona: chiedere una zona svizzera ad
-    AINEVA non restituisce un errore chiaro, restituisce "zona non trovata" con
-    l'elenco delle zone italiane, che e' fuorviante.
+    Con `provider=None` lo deduce dall'ID di zona.
     """
     if provider is None:
         provider = provider_per_zona(zona_id)

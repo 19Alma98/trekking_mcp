@@ -9,6 +9,12 @@ from mcp.server.mcpserver.context import Context
 from mcp.server.mcpserver.resolve import Elicit, Resolve
 from pydantic import BaseModel, Field
 
+from trekking_mcp.constants import (
+    ATTRIBUZIONE_EAWS,
+    ATTRIBUZIONE_ELEVAZIONE,
+    ATTRIBUZIONE_METEO,
+    ATTRIBUZIONE_OVERPASS,
+)
 from trekking_mcp.errors import ErroreSentieri, NonTrovato
 from trekking_mcp.geo import distanza_km
 from trekking_mcp.models import (
@@ -223,7 +229,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
                 raise NonTrovato("sentiero", str(osm_relation_id))
             sentiero = trovato
 
-        fonti = [overpass.ATTRIBUZIONE, meteo.ATTRIBUZIONE]
+        fonti = [ATTRIBUZIONE_OVERPASS, ATTRIBUZIONE_METEO]
         # Ogni dato che non si e' riusciti a raccogliere diventa un segnale:
         # un campo vuoto, da solo, si legge come "niente da segnalare".
         buchi: list[SegnaleAttenzione] = []
@@ -243,7 +249,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
             try:
                 profilo_alt = await elevation.profilo(risorse, punti)
                 sentiero = sentiero.model_copy(update={"profilo": profilo_alt})
-                fonti.append(elevation.ATTRIBUZIONE)
+                fonti.append(ATTRIBUZIONE_ELEVAZIONE)
             except ErroreSentieri as exc:
                 log.warning("profilo altimetrico non calcolato: %s", exc)
                 buchi.append(
@@ -293,7 +299,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
                 regione = await eaws.zona_da_coordinate(risorse.eaws, sentiero.centro.lat, sentiero.centro.lon)
                 zona_valanghe = regione.id_zona
                 zona = ZonaValanghe(id_zona=regione.id_zona, nome=regione.nome, coord_richiesta=sentiero.centro)
-                fonti.append(eaws.ATTRIBUZIONE)
+                fonti.append(ATTRIBUZIONE_EAWS)
             except ErroreSentieri as exc:
                 log.warning("zona valanghe non determinata: %s", exc)
                 buchi.append(

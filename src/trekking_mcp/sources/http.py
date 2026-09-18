@@ -12,13 +12,11 @@ from typing import Any
 import httpx2
 
 from trekking_mcp.config import Config
+from trekking_mcp.constants import RETRY_AFTER_MAX_S
 from trekking_mcp.errors import FonteNonDisponibile
 from trekking_mcp.metriche import Metriche
 
 log = logging.getLogger(__name__)
-
-# Tetto all'attesa chiesta via `Retry-After`
-RETRY_AFTER_MAX_S = 120.0
 
 # Sentinella: il capofila del coalescing e' stato cancellato, chi aspettava
 # rifaccia la richiesta per conto proprio.

@@ -24,7 +24,7 @@ SRC = Path(__file__).resolve().parent.parent / "src" / "trekking_mcp"
 # Chi puo' importare chi, dal basso verso l'alto. Un modulo puo' importare i
 # livelli sotto il suo e il suo, mai sopra.
 LIVELLI = [
-    {"payloads", "errors", "config", "geo", "metriche"},  # fondamenta: nessuna dipendenza interna
+    {"payloads", "errors", "config", "constants", "geo", "metriche"},  # fondamenta: nessuna dipendenza interna
     {"models"},  # il contratto dati verso il client
     {"cache", "sources"},  # gli adapter delle fonti
     {"tools", "resources", "prompts", "completamenti", "risorse"},  # la superficie MCP

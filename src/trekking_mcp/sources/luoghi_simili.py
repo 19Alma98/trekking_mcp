@@ -5,6 +5,13 @@ import logging
 from typing import TYPE_CHECKING
 
 from trekking_mcp.config import Config
+from trekking_mcp.constants import (
+    MAX_CANDIDATI_SIMILI,
+    MAX_ELEMENTI_OVERPASS_SIMILI,
+    PREFISSI_TOPONIMO,
+    SOGLIA_SIMILARITA,
+    TIPI_LUOGO,
+)
 from trekking_mcp.errors import FonteNonDisponibile
 from trekking_mcp.geo import distanza_km, riquadro_intorno
 from trekking_mcp.models import Coord, Localita
@@ -15,37 +22,6 @@ if TYPE_CHECKING:
     from trekking_mcp.risorse import Risorse
 
 log = logging.getLogger(__name__)
-
-SOGLIA_SIMILARITA = 0.55
-MAX_CANDIDATI_SIMILI = 3
-_MAX_ELEMENTI_OUT = 500
-
-# I tipi di luogo che contano per la disambiguazione di un toponimo, con il tag
-# OSM che li identifica. Era tre elenchi in tre posti diversi: la query, il
-# riconoscimento del tipo e il filtro di `nominatim`.
-TIPI_LUOGO: dict[str, frozenset[str]] = {
-    "natural": frozenset({"peak", "saddle"}),
-    "tourism": frozenset({"alpine_hut", "wilderness_hut"}),
-    "place": frozenset({"village", "hamlet", "town", "locality", "isolated_dwelling"}),
-}
-
-# Prefissi generici dei toponimi di montagna: "Monte Rosa" e "Rosa" sono lo
-# stesso posto, e chi scrive in chat ne omette meta'. Condiviso con
-# `tools.sentieri.testo_da_toponimo`.
-PREFISSI_TOPONIMO = frozenset(
-    {
-        "monte",
-        "mont",
-        "monti",
-        "cima",
-        "pizzo",
-        "col",
-        "colle",
-        "passo",
-        "rifugio",
-        "bivacco",
-    }
-)
 
 
 def query_luoghi_bbox(config: Config, sud: float, ovest: float, nord: float, est: float) -> str:
@@ -61,7 +37,7 @@ def query_luoghi_bbox(config: Config, sud: float, ovest: float, nord: float, est
         for chiave, valori in TIPI_LUOGO.items()
         for elemento in ("node", "way")
     )
-    return overpass.intestazione(config) + "(" + selettori + ");" + f"out tags center {_MAX_ELEMENTI_OUT};"
+    return overpass.intestazione(config) + "(" + selettori + ");" + f"out tags center {MAX_ELEMENTI_OVERPASS_SIMILI};"
 
 
 def _tipo_da_tags(tags: dict[str, str]) -> str | None:

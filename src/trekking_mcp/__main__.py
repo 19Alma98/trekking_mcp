@@ -17,9 +17,8 @@ import sys
 from mcp.server.transport_security import TransportSecuritySettings
 
 from trekking_mcp.config import Config
+from trekking_mcp.constants import HOST_LOCALI
 from trekking_mcp.server import crea_server
-
-HOST_LOCALI = frozenset({"127.0.0.1", "localhost", "::1"})
 
 
 def impostazioni_sicurezza(

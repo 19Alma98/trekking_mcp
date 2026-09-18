@@ -12,20 +12,18 @@ from mcp.types import (
     ResourceTemplateReference,
 )
 
+from trekking_mcp.constants import MAX_VALORI_COMPLETAMENTO, URI_BOLLETTINO
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import caaml
-
-URI_BOLLETTINO = "bollettino://{provider}/{zona_id}"
-MAX_VALORI = 100
 
 
 def _filtra(candidati: list[str], parziale: str) -> Completion:
     inizio = parziale.casefold()
     trovati = sorted(c for c in candidati if c.casefold().startswith(inizio))
     return Completion(
-        values=trovati[:MAX_VALORI],
+        values=trovati[:MAX_VALORI_COMPLETAMENTO],
         total=len(trovati),
-        has_more=len(trovati) > MAX_VALORI,
+        has_more=len(trovati) > MAX_VALORI_COMPLETAMENTO,
     )
 
 

@@ -17,17 +17,14 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
+from trekking_mcp.constants import ORA_INIZIO_GIORNATA
 from trekking_mcp.models import Coord, MeteoQuota
 
 if TYPE_CHECKING:
     from trekking_mcp.risorse import Risorse
 
-ATTRIBUZIONE = "Dati meteo: Open-Meteo.com, CC BY 4.0"
 _TZ_ROMA = ZoneInfo("Europe/Rome")
 
-# Prima ora utile di una giornata di montagna. Una partenza alpinistica e' piu'
-# presto: si passa `ora_inizio` esplicita.
-ORA_INIZIO_GIORNATA = 6
 _ORARIE = [
     "temperature_2m",
     "precipitation",

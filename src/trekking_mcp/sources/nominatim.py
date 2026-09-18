@@ -7,7 +7,8 @@ import logging
 import time
 from typing import TYPE_CHECKING, cast
 
-from trekking_mcp.constants import LINGUA_DEFAULT
+from trekking_mcp.constants import LINGUA_DEFAULT, RIQUADRO_ITALIA
+from trekking_mcp.constants import TIPI_UTILI_NOMINATIM as TIPI_UTILI
 from trekking_mcp.geo import distanza_km, riquadro_intorno
 from trekking_mcp.models import Coord, Localita
 from trekking_mcp.payloads import NominatimExtratags, NominatimResult
@@ -16,27 +17,6 @@ if TYPE_CHECKING:
     from trekking_mcp.risorse import Risorse
 
 log = logging.getLogger(__name__)
-
-ATTRIBUZIONE = "Geocoding: Nominatim / (c) contributori OpenStreetMap, ODbL"
-
-# Riquadro approssimato dell'arco alpino e appenninico italiano, usato per
-# spingere i risultati verso la montagna: "Balme" senza vincolo geografico
-# restituisce risultati in mezzo mondo.
-RIQUADRO_ITALIA = (6.6, 35.4, 18.6, 47.1)  # ovest, sud, est, nord
-
-TIPI_UTILI = {
-    "peak",
-    "saddle",
-    "alpine_hut",
-    "wilderness_hut",
-    "village",
-    "hamlet",
-    "town",
-    "locality",
-    "isolated_dwelling",
-    "viewpoint",
-    "valley",
-}
 
 
 class Limitatore:

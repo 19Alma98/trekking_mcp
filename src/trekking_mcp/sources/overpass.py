@@ -15,19 +15,12 @@ import re
 from typing import TYPE_CHECKING, cast
 
 from trekking_mcp.config import Config
+from trekking_mcp.constants import OVERPASS_MARGINE_TIMEOUT_S, OVERPASS_TESTO_MAX_LEN
 from trekking_mcp.models import SAC_TO_CAI, Coord, DifficoltaCAI, Ricovero, SacScale, Sentiero, TipoRicovero
 from trekking_mcp.payloads import OverpassElement, OverpassResponse
 
 if TYPE_CHECKING:
     from trekking_mcp.risorse import Risorse
-
-ATTRIBUZIONE = "Dati sentieri e ricoveri: (c) contributori OpenStreetMap, ODbL"
-_TESTO_MAX_LEN = 64
-
-# Margine fra il timeout dichiarato a Overpass e il nostro: se scadessero
-# insieme, il client chiuderebbe la connessione mentre il server sta ancora
-# scrivendo, e il retry ripartirebbe da zero invece di leggere l'errore.
-_MARGINE_TIMEOUT_S = 5
 
 
 def escape(valore: str) -> str:
@@ -46,7 +39,7 @@ def intestazione(config: Config) -> str:
     perche' era duplicata in `luoghi_simili` — due copie della stessa stringa che
     potevano divergere sul valore che conta.
     """
-    return f"[out:json][timeout:{int(config.timeout_s) - _MARGINE_TIMEOUT_S}];"
+    return f"[out:json][timeout:{int(config.timeout_s) - OVERPASS_MARGINE_TIMEOUT_S}];"
 
 
 def bbox(sud: float, ovest: float, nord: float, est: float) -> str:
@@ -151,7 +144,7 @@ def pattern_operatore(operatore: str) -> str:
 
 def _escape_regex(valore: str) -> str:
     """Escape PCRE/regex per valore utente, poi escape sintassi QL."""
-    return escape(re.escape(valore[:_TESTO_MAX_LEN]))
+    return escape(re.escape(valore[:OVERPASS_TESTO_MAX_LEN]))
 
 
 def query_sentieri(

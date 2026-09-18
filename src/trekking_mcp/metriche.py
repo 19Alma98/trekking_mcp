@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field
 
-CAMPIONI_LATENZA = 256
+from trekking_mcp.constants import CAMPIONI_LATENZA
 
 
 def _percentile(valori: list[float], q: float) -> float:

@@ -4,6 +4,12 @@ import logging
 from itertools import pairwise
 from typing import TYPE_CHECKING
 
+from trekking_mcp.constants import (
+    MAX_PUNTI_QUOTE,
+    MAX_PUNTI_RESTITUITI,
+    PASSO_M_DEFAULT,
+    PUNTI_PER_RICHIESTA,
+)
 from trekking_mcp.geo import distanza_km
 from trekking_mcp.models import Coord, ProfiloAltimetrico, PuntoQuotato
 
@@ -12,25 +18,8 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-ATTRIBUZIONE = "Modello di elevazione: Open-Meteo / Copernicus DEM"
 
-PUNTI_PER_RICHIESTA = 100
-
-# Quanti punti si quotano davvero. Governa l'accuratezza del dislivello, che e'
-# il numero che dice se una gita e' impegnativa: prima era 100, cioe' il tetto
-# della singola richiesta, e il `passo_m` chiesto dall'utente veniva silenziosamente
-# ignorato su ogni sentiero piu' lungo di 10 km. `quote()` sa spezzare in blocchi
-# da PUNTI_PER_RICHIESTA: 300 sono tre richieste a Open-Meteo, tutte cachate.
-MAX_PUNTI_QUOTE = 300
-
-# Quanti punti finiscono nella risposta. Il profilo lo legge un modello, e mille
-# coppie di coordinate sono contesto bruciato senza informazione aggiunta: la
-# forma della salita si vede benissimo con cento. Aggregati (dislivello, quote
-# estreme) restano calcolati su tutti i punti quotati.
-MAX_PUNTI_RESTITUITI = 100
-
-
-def campiona(punti: list[Coord], passo_m: float = 100.0, massimo: int = MAX_PUNTI_QUOTE) -> list[Coord]:
+def campiona(punti: list[Coord], passo_m: float = PASSO_M_DEFAULT, massimo: int = MAX_PUNTI_QUOTE) -> list[Coord]:
     """Riduce una polilinea mantenendo la forma del profilo.
 
     Si tiene un punto ogni `passo_m` di percorso, non uno ogni N indici: la
@@ -125,7 +114,7 @@ def dirada(quotati: list[PuntoQuotato], massimo: int = MAX_PUNTI_RESTITUITI) -> 
     return [quotati[i] for i in indici]
 
 
-async def profilo(risorse: Risorse, punti: list[Coord], *, passo_m: float = 100.0) -> ProfiloAltimetrico:
+async def profilo(risorse: Risorse, punti: list[Coord], *, passo_m: float = PASSO_M_DEFAULT) -> ProfiloAltimetrico:
     """Profilo altimetrico di una polilinea."""
     campionati = campiona(punti, passo_m=passo_m)
     elevazioni = await quote(risorse, campionati)

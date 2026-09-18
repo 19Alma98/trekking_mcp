@@ -16,18 +16,12 @@ from __future__ import annotations
 import math
 from typing import cast
 
+from trekking_mcp.constants import KM_PER_GRADO, RAGGIO_TERRA_KM
 from trekking_mcp.payloads import GeoJsonGeometry, GeoJsonMultiPolygonCoords, GeoJsonPolygonCoords
 
 # (ovest, sud, est, nord), come da convenzione GeoJSON `bbox`.
 Riquadro = tuple[float, float, float, float]
 Anello = list[tuple[float, float]]
-
-RAGGIO_TERRA_KM = 6371.0
-
-# Lunghezza di un grado di latitudine, in km. Costante a sufficienza: varia di
-# meno dell'1% fra equatore e polo, e queste funzioni servono a costruire
-# riquadri di ricerca, non a misurare.
-KM_PER_GRADO = 111.0
 
 
 def riquadro_intorno(lat: float, lon: float, raggio_km: float) -> tuple[float, float, float, float]:
