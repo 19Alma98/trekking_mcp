@@ -14,8 +14,10 @@ Non e' un wrapper 1:1 su una API. Copre i tre primitivi del protocollo e un paio
 | **Resources** | Documenti di riferimento statici + una resource template con URI parametrico |
 | **Prompts** | Workflow riutilizzabili che fissano il metodo, non solo il tono |
 | **Elicitation** | Il server chiede dati all'utente *a meta' chiamata*, via dependency injection |
+| **Completions** | Autocompletamento degli ID di zona valanghe, con il provider gia' scelto a restringere |
 | **Structured output** | Ogni tool ha un `outputSchema` derivato dai modelli Pydantic |
 | **Dual transport** | stdio e Streamable HTTP dallo stesso `crea_server()` |
+| **Osservabilita'** | Latenza p50/p95, 429 e hit rate per fonte, esposti come resource |
 | **Client incluso** | Un client MCP minimale, per dimostrare di conoscere entrambi i lati |
 | **Geometria** | Point-in-polygon e profili altimetrici in Python puro, senza dipendenze binarie |
 
@@ -45,8 +47,17 @@ Nessuna API key richiesta: tutte le fonti di default sono aperte.
 In alternativa, come server remoto:
 
 ```bash
-trekking-mcp --transport http --port 8000
+trekking-mcp --transport http --port 8000            # solo 127.0.0.1
+
+# esposto ad altre macchine: va dichiarato chi puo' chiamare
+trekking-mcp --transport http --host 0.0.0.0 \
+  --allow-host trekking.example.org:* \
+  --allow-origin https://app.example.org
 ```
+
+Il secondo comando senza `--allow-host` viene **rifiutato**: l'SDK attiva la
+protezione da DNS rebinding solo quando il bind e' su localhost, cioe' proprio
+quando non serve. Vedi [DEVELOPMENT.md](DEVELOPMENT.md) §3.18.
 
 ## Tool disponibili
 
@@ -66,7 +77,10 @@ Il flusso tipico non richiede che l'utente conosca un solo codice: `cerca_locali
 per trovare il punto, `cerca_sentieri` per i percorsi attorno, `valuta_gita` per il
 resto. La zona del bollettino viene dedotta dalle coordinate.
 
-Le resource sono `scala://pericolo-valanghe`, `scala://difficolta-escursionistica` e la template `bollettino://{provider}/{zona_id}`.
+Le resource sono `scala://pericolo-valanghe`, `scala://difficolta-escursionistica`,
+`metriche://fonti` (latenza, errori e hit rate per fonte) e la template
+`bollettino://{provider}/{zona_id}`, i cui due argomenti si autocompletano:
+scelto `slf`, `zona_id` propone solo le zone svizzere.
 
 ## L'elicitation, in breve
 

@@ -13,6 +13,7 @@ import httpx2
 
 from trekking_mcp.config import CONFIG
 from trekking_mcp.errors import FonteNonDisponibile
+from trekking_mcp.metriche import METRICHE
 
 log = logging.getLogger(__name__)
 
@@ -115,20 +116,27 @@ class ClientHttp:
         usa_cache = ttl_s is not None and metodo.upper() in {"GET", "POST"}
         chiave = CacheTTL.chiave(metodo, url, kwargs.get("params"), kwargs.get("data"), kwargs.get("json"))
 
-        if usa_cache and (cachato := await self.cache.get(chiave)) is not None:
-            log.debug("cache hit %s %s", fonte, url)
-            return cachato
+        if usa_cache:
+            if (cachato := await self.cache.get(chiave)) is not None:
+                METRICHE.cache_hit(fonte)
+                log.debug("cache hit %s %s", fonte, url)
+                return cachato
+            METRICHE.cache_miss(fonte)
 
         ultimo_errore: Exception | None = None
         tentativi = CONFIG.max_retry if max_retry is None else max_retry
         for tentativo in range(tentativi):
+            avvio = time.perf_counter()
             try:
                 risposta = await self._client.request(metodo, url, **kwargs)
+                METRICHE.chiamata(fonte, (time.perf_counter() - avvio) * 1000)
+                METRICHE.stato_http(fonte, risposta.status_code)
                 if risposta.status_code in (429, 502, 503, 504):
                     raise httpx2.HTTPStatusError(
                         f"HTTP {risposta.status_code}", request=risposta.request, response=risposta
                     )
                 if 400 <= risposta.status_code < 500:
+                    METRICHE.errore(fonte)
                     raise FonteNonDisponibile(fonte=fonte, dettaglio=f"HTTP {risposta.status_code} (errore definitivo)")
                 risposta.raise_for_status()
                 dati = risposta.json()
@@ -142,6 +150,7 @@ class ClientHttp:
                     if isinstance(exc, httpx2.HTTPStatusError) and exc.response is not None:
                         retry_after = secondi_retry_after(exc.response)
                     attesa = ritardo_retry(tentativo, retry_after)
+                    METRICHE.retry(fonte)
                     log.warning(
                         "%s: tentativo %d fallito (%s), riprovo tra %.1fs",
                         fonte,
@@ -151,6 +160,7 @@ class ClientHttp:
                     )
                     await asyncio.sleep(attesa)
 
+        METRICHE.errore(fonte)
         raise FonteNonDisponibile(fonte=fonte, dettaglio=str(ultimo_errore)) from ultimo_errore
 
 

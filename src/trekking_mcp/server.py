@@ -6,7 +6,8 @@ from contextlib import asynccontextmanager
 
 from mcp.server.mcpserver import MCPServer
 
-from trekking_mcp import prompts, resources
+from trekking_mcp import completamenti, prompts, resources
+from trekking_mcp.metriche import METRICHE
 from trekking_mcp.sources.http import CLIENT
 from trekking_mcp.tools import condizioni, gita, luoghi, sentieri
 
@@ -43,6 +44,7 @@ async def lifespan(_: MCPServer) -> AsyncIterator[None]:
         yield
     finally:
         await CLIENT.chiudi()
+        log.info("fonti esterne: %s", METRICHE.riga_di_log())
         log.info("trekking-mcp chiuso")
 
 
@@ -61,5 +63,6 @@ def crea_server() -> MCPServer:
     gita.registra(mcp)
     resources.registra(mcp)
     prompts.registra(mcp)
+    completamenti.registra(mcp)
 
     return mcp

@@ -14,7 +14,36 @@ import argparse
 import logging
 import sys
 
+from mcp.server.transport_security import TransportSecuritySettings
+
 from trekking_mcp.server import crea_server
+
+HOST_LOCALI = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def impostazioni_sicurezza(
+    host: str,
+    allow_host: list[str],
+    allow_origin: list[str],
+) -> TransportSecuritySettings | None:
+    """Protezione da DNS rebinding per il transport HTTP.
+
+    Restituisce `None` su localhost senza flag, per lasciare il default dell'SDK.
+    """
+    if not allow_host and not allow_origin:
+        if host in HOST_LOCALI:
+            return None
+        raise ValueError(
+            f"bind su {host} senza --allow-host: il server sarebbe raggiungibile da altre "
+            "macchine senza validazione di Host/Origin (DNS rebinding). Indica almeno "
+            "--allow-host <nome:porta>, oppure resta su --host 127.0.0.1."
+        )
+
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=allow_host,
+        allowed_origins=allow_origin,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -27,6 +56,21 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="HTTP senza sessione: adatto a deploy serverless o multi-replica.",
     )
+    parser.add_argument(
+        "--allow-host",
+        action="append",
+        default=[],
+        metavar="HOST",
+        help="Valore ammesso dell'header Host, es. 'trekking.example.org:*'. Ripetibile. "
+        "Obbligatorio se --host non e' localhost.",
+    )
+    parser.add_argument(
+        "--allow-origin",
+        action="append",
+        default=[],
+        metavar="ORIGIN",
+        help="Valore ammesso dell'header Origin, es. 'https://app.example.org'. Ripetibile.",
+    )
     parser.add_argument("--log-level", default="INFO")
     args = parser.parse_args(argv)
 
@@ -36,17 +80,22 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    mcp = crea_server()
-
     if args.transport == "stdio":
-        mcp.run(transport="stdio")
-    else:
-        mcp.run(
-            transport="streamable-http",
-            host=args.host,
-            port=args.port,
-            stateless_http=args.stateless,
-        )
+        crea_server().run(transport="stdio")
+        return 0
+
+    try:
+        sicurezza = impostazioni_sicurezza(args.host, args.allow_host, args.allow_origin)
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    crea_server().run(
+        transport="streamable-http",
+        host=args.host,
+        port=args.port,
+        stateless_http=args.stateless,
+        transport_security=sicurezza,
+    )
     return 0
 
 

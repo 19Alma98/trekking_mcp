@@ -5,6 +5,7 @@ from importlib import resources as pkg_resources
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceError
 
+from trekking_mcp.metriche import METRICHE
 from trekking_mcp.sources import caaml
 
 
@@ -33,6 +34,18 @@ def registra(mcp: MCPServer) -> None:
     )
     def scala_difficolta() -> str:
         return _leggi_dato("scala_difficolta.md")
+
+    @mcp.resource(
+        "metriche://fonti",
+        name="Metriche delle fonti esterne",
+        description=(
+            "Chiamate, errori, 429, 5xx, latenza p50/p95 e hit rate della cache per ogni fonte. "
+            "Contatori in memoria del processo corrente."
+        ),
+        mime_type="application/json",
+    )
+    def metriche_fonti() -> str:
+        return METRICHE.istantanea().model_dump_json(indent=2)
 
     @mcp.resource(
         "bollettino://{provider}/{zona_id}",
