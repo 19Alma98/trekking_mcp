@@ -23,15 +23,9 @@ jobs:
       - name: Installa uv
         run: python -m pip install --upgrade uv
 
-      # uv.lock e' versionato: se non corrisponde a pyproject.toml, va
-      # rigenerato in un commit, non silenziosamente aggirato in CI.
       - name: Verifica che il lock sia allineato a pyproject.toml
         run: uv lock --check
 
-      # --frozen: si installa esattamente la risoluzione del lock, la stessa
-      # della macchina di sviluppo. Con `pip install -e .[dev]` CI risolveva
-      # dai floor di pyproject.toml e poteva girare mypy o ruff di anni prima,
-      # dando esiti diversi da quelli visti in locale.
       - name: Installa le dipendenze dal lock
         run: uv sync --frozen --extra dev --python "${{ matrix.python-version }}"
 

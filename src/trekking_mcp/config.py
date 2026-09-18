@@ -9,12 +9,7 @@ UA_DEFAULT = "trekking-mcp/0.1 (+https://github.com/19Alma98/trekking_mcp)"
 
 @dataclass(frozen=True)
 class Config:
-    """Configurazione del server, letta dall'ambiente al momento dell'istanza.
-
-    Frozen di proposito: un test che vuole un valore diverso costruisce un
-    altro `Config` con `dataclasses.replace`, non muta quello in uso. Non
-    esiste un'istanza globale: chi ne ha bisogno la riceve da `Risorse`.
-    """
+    """Configurazione del server, letta dall'ambiente al momento dell'istanza."""
 
     overpass_url: str = field(
         default_factory=lambda: os.getenv("OVERPASS_URL", "https://overpass-api.de/api/interpreter")

@@ -37,13 +37,11 @@ def gestisci_errori(fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
     return wrapper
 
 
-# Ogni tool di questo server legge e basta, e ogni tool interroga fonti esterne
-# che possono cambiare sotto i piedi. Chi un giorno scrivesse qualcosa deve
-# passare annotazioni proprie, non ereditare queste.
+# Ogni tool di questo server legge e basta interrogando fonti esterne
 SOLA_LETTURA = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 
 
-def strumento(
+def extended_tool(
     mcp: MCPServer,
     *,
     name: str,
@@ -51,16 +49,7 @@ def strumento(
     description: str,
     annotations: ToolAnnotations = SOLA_LETTURA,
 ) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
-    """Registra un tool con la traduzione degli errori gia' dentro.
-
-    `mcp.tool` + `gestisci_errori` erano due decoratori da ricordare a ogni
-    tool. Ricordarne due su dieci funziona; su undici, prima o poi no, e il
-    tool dimenticato fa arrivare al client un traceback invece di una frase.
-
-    Qui la composizione e' una sola, quindi non c'e' la versione sbagliata da
-    scrivere. `test_registrazione.py` verifica che nessun modulo chiami
-    `mcp.tool` per conto suo.
-    """
+    """Registra un tool con la traduzione degli errori gia' dentro."""
 
     def decoratore(fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
         registrato = mcp.tool(name=name, title=title, description=description, annotations=annotations)

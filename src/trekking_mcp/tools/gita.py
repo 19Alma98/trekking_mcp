@@ -24,7 +24,7 @@ from trekking_mcp.models import (
 )
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import caaml, eaws, elevation, meteo, overpass
-from trekking_mcp.tools.comuni import distanza_km, strumento
+from trekking_mcp.tools.comuni import distanza_km, extended_tool
 
 log = logging.getLogger(__name__)
 
@@ -156,7 +156,7 @@ def _segnali(
 
 
 def registra(mcp: MCPServer, risorse: Risorse) -> None:
-    @strumento(
+    @extended_tool(
         mcp,
         name="valuta_gita",
         title="Raccogli le condizioni per una gita",

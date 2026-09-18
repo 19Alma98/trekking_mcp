@@ -11,7 +11,7 @@ from trekking_mcp.errors import NonTrovato
 from trekking_mcp.models import DifficoltaCAI, Ricovero, SentieriVersoLocalita, Sentiero
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import nominatim, overpass
-from trekking_mcp.tools.comuni import distanza_km, riquadro_intorno, strumento
+from trekking_mcp.tools.comuni import distanza_km, extended_tool, riquadro_intorno
 from trekking_mcp.tools.geocode_risolvi import risolvi_localita
 
 log = logging.getLogger(__name__)
@@ -93,7 +93,7 @@ def ordina_sentieri_per_distanza(risultati: list[Sentiero], *, lat: float, lon: 
 
 
 def registra(mcp: MCPServer, risorse: Risorse) -> None:
-    @strumento(
+    @extended_tool(
         mcp,
         name="cerca_sentieri",
         title="Cerca sentieri escursionistici",
@@ -140,7 +140,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
 
         return ordina_sentieri_per_distanza(risultati, lat=lat, lon=lon, limite=limite)
 
-    @strumento(
+    @extended_tool(
         mcp,
         name="dettaglio_sentiero",
         title="Dettaglio di un sentiero",
@@ -155,7 +155,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
     ) -> Sentiero | None:
         return await overpass.leggi_sentiero(risorse, osm_relation_id)
 
-    @strumento(
+    @extended_tool(
         mcp,
         name="cerca_ricoveri",
         title="Cerca rifugi e bivacchi",
@@ -171,7 +171,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
     ) -> list[Ricovero]:
         return await overpass.cerca_ricoveri(risorse, lat=lat, lon=lon, raggio_m=int(raggio_km * 1000))
 
-    @strumento(
+    @extended_tool(
         mcp,
         name="sentieri_verso_localita",
         title="Sentieri verso un luogo per nome",

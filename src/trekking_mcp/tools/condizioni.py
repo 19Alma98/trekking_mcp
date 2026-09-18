@@ -8,11 +8,11 @@ from pydantic import Field
 from trekking_mcp.models import Bollettino, MeteoQuota
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import caaml, meteo
-from trekking_mcp.tools.comuni import strumento
+from trekking_mcp.tools.comuni import extended_tool
 
 
 def registra(mcp: MCPServer, risorse: Risorse) -> None:
-    @strumento(
+    @extended_tool(
         mcp,
         name="bollettino_valanghe",
         title="Bollettino valanghe",
@@ -30,7 +30,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
     ) -> Bollettino:
         return await caaml.leggi_bollettino(risorse, zona_id=zona_id, provider=provider, lingua=lingua)
 
-    @strumento(
+    @extended_tool(
         mcp,
         name="meteo_quota",
         title="Meteo di quota",

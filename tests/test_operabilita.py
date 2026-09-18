@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 
 import httpx
@@ -134,12 +132,6 @@ def _micro_regione(id_zona: str) -> eaws.MicroRegione:
 
 @pytest.fixture
 def risorse_con_zone(risorse):
-    """Risorse con un indice EAWS gia' popolato, senza toccare la rete.
-
-    Prima era `monkeypatch.setattr(eaws, "INDICE", ...)`: si riscriveva un
-    modulo per dare un indice finto a del codice che lo cercava da solo. Ora
-    l'indice si mette dove il server lo va a prendere.
-    """
     for id_zona in ("IT-21-AO-01", "IT-21-AO-02", "IT-25-SO-01", "CH-7121"):
         risorse.eaws._regioni.append(_micro_regione(id_zona))
     return risorse

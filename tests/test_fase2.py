@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from dataclasses import replace
 
 import pytest
@@ -10,7 +8,6 @@ from trekking_mcp.geo import anelli_di_geometria, contiene, nel_riquadro, riquad
 from trekking_mcp.models import Coord
 from trekking_mcp.sources import eaws, elevation, nominatim, overpass
 
-# Quadrato unitario con un buco quadrato al centro.
 QUADRATO_CON_BUCO = {
     "type": "Polygon",
     "coordinates": [
@@ -44,18 +41,7 @@ GEOJSON_ZONE = {
 
 @pytest.fixture
 def config(tmp_path) -> Config:
-    """Sovrascrive la `config` di conftest: cache su disco dentro tmp_path.
-
-    Basta questo. La fixture `risorse` dipende da `config`, quindi l'indice
-    EAWS di questo modulo scrive in una cartella usa-e-getta senza che nessun
-    test debba saperlo. Prima serviva una fixture autouse che riscriveva
-    `eaws.CONFIG` e poi svuotava a mano cache e indice, perche' erano condivisi
-    da tutta la sessione.
-    """
     return replace(Config(), cache_dir=str(tmp_path))
-
-
-# --- geometria ---------------------------------------------------------------
 
 
 def test_riquadro_e_prefiltro():
@@ -75,7 +61,6 @@ def test_punto_dentro_e_fuori():
 
 
 def test_il_buco_e_fuori():
-    """Un punto nel buco e' dentro l'anello esterno ma fuori dal poligono."""
     poligoni = anelli_di_geometria(QUADRATO_CON_BUCO)
 
     assert not contiene(lat=5, lon=5, poligoni=poligoni)
@@ -100,9 +85,6 @@ def test_multipolygon():
 def test_geometria_non_supportata_non_esplode():
     assert anelli_di_geometria({"type": "Point", "coordinates": [1, 2]}) == []
     assert anelli_di_geometria({}) == []
-
-
-# --- zone valanghe -----------------------------------------------------------
 
 
 async def test_lookup_zona_da_coordinate(httpx2_mock: respx.Router, risorse):
@@ -143,16 +125,12 @@ async def test_la_cache_su_disco_evita_il_riscarico(httpx2_mock: respx.Router, r
 
 
 async def test_un_territorio_mancante_non_blocca_gli_altri(httpx2_mock: respx.Router, risorse):
-    """Meglio un indice parziale che nessun indice."""
     httpx2_mock.get(url__regex=r".*IT-21_micro.*").respond(200, json=GEOJSON_ZONE)
     httpx2_mock.get(url__startswith="https://regions.avalanches.org").respond(404)
 
     trovate = await risorse.eaws.cerca(45.25, 7.25)
 
     assert [r.id_zona for r in trovate] == ["IT-21-TO-05"]
-
-
-# --- profilo altimetrico -----------------------------------------------------
 
 
 def test_campionamento_conserva_gli_estremi():
@@ -170,11 +148,6 @@ def test_campionamento_su_polilinea_corta():
 
 
 def test_dislivello_ignora_il_rumore():
-    """Oscillazioni sotto soglia non devono gonfiare il dislivello.
-
-    Senza filtro, 1000 micro-oscillazioni da 1 m darebbero centinaia di metri
-    di salita inesistente. E' l'errore piu' comune nel calcolo dei profili.
-    """
     piatto_rumoroso = [1000 + (1 if i % 2 else -1) for i in range(200)]
     salita, discesa = elevation._dislivelli(piatto_rumoroso)
 
@@ -202,15 +175,10 @@ async def test_profilo_completo(httpx2_mock: respx.Router, risorse):
     assert profilo.lunghezza_km > 0
 
 
-# --- polilinea ---------------------------------------------------------------
-
-
 def test_ricucitura_inverte_il_tratto_al_contrario():
-    """Le way di una relation non sono ne' ordinate ne' orientate."""
     elemento = {
         "members": [
             {"type": "way", "geometry": [{"lat": 45.0, "lon": 7.0}, {"lat": 45.1, "lon": 7.1}]},
-            # Questo tratto e' memorizzato al contrario.
             {"type": "way", "geometry": [{"lat": 45.3, "lon": 7.3}, {"lat": 45.1, "lon": 7.1}]},
         ]
     }
@@ -229,15 +197,11 @@ def test_polilinea_scarta_i_membri_senza_geometria():
     assert overpass.polilinea(elemento) == []
 
 
-# --- geocoding ---------------------------------------------------------------
-
-
 async def _no_attendi_nominatim() -> None:
     return None
 
 
 def _nominatim_senza_cache(monkeypatch, risorse) -> None:
-    """Parametri Nominatim identici non devono riusare il [] in cache fra i due giri."""
     _orig_json = risorse.http.json
 
     async def _json_no_cache(*args, **kwargs):
@@ -358,7 +322,6 @@ async def test_ricerca_localita_filtra_per_tipo(httpx2_mock: respx.Router, risor
 
 
 async def test_il_limitatore_serializza_le_richieste():
-    """La usage policy di Nominatim impone una richiesta al secondo."""
     import time
 
     limitatore = nominatim.Limitatore(0.05)

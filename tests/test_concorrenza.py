@@ -1,12 +1,3 @@
-"""Comportamento sotto chiamate concorrenti.
-
-Un agente non chiama i tool uno alla volta: fa fan-out. Questi test
-riproducono quel caso, che e' dove si vedono le corse che un test
-sequenziale non tocca mai.
-"""
-
-from __future__ import annotations
-
 import asyncio
 
 import pytest
@@ -31,14 +22,12 @@ DENTRO = (45.05, 7.05)
 
 @pytest.fixture
 def indice(monkeypatch, risorse):
-    """Indice isolato, con un solo territorio e un download finto ma lento."""
     monkeypatch.setattr(eaws, "TERRITORI_ITALIA", ["IT-21"])
     idx = risorse.eaws
     idx.scaricamenti = 0
 
     async def _scarica(territorio: str) -> EawsFeatureCollection:
         idx.scaricamenti += 1
-        # La latenza e' il punto: senza un await qui non c'e' finestra di corsa.
         await asyncio.sleep(0.01)
         return GEOJSON_UNA_ZONA
 

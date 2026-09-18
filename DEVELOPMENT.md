@@ -57,7 +57,7 @@ src/trekking_mcp/
 │   ├── luoghi_simili.py # candidati simili nel raggio (Overpass + SequenceMatcher)
 │   └── meteo.py         # Open-Meteo
 └── tools/               # la superficie MCP
-    ├── comuni.py        # strumento(): registrazione + errori; geometria
+    ├── comuni.py        # extended_tool(): registrazione + errori; geometria
     ├── sentieri.py      # ricerca e dettaglio
     ├── condizioni.py    # bollettino, meteo
     ├── geocode_risolvi.py  # risolvi_localita + elicitation mid-call (SceltaGeocode)
@@ -442,7 +442,7 @@ Ogni tool portava due decoratori: `@mcp.tool(...)` e `@gestisci_errori`.
 Ricordarsene due su dieci riesce; all'undicesimo, prima o poi, no — e il tool
 dimenticato manda al modello un traceback invece di una frase utile.
 
-`strumento()` compone i due in uno. Non e' zucchero sintattico: e' che la
+`extended_tool()` compone i due in uno. Non e' zucchero sintattico: e' che la
 versione sbagliata non si puo' piu' scrivere. Porta con se' anche le
 annotazioni `read_only_hint`/`open_world_hint`, che erano copiate identiche
 dieci volte.
@@ -517,7 +517,7 @@ Tre famiglie:
 - `test_concorrenza.py` — cosa succede quando due tool partono insieme. Un
   agente non chiama in sequenza: le corse che contano si vedono solo qui.
 - `test_registrazione.py` — il contratto d'errore verso il client, e la regola
-  che nessun tool si registri scavalcando `strumento()`.
+  che nessun tool si registri scavalcando `extended_tool()`.
 - `test_elicitation.py` — cosa arriva davvero al client quando il server fa una
   domanda: gli enum nello schema, e i due elenchi agganciati alla loro fonte.
 - `test_freschezza.py` — `ttlMs`/`cacheScope`, riletti da un Client vero.

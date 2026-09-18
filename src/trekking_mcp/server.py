@@ -56,27 +56,13 @@ def crea_server(config: Config | None = None, *, risorse: Risorse | None = None)
 
     Le `Risorse` si creano qui e si passano a ogni `registra()`: e' l'unico
     punto in cui il grafo delle dipendenze e' visibile.
-
-    `risorse` le accetta gia' pronte ed e' la giuntura per i test: si prepara
-    un indice EAWS finto, o un contatore di metriche con dentro qualcosa, e si
-    consegna al server. Prima la stessa cosa si otteneva riscrivendo
-    `eaws.INDICE` con `monkeypatch`, cioe' modificando un modulo per il resto
-    della sessione di test. Se e' passato, `config` viene ignorato.
     """
     if risorse is None:
         risorse = Risorse.crea(config)
 
     @asynccontextmanager
     async def lifespan(_: MCPServer[Risorse]) -> AsyncIterator[Risorse]:
-        """Apre e chiude il pool HTTP; un solo pool per server.
-
-        Le risorse sono gia' costruite: qui si gestisce solo il loro ciclo di
-        vita. Vengono anche restituite, cosi' sono raggiungibili come
-        `ctx.request_context.lifespan_context` — la porta idiomatica dell'SDK
-        per i tool e le resource template. Le resource statiche e l'handler dei
-        completamenti non ricevono un Context, quindi usano la closure: stesso
-        oggetto, due porte. Vedi `risorse.py`.
-        """
+        """Apre e chiude il pool HTTP; un solo pool per server."""
         await risorse.avvia()
         log.info("trekking-mcp avviato")
         try:

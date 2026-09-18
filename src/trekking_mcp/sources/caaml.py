@@ -69,16 +69,7 @@ _GRADI = {
 
 
 def _data(valore: str | None) -> datetime:
-    """Istante CAAML, sempre timezone-aware.
-
-    Il profilo EAWS vuole `validTime` con offset esplicito, ma non tutti i
-    provider lo rispettano: un istante senza offset viene letto come UTC, ed
-    e' l'unica assunzione documentabile quando l'informazione manca.
-
-    La normalizzazione non e' cosmesi. Con un fallback naive accanto a istanti
-    aware, `valido_da < valido_fino` sullo stesso modello solleva TypeError:
-    il campo deve essere di un tipo solo.
-    """
+    """Istante CAAML, sempre timezone-aware."""
     if not valore:
         return datetime.now(UTC)
     istante = datetime.fromisoformat(valore.replace("Z", "+00:00"))

@@ -1,12 +1,3 @@
-"""Come i tool vengono registrati, e cosa arriva al client quando falliscono.
-
-Era il buco piu' grosso della suite: la traduzione degli errori e' il
-contratto fra server e modello — quello che decide se il modello legge una
-frase utile o un traceback — e non la copriva nessun test.
-"""
-
-from __future__ import annotations
-
 import ast
 import pathlib
 
@@ -19,9 +10,6 @@ from trekking_mcp.server import crea_server
 from trekking_mcp.tools.comuni import gestisci_errori
 
 TOOL_DIR = pathlib.Path(__file__).resolve().parent.parent / "src" / "trekking_mcp" / "tools"
-
-
-# --- la traduzione in se' ----------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -42,12 +30,10 @@ async def test_un_errore_previsto_diventa_un_messaggio_leggibile(errore: ErroreS
         await fallisce()
 
     assert atteso in str(sollevato.value)
-    # La causa originale resta agganciata: il log tiene il contesto completo.
     assert sollevato.value.__cause__ is errore
 
 
 async def test_un_errore_imprevisto_non_viene_mascherato():
-    """Un bug deve restare un bug: mascherarlo da ToolError lo renderebbe invisibile."""
 
     @gestisci_errori
     async def esplode() -> None:
@@ -65,11 +51,7 @@ async def test_il_valore_di_ritorno_passa_intatto():
     assert await ok() == "valore"
 
 
-# --- la traduzione vista dal client ------------------------------------------
-
-
 async def test_il_client_riceve_il_messaggio_non_il_traceback(monkeypatch, risorse):
-    """Fine a fine: una fonte giu' deve arrivare come testo azionabile, con is_error."""
 
     async def _giu(*args: object, **kwargs: object) -> None:
         raise FonteNonDisponibile("overpass", "HTTP 503")
@@ -87,7 +69,6 @@ async def test_il_client_riceve_il_messaggio_non_il_traceback(monkeypatch, risor
 
 
 async def test_una_zona_inesistente_suggerisce_quelle_valide(monkeypatch, risorse):
-    """`NonTrovato` porta le alternative fino al client: e' meta' della sua utilita'."""
 
     async def _mancante(*args: object, **kwargs: object) -> None:
         raise NonTrovato("zona valanghe", "IT-99", alternative=["IT-21-AO-01", "IT-21-AO-02"])
@@ -102,20 +83,11 @@ async def test_una_zona_inesistente_suggerisce_quelle_valide(monkeypatch, risors
     assert "IT-21-AO-01" in testo
 
 
-# --- la regola strutturale ---------------------------------------------------
-
-
 def _moduli_tool() -> list[pathlib.Path]:
     return [f for f in TOOL_DIR.glob("*.py") if f.name not in {"__init__.py", "comuni.py"}]
 
 
-def test_nessun_tool_si_registra_scavalcando_strumento():
-    """`mcp.tool` diretto = un tool senza traduzione degli errori.
-
-    La regola e' strutturale apposta: `strumento()` compone registrazione e
-    `gestisci_errori`, quindi finche' si passa di li' non esiste la versione
-    sbagliata da scrivere. Questo test difende l'unica porta rimasta aperta.
-    """
+def test_nessun_tool_si_registra_scavalcando_extended_tool():
     colpevoli = []
     for percorso in _moduli_tool():
         for nodo in ast.walk(ast.parse(percorso.read_text(encoding="utf-8"))):
@@ -125,11 +97,10 @@ def test_nessun_tool_si_registra_scavalcando_strumento():
             if isinstance(fn, ast.Attribute) and fn.attr == "tool" and isinstance(fn.value, ast.Name):
                 colpevoli.append(f"{percorso.name}:{nodo.lineno}")
 
-    assert colpevoli == [], f"usa strumento() invece di mcp.tool() in: {', '.join(colpevoli)}"
+    assert colpevoli == [], f"usa extended_tool() invece di mcp.tool() in: {', '.join(colpevoli)}"
 
 
 async def test_ogni_tool_registrato_traduce_gli_errori():
-    """Controprova dal registro: nessun tool e' sfuggito al decoratore."""
     mcp = crea_server()
     nomi = [t.name for t in await mcp.list_tools()]
 

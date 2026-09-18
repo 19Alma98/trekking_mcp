@@ -1,5 +1,3 @@
-"""Server MCP per sentieri, rifugi e condizioni di montagna."""
-
 from importlib.metadata import PackageNotFoundError, version
 
 try:

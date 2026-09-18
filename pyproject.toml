@@ -21,10 +21,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# I minimi seguono le major effettivamente in uso (vedi uv.lock), non la prima
-# versione che per caso funzionava. mypy 1.x e ruff 0.6 hanno default diversi
-# da 2.x e 0.16: con i floor vecchi, `pip install -e ".[dev]"` poteva dare
-# esiti diversi da `uv sync --frozen`, che e' quello che gira in CI.
 dev = [
     "pytest>=9.0",
     "pytest-asyncio>=1.4",
@@ -51,9 +47,6 @@ packages = ["src/trekking_mcp"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = ["-q", "-p", "pytest_httpx2"]
-# Una API dell'SDK deprecata deve rompere la build, non stampare una riga che
-# nessuno legge. E' il modo per accorgersi di una revisione del protocollo
-# quando esce, invece che quando il supporto viene rimosso.
 filterwarnings = [
     "error::mcp.shared.exceptions.MCPDeprecationWarning",
 ]

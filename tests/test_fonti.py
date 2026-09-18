@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import json
 import re
@@ -37,7 +35,6 @@ CAAML_ESEMPIO = {
 
 
 def test_query_sentieri_filtra_su_ref_non_su_name(config):
-    """Il numero del sentiero sta in `ref`: cercarlo in `name` e' l'errore classico."""
     ql = overpass.query_sentieri(config, sud=45.0, ovest=7.0, nord=45.5, est=7.5, ref="103")
 
     assert '["ref"="103"]' in ql
@@ -47,7 +44,6 @@ def test_query_sentieri_filtra_su_ref_non_su_name(config):
 
 
 def test_query_escapa_gli_apici(config):
-    """Overpass non ha query parametrizzate: l'escaping e' a carico nostro."""
     ql = overpass.query_sentieri(config, sud=45.0, ovest=7.0, nord=45.5, est=7.5, ref='10"];out;//')
 
     assert '10\\"' in ql
@@ -109,7 +105,6 @@ async def test_caaml_normalizza_i_gradi(httpx2_mock: respx.Router, risorse):
 
 
 def test_gli_istanti_del_bollettino_sono_sempre_confrontabili():
-    """Naive e aware nello stesso campo farebbero esplodere ogni confronto."""
     con_offset = caaml._data("2026-02-01T17:00:00Z")
     senza_offset = caaml._data("2026-02-01T17:00:00")
     mancante = caaml._data(None)
@@ -118,13 +113,11 @@ def test_gli_istanti_del_bollettino_sono_sempre_confrontabili():
     assert senza_offset.tzinfo is not None, "istante senza offset lasciato naive"
     assert mancante.tzinfo is not None, "fallback naive accanto a istanti aware"
 
-    # Il punto vero: questi confronti non devono sollevare TypeError.
     assert con_offset == senza_offset
     assert con_offset < mancante
 
 
 async def test_un_bollettino_senza_validtime_resta_utilizzabile(httpx2_mock: respx.Router, risorse):
-    """Manca `validTime`: il modello si costruisce e la validita' si confronta."""
     senza_validita = {
         "bulletins": [
             {
@@ -152,7 +145,6 @@ async def test_zona_inesistente_suggerisce_le_valide(httpx2_mock: respx.Router, 
 async def test_overpass_usa_al_massimo_due_tentativi(
     httpx2_mock: respx.Router, monkeypatch, risorse_con, config, risorse
 ):
-    """Overpass: max_retry effettivo 2 (1 retry), indipendente da config.max_retry=3."""
     risorse = risorse_con(max_retry=3)
     monkeypatch.setattr("asyncio.sleep", _no_sleep)
 
@@ -164,8 +156,6 @@ async def test_overpass_usa_al_massimo_due_tentativi(
 
 
 async def test_retry_e_poi_fonte_non_disponibile(httpx2_mock: respx.Router, monkeypatch, risorse_con, risorse):
-    """Dopo i retry, l'errore httpx2 grezzo non deve uscire dal layer fonti."""
-    # Config e' frozen di proposito: si costruisce l'oggetto, non si muta.
     risorse = risorse_con(max_retry=2)
     monkeypatch.setattr("asyncio.sleep", _no_sleep)
 
@@ -177,7 +167,6 @@ async def test_retry_e_poi_fonte_non_disponibile(httpx2_mock: respx.Router, monk
 
 
 async def test_retry_rispetta_retry_after(httpx2_mock: respx.Router, monkeypatch, risorse_con, risorse):
-    """Su 429 con Retry-After, l'attesa deve essere almeno quel valore (più jitter)."""
     attese: list[float] = []
 
     async def _registra(secondi: float) -> None:
@@ -199,11 +188,6 @@ async def test_retry_rispetta_retry_after(httpx2_mock: respx.Router, monkeypatch
 
 
 async def test_un_retry_after_enorme_non_blocca_la_chiamata(httpx2_mock: respx.Router, monkeypatch, risorse):
-    """Oltre il tetto non si aspetta: si fallisce subito dicendo quanto chiede la fonte.
-
-    Restare in sleep un'ora terrebbe il semaforo di Overpass e con esso ogni
-    altra query del processo. Meglio un errore leggibile, subito.
-    """
     attese: list[float] = []
 
     async def _registra(secondi: float) -> None:
@@ -219,12 +203,10 @@ async def test_un_retry_after_enorme_non_blocca_la_chiamata(httpx2_mock: respx.R
     assert attese == [], "ha atteso nonostante il Retry-After sopra il tetto"
     assert rotta.call_count == 1, "ha ritentato invece di fermarsi"
     assert "3600" in str(errore.value)
-    # Il messaggio deve restare azionabile per chi legge dall'altra parte.
     assert "riprovare" in errore.value.messaggio_utente()
 
 
 async def test_un_retry_after_sotto_il_tetto_viene_rispettato(httpx2_mock: respx.Router, monkeypatch, risorse):
-    """Il tetto non deve rompere il caso normale: 30s < 120s si aspettano."""
     attese: list[float] = []
 
     async def _registra(secondi: float) -> None:
@@ -245,7 +227,6 @@ async def test_un_retry_after_sotto_il_tetto_viene_rispettato(httpx2_mock: respx
 
 
 async def test_retry_aggiunge_jitter_senza_retry_after(httpx2_mock: respx.Router, monkeypatch, risorse_con, risorse):
-    """Senza Retry-After: backoff 2**n più jitter uniforme in [0, base)."""
     attese: list[float] = []
 
     async def _registra(secondi: float) -> None:
@@ -267,7 +248,6 @@ async def test_retry_aggiunge_jitter_senza_retry_after(httpx2_mock: respx.Router
 
 
 async def test_overpass_serializza_le_query_parallele(monkeypatch, risorse):
-    """Il semaforo Overpass impedisce fan-out parallelo verso l'istanza."""
     in_volo = 0
     picco = 0
 
@@ -298,7 +278,6 @@ async def test_la_cache_evita_la_seconda_chiamata(httpx2_mock: respx.Router, ris
 
 
 async def test_meteo_serializza_istante_in_rfc3339(httpx2_mock: respx.Router, risorse):
-    """Open-Meteo dà `2026-09-17T00:00` (naive); lo schema MCP vuole date-time con offset."""
     httpx2_mock.get(url__startswith="https://api.open-meteo.com/v1/forecast").respond(
         200,
         json={

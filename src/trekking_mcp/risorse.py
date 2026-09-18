@@ -1,30 +1,4 @@
-"""Le dipendenze condivise del server, in un oggetto solo.
-
-Prima erano sei singleton di modulo (`CONFIG`, `CLIENT`, `METRICHE`, `INDICE`,
-il semaforo Overpass, il limitatore Nominatim), costruiti all'import. Il
-sintomo si vedeva nei test: per cambiare un timeout si sostituiva un attributo
-di modulo con `monkeypatch.setattr("...http.CONFIG", ...)`. Quando il modo
-normale di configurare qualcosa e' riscrivere una variabile altrui, la
-dipendenza non e' dichiarata da nessuna parte.
-
-`Risorse` le dichiara. Si costruisce una volta in `crea_server()`, si passa a
-ogni `registra()` e da li' scende nelle funzioni delle fonti. Un test ne crea
-una sua, con il `Config` che vuole, e non tocca niente di globale.
-
-## Perche' una closure e non solo il lifespan
-
-L'SDK inietta il `Context` — e con esso `lifespan_context` — nei tool e nelle
-resource template. **Non** lo inietta nelle resource statiche (l'SDK rifiuta
-esplicitamente la registrazione) ne' nell'handler dei completamenti, che ha
-una firma fissa. Visto che `metriche://fonti` e' statica e i completamenti
-leggono l'indice EAWS, il `Context` da solo non basta.
-
-Quindi le `Risorse` si legano alla registrazione, per closure: un unico
-meccanismo valido per tutti e cinque i primitivi. Il lifespan resta il
-padrone del *ciclo di vita* (apre e chiude il pool HTTP) e le espone anche
-come `lifespan_context`, che e' la porta idiomatica dell'SDK: stesso oggetto,
-due porte.
-"""
+"""Le dipendenze condivise del server, in un oggetto solo."""
 
 from __future__ import annotations
 

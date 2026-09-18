@@ -122,20 +122,7 @@ class IndiceRegioni:
         return aggiunte
 
     async def carica(self, territori: list[str] | None = None) -> None:
-        """Carica i territori richiesti, saltando quelli gia' in indice.
-
-        Un territorio che non si scarica non blocca gli altri: meglio un indice
-        parziale che nessun indice. Il buco viene loggato.
-
-        Il lock serializza i caricamenti concorrenti, e non e' un lusso: il
-        controllo su `_territori_caricati` sta prima di un await, ma l'insieme
-        viene aggiornato solo dopo. Due tool chiamati insieme -- il caso
-        normale con un agente che fa fan-out -- passerebbero entrambi il
-        controllo, scaricherebbero lo stesso territorio due volte e lascerebbero
-        in indice micro-regioni duplicate, per sempre: `zona_da_coordinate` se
-        ne accorge poco, ma i completamenti e i suggerimenti di `_vicine`
-        finiscono per proporre lo stesso ID piu' volte.
-        """
+        """Carica i territori richiesti, saltando quelli gia' in indice."""
         async with self._lock:
             for territorio in territori or TERRITORI_ITALIA:
                 if territorio in self._territori_caricati:
@@ -151,16 +138,7 @@ class IndiceRegioni:
                 log.info("indicizzate %d micro-regioni per %s", aggiunte, territorio)
 
     async def cerca(self, lat: float, lon: float) -> list[MicroRegione]:
-        """Micro-regioni che contengono il punto.
-
-        Normalmente e' una sola. Puo' essere vuota (fuori dall'area coperta) o
-        contenere piu' elementi sui confini, dove i perimetri si sovrappongono
-        di qualche metro: in quel caso si restituiscono tutte e si lascia
-        decidere a chi chiama.
-        """
-        # Controllo fuori dal lock per non pagarlo sul caso comune (indice
-        # gia' pronto); `carica` lo riprende e ricontrolla, quindi il secondo
-        # chiamante concorrente non riscarica niente.
+        """Micro-regioni che contengono il punto."""
         if not self.caricato:
             await self.carica()
         return [r for r in self._regioni if r.contiene(lat, lon)]

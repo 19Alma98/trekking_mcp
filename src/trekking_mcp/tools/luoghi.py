@@ -11,13 +11,13 @@ from trekking_mcp.errors import NonTrovato
 from trekking_mcp.models import Coord, Localita, ProfiloAltimetrico, ZonaValanghe
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import eaws, elevation, nominatim, overpass
-from trekking_mcp.tools.comuni import strumento
+from trekking_mcp.tools.comuni import extended_tool
 
 log = logging.getLogger(__name__)
 
 
 def registra(mcp: MCPServer, risorse: Risorse) -> None:
-    @strumento(
+    @extended_tool(
         mcp,
         name="zona_valanghe_da_coordinate",
         title="Trova la zona del bollettino valanghe",
@@ -39,7 +39,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
             coord_richiesta=Coord(lat=lat, lon=lon),
         )
 
-    @strumento(
+    @extended_tool(
         mcp,
         name="cerca_localita",
         title="Cerca un luogo per nome",
@@ -95,7 +95,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
             raise NonTrovato("localita'", nome)
         return risultati
 
-    @strumento(
+    @extended_tool(
         mcp,
         name="profilo_altimetrico",
         title="Profilo altimetrico di un sentiero",

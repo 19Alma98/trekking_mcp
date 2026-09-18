@@ -156,8 +156,6 @@ def _escape(valore: str) -> str:
 
 
 async def esegui(risorse: Risorse, ql: str, *, ttl_s: int | None = None) -> OverpassResponse:
-    # Il semaforo vive nelle Risorse: e' per-server, non per-processo, ma resta
-    # l'unico punto in cui si limita il fan-out di un agente verso Overpass.
     async with risorse.overpass:
         return cast(
             OverpassResponse,

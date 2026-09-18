@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import re
 from pathlib import Path
 
@@ -129,13 +127,6 @@ async def test_sentieri_verso_localita_espone_raggio_geocode_km(mcp):
 
 
 def test_il_readme_documenta_tutti_i_tool():
-    """La tabella del README deve elencare esattamente i tool registrati.
-
-    Non e' pedanteria: il tool dimenticato l'ultima volta era
-    `sentieri_verso_localita`, cioe' proprio quello che le `instructions`
-    indicano come ingresso da preferire. Chi legge il README si costruiva
-    un'idea sbagliata del server.
-    """
     documentati = set(re.findall(r"^\| `([a-z_]+)` \|", README.read_text(encoding="utf-8"), re.MULTILINE))
     registrati = TOOL_ATTESI
 

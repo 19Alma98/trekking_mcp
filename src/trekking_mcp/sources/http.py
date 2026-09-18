@@ -17,11 +17,7 @@ from trekking_mcp.metriche import Metriche
 
 log = logging.getLogger(__name__)
 
-# Tetto all'attesa chiesta via `Retry-After`. Oltre questo non e' piu' un
-# retry, e' un blocco: il semaforo di Overpass e' globale al processo, quindi
-# una richiesta ferma in sleep tiene fuori tutte le altre. Meglio fallire
-# subito dicendo quanto chiede la fonte, e lasciare che sia chi chiama a
-# decidere se e quando riprovare.
+# Tetto all'attesa chiesta via `Retry-After`
 RETRY_AFTER_MAX_S = 120.0
 
 
@@ -82,12 +78,7 @@ class CacheTTL:
 
 
 class ClientHttp:
-    """Wrapper su httpx2 con retry esponenziale e cache opzionale.
-
-    Config e metriche arrivano dal costruttore, non da variabili di modulo:
-    e' quello che rende possibile istanziarne uno per test, con un `Config`
-    diverso, senza toccare lo stato di nessun altro.
-    """
+    """Wrapper su httpx2 con retry esponenziale e cache opzionale."""
 
     def __init__(self, config: Config, metriche: Metriche, cache: CacheTTL | None = None) -> None:
         self._client: httpx2.AsyncClient | None = None
