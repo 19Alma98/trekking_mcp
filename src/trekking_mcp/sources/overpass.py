@@ -15,19 +15,113 @@ import re
 from typing import TYPE_CHECKING, cast
 
 from trekking_mcp.config import Config
-from trekking_mcp.models import Coord, Ricovero, Sentiero
+from trekking_mcp.constants import OVERPASS_MARGINE_TIMEOUT_S, OVERPASS_TESTO_MAX_LEN
+from trekking_mcp.models import SAC_TO_CAI, Coord, DifficoltaCAI, Ricovero, SacScale, Sentiero, TipoRicovero
 from trekking_mcp.payloads import OverpassElement, OverpassResponse
 
 if TYPE_CHECKING:
     from trekking_mcp.risorse import Risorse
 
-ATTRIBUZIONE = "Dati sentieri e ricoveri: (c) contributori OpenStreetMap, ODbL"
-_INTESTAZIONE = "[out:json][timeout:{timeout}];"
-_TESTO_MAX_LEN = 64
+
+def escape(valore: str) -> str:
+    """Neutralizza i caratteri che romperebbero la sintassi QL.
+
+    Overpass non ha query parametrizzate, quindi l'escaping e' a carico nostro:
+    e' l'equivalente locale della prevenzione da injection.
+    """
+    return valore.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
 
 
-def _bbox(sud: float, ovest: float, nord: float, est: float) -> str:
+def intestazione(config: Config) -> str:
+    """Il preambolo di ogni query QL: formato di uscita e timeout.
+
+    Una funzione e non una costante perche' il timeout viene dal `Config`, e
+    perche' era duplicata in `luoghi_simili` — due copie della stessa stringa che
+    potevano divergere sul valore che conta.
+    """
+    return f"[out:json][timeout:{int(config.timeout_s) - OVERPASS_MARGINE_TIMEOUT_S}];"
+
+
+def bbox(sud: float, ovest: float, nord: float, est: float) -> str:
+    """Riquadro nell'ordine che vuole Overpass: sud,ovest,nord,est."""
     return f"{sud},{ovest},{nord},{est}"
+
+
+def sentiero_da_relation(rel: OverpassElement) -> Sentiero:
+    """Una relation `route=hiking` nel modello `Sentiero`."""
+    tags: dict[str, str] = rel.get("tags", {})
+
+    sac = None
+    if raw := tags.get("sac_scale"):
+        try:
+            sac = SacScale(raw)
+        except ValueError:
+            # `sac_scale` fuori standard: si scarta il valore, non la relation.
+            sac = None
+
+    centro = None
+    if c := rel.get("center"):
+        centro = Coord(lat=c["lat"], lon=c["lon"])
+
+    lunghezza = None
+    if raw := tags.get("distance"):
+        try:
+            lunghezza = float(raw.replace("km", "").strip())
+        except ValueError:
+            lunghezza = None
+
+    return Sentiero(
+        osm_relation_id=rel["id"],
+        ref=tags.get("ref"),
+        nome=tags.get("name"),
+        da=tags.get("from"),
+        a=tags.get("to"),
+        operatore=tags.get("operator"),
+        rete=tags.get("network"),
+        sac_scale=sac,
+        difficolta_cai=SAC_TO_CAI.get(sac, DifficoltaCAI.SCONOSCIUTA) if sac else DifficoltaCAI.SCONOSCIUTA,
+        visibilita=tags.get("trail_visibility"),
+        lunghezza_km=lunghezza,
+        centro=centro,
+        osm_url=f"https://www.openstreetmap.org/relation/{rel['id']}",
+    )
+
+
+def ricovero_da_element(el: OverpassElement) -> Ricovero:
+    """Un nodo o una way di rifugio, bivacco o riparo nel modello `Ricovero`."""
+    tags: dict[str, str] = el.get("tags", {})
+
+    if tags.get("tourism") == "alpine_hut":
+        tipo = TipoRicovero.RIFUGIO
+    elif tags.get("tourism") == "wilderness_hut":
+        tipo = TipoRicovero.BIVACCO
+    else:
+        tipo = TipoRicovero.RIPARO
+
+    if "lat" in el and "lon" in el:
+        lat, lon = el["lat"], el["lon"]
+    elif "center" in el:
+        lat, lon = el["center"]["lat"], el["center"]["lon"]
+    else:
+        raise ValueError(f"elemento Overpass {el.get('id')} senza coordinate")
+
+    def _int(chiave: str) -> int | None:
+        try:
+            return int(float(tags[chiave]))
+        except (KeyError, ValueError):
+            return None
+
+    return Ricovero(
+        osm_id=el["id"],
+        nome=tags.get("name"),
+        tipo=tipo,
+        quota_m=_int("ele"),
+        coord=Coord(lat=lat, lon=lon),
+        posti_letto=_int("beds") or _int("capacity"),
+        telefono=tags.get("phone") or tags.get("contact:phone"),
+        sito_web=tags.get("website") or tags.get("contact:website"),
+        osm_url=f"https://www.openstreetmap.org/{el.get('type', 'node')}/{el['id']}",
+    )
 
 
 def pattern_operatore(operatore: str) -> str:
@@ -39,7 +133,7 @@ def pattern_operatore(operatore: str) -> str:
 
 def _escape_regex(valore: str) -> str:
     """Escape PCRE/regex per valore utente, poi escape sintassi QL."""
-    return _escape(re.escape(valore[:_TESTO_MAX_LEN]))
+    return escape(re.escape(valore[:OVERPASS_TESTO_MAX_LEN]))
 
 
 def query_sentieri(
@@ -56,24 +150,20 @@ def query_sentieri(
     """Costruisce la query QL per le relation escursionistiche in un riquadro."""
     filtri = ['["route"="hiking"]', '["type"="route"]']
     if ref:
-        filtri.append(f'["ref"="{_escape(ref)}"]')
+        filtri.append(f'["ref"="{escape(ref)}"]')
     if operatore:
-        filtri.append(f'["operator"~"{_escape(pattern_operatore(operatore))}",i]')
+        filtri.append(f'["operator"~"{escape(pattern_operatore(operatore))}",i]')
     if testo and testo.strip():
         filtri.append(f'[~"^(name|from|to|description)$"~"{_escape_regex(testo.strip())}",i]')
 
     catena = "".join(filtri)
-    return (
-        _INTESTAZIONE.format(timeout=int(config.timeout_s) - 5)
-        + f"relation{catena}({_bbox(sud, ovest, nord, est)});"
-        + "out tags center;"
-    )
+    return intestazione(config) + f"relation{catena}({bbox(sud, ovest, nord, est)});" + "out tags center;"
 
 
 def query_ricoveri(config: Config, *, lat: float, lon: float, raggio_m: int) -> str:
     """Rifugi gestiti, bivacchi e ripari entro un raggio."""
     return (
-        _INTESTAZIONE.format(timeout=int(config.timeout_s) - 5)
+        intestazione(config)
         + "("
         + f'node["tourism"~"^(alpine_hut|wilderness_hut)$"](around:{raggio_m},{lat},{lon});'
         + f'way["tourism"~"^(alpine_hut|wilderness_hut)$"](around:{raggio_m},{lat},{lon});'
@@ -84,18 +174,11 @@ def query_ricoveri(config: Config, *, lat: float, lon: float, raggio_m: int) -> 
 
 
 def query_relation(config: Config, osm_relation_id: int) -> str:
-    return (
-        _INTESTAZIONE.format(timeout=int(config.timeout_s) - 5) + f"relation({osm_relation_id});" + "out tags center;"
-    )
+    return intestazione(config) + f"relation({osm_relation_id});" + "out tags center;"
 
 
 def ha_membri_way(elemento: OverpassElement) -> bool:
     return any(m.get("type") == "way" for m in (elemento.get("members") or []))
-
-
-def query_relation_membri(config: Config, osm_relation_id: int) -> str:
-    """Relation con lista membri (senza geometria dei way)."""
-    return _INTESTAZIONE.format(timeout=int(config.timeout_s) - 5) + f"relation({osm_relation_id});" + "out;"
 
 
 def query_geometria(config: Config, osm_relation_id: int) -> str:
@@ -105,7 +188,7 @@ def query_geometria(config: Config, osm_relation_id: int) -> str:
     sono facilmente migliaia di punti e centinaia di KB. Va usata solo quando
     serve davvero il profilo, mai nelle ricerche.
     """
-    return _INTESTAZIONE.format(timeout=int(config.timeout_s) - 5) + f"relation({osm_relation_id});" + "out tags geom;"
+    return intestazione(config) + f"relation({osm_relation_id});" + "out tags geom;"
 
 
 def polilinea(elemento: OverpassElement) -> list[Coord]:
@@ -146,15 +229,6 @@ def polilinea(elemento: OverpassElement) -> list[Coord]:
     return percorso
 
 
-def _escape(valore: str) -> str:
-    """Neutralizza i caratteri che romperebbero la sintassi QL.
-
-    Overpass non ha query parametrizzate, quindi l'escaping e' a carico nostro:
-    e' l'equivalente locale della prevenzione da injection.
-    """
-    return valore.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
-
-
 async def esegui(risorse: Risorse, ql: str, *, ttl_s: int | None = None) -> OverpassResponse:
     async with risorse.overpass:
         return cast(
@@ -187,35 +261,28 @@ async def cerca_sentieri(
             risorse.config, sud=sud, ovest=ovest, nord=nord, est=est, ref=ref, operatore=operatore, testo=testo
         ),
     )
-    return [Sentiero.da_relation(el) for el in dati.get("elements", []) if el.get("type") == "relation"]
+    return [sentiero_da_relation(el) for el in dati.get("elements", []) if el.get("type") == "relation"]
 
 
 async def cerca_ricoveri(risorse: Risorse, *, lat: float, lon: float, raggio_m: int) -> list[Ricovero]:
     dati = await esegui(risorse, query_ricoveri(risorse.config, lat=lat, lon=lon, raggio_m=raggio_m))
-    return [Ricovero.da_element(el) for el in dati.get("elements", []) if el.get("tags")]
+    return [ricovero_da_element(el) for el in dati.get("elements", []) if el.get("tags")]
 
 
 async def leggi_sentiero(risorse: Risorse, osm_relation_id: int) -> Sentiero | None:
     dati = await esegui(risorse, query_relation(risorse.config, osm_relation_id))
     elementi = [el for el in dati.get("elements", []) if el.get("type") == "relation"]
-    return Sentiero.da_relation(elementi[0]) if elementi else None
+    return sentiero_da_relation(elementi[0]) if elementi else None
 
 
 async def leggi_geometria(risorse: Risorse, osm_relation_id: int) -> tuple[Sentiero, list[Coord]] | None:
-    """Sentiero piu' la sua polilinea completa.
-
-    Non usa la cache condivisa con TTL breve: la risposta e' grande e la
-    geometria dei sentieri e' la cosa piu' stabile che questo server tratti.
-    """
-    meta = await esegui(risorse, query_relation_membri(risorse.config, osm_relation_id))
-    relazioni = [el for el in meta.get("elements", []) if el.get("type") == "relation"]
+    """Sentiero piu' la sua polilinea completa, in una sola query."""
+    dati = await esegui(risorse, query_geometria(risorse.config, osm_relation_id))
+    relazioni = [el for el in dati.get("elements", []) if el.get("type") == "relation"]
     if not relazioni:
         return None
-    if not ha_membri_way(relazioni[0]):
-        return Sentiero.da_relation(relazioni[0]), []
 
-    dati = await esegui(risorse, query_geometria(risorse.config, osm_relation_id))
-    relazioni_g = [el for el in dati.get("elements", []) if el.get("type") == "relation"]
-    if not relazioni_g:
-        return None
-    return Sentiero.da_relation(relazioni_g[0]), polilinea(relazioni_g[0])
+    relazione = relazioni[0]
+    if not ha_membri_way(relazione):
+        return sentiero_da_relation(relazione), []
+    return sentiero_da_relation(relazione), polilinea(relazione)

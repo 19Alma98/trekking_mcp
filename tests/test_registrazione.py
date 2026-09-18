@@ -7,7 +7,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from trekking_mcp.errors import ErroreSentieri, FonteNonDisponibile, NonTrovato, ParametriNonValidi
 from trekking_mcp.server import crea_server
-from trekking_mcp.tools.comuni import gestisci_errori
+from trekking_mcp.tools.registrazione import gestisci_errori
 
 TOOL_DIR = pathlib.Path(__file__).resolve().parent.parent / "src" / "trekking_mcp" / "tools"
 
@@ -84,7 +84,7 @@ async def test_una_zona_inesistente_suggerisce_quelle_valide(monkeypatch, risors
 
 
 def _moduli_tool() -> list[pathlib.Path]:
-    return [f for f in TOOL_DIR.glob("*.py") if f.name not in {"__init__.py", "comuni.py"}]
+    return [f for f in TOOL_DIR.glob("*.py") if f.name not in {"__init__.py", "registrazione.py"}]
 
 
 def test_nessun_tool_si_registra_scavalcando_extended_tool():

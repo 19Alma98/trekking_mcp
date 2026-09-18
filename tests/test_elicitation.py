@@ -14,8 +14,8 @@ import pytest
 from mcp.server.elicitation import render_elicitation_schema
 from pydantic import BaseModel, Field, ValidationError
 
+from trekking_mcp.constants import MAX_CANDIDATI_SIMILI
 from trekking_mcp.models import DifficoltaCAI
-from trekking_mcp.sources.luoghi_simili import MAX_CANDIDATI_SIMILI
 from trekking_mcp.tools.geocode_risolvi import AzioneGeocode, SceltaGeocode
 from trekking_mcp.tools.gita import DifficoltaDichiarata, ProfiloUscita
 

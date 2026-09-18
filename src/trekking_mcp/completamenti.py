@@ -12,29 +12,25 @@ from mcp.types import (
     ResourceTemplateReference,
 )
 
+from trekking_mcp.constants import MAX_VALORI_COMPLETAMENTO, URI_BOLLETTINO
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import caaml
-
-URI_BOLLETTINO = "bollettino://{provider}/{zona_id}"
-MAX_VALORI = 100
-
-# Prefisso degli ID di zona per provider: AINEVA copre l'Italia, SLF la Svizzera.
-PREFISSI_PROVIDER = {"aineva": "IT-", "slf": "CH-"}
 
 
 def _filtra(candidati: list[str], parziale: str) -> Completion:
     inizio = parziale.casefold()
     trovati = sorted(c for c in candidati if c.casefold().startswith(inizio))
     return Completion(
-        values=trovati[:MAX_VALORI],
+        values=trovati[:MAX_VALORI_COMPLETAMENTO],
         total=len(trovati),
-        has_more=len(trovati) > MAX_VALORI,
+        has_more=len(trovati) > MAX_VALORI_COMPLETAMENTO,
     )
 
 
 def zone_note(risorse: Risorse, provider: str | None = None) -> list[str]:
     """ID di zona dall'indice EAWS gia' in memoria."""
-    prefisso = PREFISSI_PROVIDER.get(provider or "")
+    dati = caaml.PROVIDER.get(provider or "")
+    prefisso = dati["prefisso_zone"] if dati else None
     return [r.id_zona for r in risorse.eaws.regioni if prefisso is None or r.id_zona.startswith(prefisso)]
 
 

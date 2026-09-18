@@ -4,7 +4,15 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-UA_DEFAULT = "trekking-mcp/0.1 (+https://github.com/19Alma98/trekking_mcp)"
+from trekking_mcp.constants import TERRITORI_DEFAULT, UA_DEFAULT
+
+
+def _elenco_env(nome: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    """Variabile d'ambiente con valori separati da virgola."""
+    grezzo = os.getenv(nome)
+    if grezzo is None:
+        return default
+    return tuple(pezzo.strip() for pezzo in grezzo.split(",") if pezzo.strip())
 
 
 @dataclass(frozen=True)
@@ -44,3 +52,9 @@ class Config:
     overpass_concurrency: int = field(default_factory=lambda: int(os.getenv("OVERPASS_CONCURRENCY", "1")))
 
     cache_max_entry: int = field(default_factory=lambda: int(os.getenv("CACHE_MAX_ENTRY", "512")))
+
+    cache_max_byte: int = field(default_factory=lambda: int(os.getenv("CACHE_MAX_BYTE", str(64 * 1024 * 1024))))
+
+    eaws_territori: tuple[str, ...] = field(default_factory=lambda: _elenco_env("EAWS_TERRITORI", TERRITORI_DEFAULT))
+
+    state_keys: tuple[str, ...] = field(default_factory=lambda: _elenco_env("TREKKING_MCP_STATE_KEYS", ()))

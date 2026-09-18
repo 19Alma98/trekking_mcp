@@ -11,7 +11,7 @@ from trekking_mcp.errors import NonTrovato
 from trekking_mcp.models import Coord, Localita, ProfiloAltimetrico, ZonaValanghe
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import eaws, elevation, nominatim, overpass
-from trekking_mcp.tools.comuni import extended_tool
+from trekking_mcp.tools.registrazione import extended_tool
 
 log = logging.getLogger(__name__)
 

@@ -4,20 +4,22 @@ import logging
 from itertools import pairwise
 from typing import TYPE_CHECKING
 
+from trekking_mcp.constants import (
+    MAX_PUNTI_QUOTE,
+    MAX_PUNTI_RESTITUITI,
+    PASSO_M_DEFAULT,
+    PUNTI_PER_RICHIESTA,
+)
+from trekking_mcp.geo import distanza_km
 from trekking_mcp.models import Coord, ProfiloAltimetrico, PuntoQuotato
-from trekking_mcp.tools.comuni import distanza_km
 
 if TYPE_CHECKING:
     from trekking_mcp.risorse import Risorse
 
 log = logging.getLogger(__name__)
 
-ATTRIBUZIONE = "Modello di elevazione: Open-Meteo / Copernicus DEM"
 
-PUNTI_PER_RICHIESTA = 100
-
-
-def campiona(punti: list[Coord], passo_m: float = 100.0, massimo: int = 100) -> list[Coord]:
+def campiona(punti: list[Coord], passo_m: float = PASSO_M_DEFAULT, massimo: int = MAX_PUNTI_QUOTE) -> list[Coord]:
     """Riduce una polilinea mantenendo la forma del profilo.
 
     Si tiene un punto ogni `passo_m` di percorso, non uno ogni N indici: la
@@ -97,7 +99,22 @@ def _dislivelli(quote_m: list[float], soglia_m: float = 5.0) -> tuple[int, int]:
     return round(salita), round(discesa)
 
 
-async def profilo(risorse: Risorse, punti: list[Coord], *, passo_m: float = 100.0) -> ProfiloAltimetrico:
+def dirada(quotati: list[PuntoQuotato], massimo: int = MAX_PUNTI_RESTITUITI) -> list[PuntoQuotato]:
+    """Riduce i punti da restituire tenendo primo e ultimo.
+
+    Separato dal campionamento perche' risponde a un'altra domanda. `campiona`
+    decide quanti punti *quotare*, e la risposta la da' l'accuratezza del
+    dislivello; questa decide quanti *mostrarne*, e la risposta la da' il costo in
+    contesto per il modello che legge.
+    """
+    if len(quotati) <= massimo:
+        return quotati
+    fattore = (len(quotati) - 1) / (massimo - 1)
+    indici = sorted({round(i * fattore) for i in range(massimo)} | {len(quotati) - 1})
+    return [quotati[i] for i in indici]
+
+
+async def profilo(risorse: Risorse, punti: list[Coord], *, passo_m: float = PASSO_M_DEFAULT) -> ProfiloAltimetrico:
     """Profilo altimetrico di una polilinea."""
     campionati = campiona(punti, passo_m=passo_m)
     elevazioni = await quote(risorse, campionati)
@@ -114,12 +131,15 @@ async def profilo(risorse: Risorse, punti: list[Coord], *, passo_m: float = 100.
     valori = [p.quota_m for p in quotati]
     salita, discesa = _dislivelli(valori)
     lunghezza = sum(distanza_km(a.lat, a.lon, b.lat, b.lon) for a, b in pairwise(punti))
+    passo_effettivo = round(lunghezza * 1000 / max(len(quotati) - 1, 1)) if lunghezza else None
 
     return ProfiloAltimetrico(
-        punti=quotati,
+        punti=dirada(quotati),
         lunghezza_km=round(lunghezza, 2),
         dislivello_positivo_m=salita,
         dislivello_negativo_m=discesa,
         quota_minima_m=round(min(valori)),
         quota_massima_m=round(max(valori)),
+        punti_quotati=len(quotati),
+        passo_effettivo_m=passo_effettivo,
     )

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from mcp.server.mcpserver import MCPServer
 
+from trekking_mcp.constants import PROVIDER_DEFAULT
+
 
 def registra(mcp: MCPServer) -> None:
     @mcp.prompt(
@@ -41,7 +43,7 @@ Vincoli sulla risposta:
         description="Rilegge un bollettino per chi non ha dimestichezza con la terminologia EAWS.",
     )
     def spiega_bollettino(zona_id: str) -> str:
-        return f"""Leggi la resource `bollettino://aineva/{zona_id}` e la resource
+        return f"""Leggi la resource `bollettino://{PROVIDER_DEFAULT}/{zona_id}` e la resource
 `scala://pericolo-valanghe`, poi spiega il bollettino a una persona che sa
 camminare in montagna ma non conosce la terminologia valanghiva.
 

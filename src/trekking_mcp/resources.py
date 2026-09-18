@@ -44,7 +44,8 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
         ),
         mime_type="application/json",
     )
-    def metriche_fonti() -> str:
+    async def metriche_fonti() -> str:
+        """`async` di proposito, anche se non attende niente."""
         return risorse.metriche.istantanea().model_dump_json(indent=2)
 
     @mcp.resource(

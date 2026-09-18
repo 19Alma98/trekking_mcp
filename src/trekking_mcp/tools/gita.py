@@ -9,7 +9,14 @@ from mcp.server.mcpserver.context import Context
 from mcp.server.mcpserver.resolve import Elicit, Resolve
 from pydantic import BaseModel, Field
 
-from trekking_mcp.errors import NonTrovato
+from trekking_mcp.constants import (
+    ATTRIBUZIONE_EAWS,
+    ATTRIBUZIONE_ELEVAZIONE,
+    ATTRIBUZIONE_METEO,
+    ATTRIBUZIONE_OVERPASS,
+)
+from trekking_mcp.errors import ErroreSentieri, NonTrovato
+from trekking_mcp.geo import distanza_km
 from trekking_mcp.models import (
     Bollettino,
     Coord,
@@ -24,7 +31,7 @@ from trekking_mcp.models import (
 )
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import caaml, eaws, elevation, meteo, overpass
-from trekking_mcp.tools.comuni import distanza_km, extended_tool
+from trekking_mcp.tools.registrazione import extended_tool
 
 log = logging.getLogger(__name__)
 
@@ -82,6 +89,7 @@ def _segnali(
     """
     segnali: list[SegnaleAttenzione] = []
     ordine = [DifficoltaCAI.T, DifficoltaCAI.E, DifficoltaCAI.EE, DifficoltaCAI.EEA]
+    grado: GradoPericolo | None = None
 
     if difficolta == DifficoltaCAI.SCONOSCIUTA:
         segnali.append(
@@ -117,6 +125,19 @@ def _segnali(
 
     if bollettino is not None:
         grado = bollettino.grado_massimo
+
+    if bollettino is not None and grado is None:
+        segnali.append(
+            SegnaleAttenzione(
+                categoria="valanghe",
+                severita="attenzione",
+                messaggio=(
+                    "Il bollettino non riporta un grado di pericolo interpretabile: "
+                    "leggere il documento originale, non dedurne l'assenza di pericolo."
+                ),
+            )
+        )
+    elif grado is not None:
         if grado >= GradoPericolo.MARCATO:
             segnali.append(
                 SegnaleAttenzione(
@@ -206,9 +227,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
                 raise NonTrovato("sentiero", str(osm_relation_id))
             sentiero = trovato
 
-        fonti = [overpass.ATTRIBUZIONE, meteo.ATTRIBUZIONE]
-        # Ogni dato che non si e' riusciti a raccogliere diventa un segnale:
-        # un campo vuoto, da solo, si legge come "niente da segnalare".
+        fonti = [ATTRIBUZIONE_OVERPASS, ATTRIBUZIONE_METEO]
         buchi: list[SegnaleAttenzione] = []
 
         if sentiero.centro is None and punti:
@@ -226,8 +245,8 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
             try:
                 profilo_alt = await elevation.profilo(risorse, punti)
                 sentiero = sentiero.model_copy(update={"profilo": profilo_alt})
-                fonti.append(elevation.ATTRIBUZIONE)
-            except Exception as exc:
+                fonti.append(ATTRIBUZIONE_ELEVAZIONE)
+            except ErroreSentieri as exc:
                 log.warning("profilo altimetrico non calcolato: %s", exc)
                 buchi.append(
                     SegnaleAttenzione(
@@ -276,8 +295,8 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
                 regione = await eaws.zona_da_coordinate(risorse.eaws, sentiero.centro.lat, sentiero.centro.lon)
                 zona_valanghe = regione.id_zona
                 zona = ZonaValanghe(id_zona=regione.id_zona, nome=regione.nome, coord_richiesta=sentiero.centro)
-                fonti.append(eaws.ATTRIBUZIONE)
-            except Exception as exc:
+                fonti.append(ATTRIBUZIONE_EAWS)
+            except ErroreSentieri as exc:
                 log.warning("zona valanghe non determinata: %s", exc)
                 buchi.append(
                     SegnaleAttenzione(
@@ -293,10 +312,11 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
         await ctx.report_progress(4, passi, "Leggo il bollettino valanghe")
         bollettino = None
         if zona_valanghe:
+            provider = caaml.provider_per_zona(zona_valanghe)
             try:
-                bollettino = await caaml.leggi_bollettino(risorse, zona_id=zona_valanghe)
-                fonti.append(caaml.PROVIDER["aineva"]["attribuzione"])
-            except Exception as exc:
+                bollettino = await caaml.leggi_bollettino(risorse, zona_id=zona_valanghe, provider=provider)
+                fonti.append(caaml.PROVIDER[provider]["attribuzione"])
+            except ErroreSentieri as exc:
                 log.warning("bollettino non disponibile: %s", exc)
 
         await ctx.report_progress(5, passi, "Scarico il meteo")

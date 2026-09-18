@@ -8,7 +8,7 @@ from pydantic import BaseModel, ValidationError
 
 from trekking_mcp.errors import FonteNonDisponibile, NonTrovato
 from trekking_mcp.models import Coord, Localita
-from trekking_mcp.sources import luoghi_simili, nominatim
+from trekking_mcp.sources import luoghi_simili, nominatim, overpass
 from trekking_mcp.sources.luoghi_simili import (
     cerca_simili_nel_raggio,
     localita_da_elemento,
@@ -102,9 +102,16 @@ def test_filtra_simili_ordina_per_ratio_poi_distanza():
 
 def test_query_luoghi_bbox_include_tipi_utili(config):
     ql = query_luoghi_bbox(config, 45.0, 7.0, 46.0, 8.0)
-    assert '["natural"~"^(peak|saddle)$"]' in ql
-    assert '["tourism"~"^(alpine_hut|wilderness_hut)$"]' in ql
-    assert '["place"~"^(village|hamlet|town|locality|isolated_dwelling)$"]' in ql
+
+    for chiave, valori in luoghi_simili.TIPI_LUOGO.items():
+        for elemento in ("node", "way"):
+            assert f'{elemento}["{chiave}"~"^(' in ql
+        for valore in valori:
+            assert valore in ql
+
+    assert "out tags center 500;" in ql
+    # Il preambolo arriva da `overpass`, non da una seconda copia locale.
+    assert ql.startswith(overpass.intestazione(config))
     assert "out tags center" in ql
 
 
@@ -287,23 +294,11 @@ async def test_risolvi_terza_espansione_solleva_non_trovato(monkeypatch, risorse
 
 
 def test_un_azione_fuori_enum_non_arriva_nemmeno_al_tool():
-    """Con `azione` come Literal il valore assurdo muore nella validazione.
-
-    Prima `azione` era una `str` e "usa_99" viaggiava fino al corpo di
-    `risolvi_localita`, che doveva accorgersene da solo. Ora lo schema che il
-    client riceve porta l'enum, e Pydantic rifiuta quello che non c'e' dentro.
-    """
     with pytest.raises(ValidationError):
         geocode_risolvi.SceltaGeocode(azione="usa_99", nuovo_raggio_km=50)  # type: ignore[arg-type]
 
 
 async def test_un_candidato_valido_ma_assente_solleva_non_trovato(monkeypatch, risorse):
-    """`usa_3` e' nell'enum, ma i simili trovati possono essere meno di tre.
-
-    E' il pezzo che l'enum non puo' garantire, quindi il controllo a runtime
-    resta: qui c'e' un solo candidato e si chiede il terzo.
-    """
-
     async def _vuoto(*args, **kwargs):
         return []
 

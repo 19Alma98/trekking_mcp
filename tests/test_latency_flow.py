@@ -17,7 +17,6 @@ def _sentiero(osm_id: int, ref: str | None, lat: float, lon: float) -> Sentiero:
 
 
 def test_ordina_sentieri_per_distanza_tiene_i_piu_vicini():
-    # Punto query: Biella ~45.57, 8.05
     lontani_prima_per_ref = [
         _sentiero(1, "Z99", 46.0, 8.5),  # lontano
         _sentiero(2, "A01", 45.58, 8.06),  # vicino
@@ -27,11 +26,10 @@ def test_ordina_sentieri_per_distanza_tiene_i_piu_vicini():
     assert [s.osm_relation_id for s in esito] == [3, 2]
     assert esito[0].distanza_km is not None
     assert esito[0].distanza_km <= esito[1].distanza_km
-    # arrotondato a 0.1 km
     assert esito[0].distanza_km == round(esito[0].distanza_km, 1)
 
 
-async def test_leggi_geometria_senza_way_non_chiama_out_geom(httpx2_mock: respx.Router, risorse):
+async def test_leggi_geometria_fa_una_sola_query(httpx2_mock: respx.Router, risorse):
     rotta = httpx2_mock.post(url__startswith="https://overpass-api.de").respond(
         200,
         json={
@@ -50,15 +48,45 @@ async def test_leggi_geometria_senza_way_non_chiama_out_geom(httpx2_mock: respx.
     sentiero, punti = esito
     assert sentiero.osm_relation_id == 42
     assert punti == []
-    assert rotta.call_count == 1  # solo query leggera (out;), niente out geom
+    assert rotta.call_count == 1
 
     body = rotta.calls[0].request.content
     if isinstance(body, bytes):
         body = body.decode()
     ql = parse_qs(body)["data"][0]
-    assert "out;" in ql
-    assert "out tags geom" not in ql
-    assert "out geom" not in ql
+    assert "out tags geom" in ql
+
+
+async def test_leggi_geometria_con_way_resta_una_query(httpx2_mock: respx.Router, risorse):
+    rotta = httpx2_mock.post(url__startswith="https://overpass-api.de").respond(
+        200,
+        json={
+            "elements": [
+                {
+                    "type": "relation",
+                    "id": 7,
+                    "tags": {"ref": "103"},
+                    "members": [
+                        {
+                            "type": "way",
+                            "geometry": [
+                                {"lat": 45.0, "lon": 7.0},
+                                {"lat": 45.01, "lon": 7.01},
+                            ],
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+
+    esito = await overpass.leggi_geometria(risorse, 7)
+
+    assert esito is not None
+    sentiero, punti = esito
+    assert sentiero.ref == "103"
+    assert len(punti) == 2
+    assert rotta.call_count == 1, "il caso comune non deve pagare due round-trip"
 
 
 async def _no_attendi() -> None:
@@ -71,6 +99,10 @@ def test_testo_da_toponimo_usa_ultima_parola_significativa():
     assert testo_da_toponimo("Monte Mucrone") == "Mucrone"
     assert testo_da_toponimo("Mucrone") == "Mucrone"
     assert testo_da_toponimo("Rifugio Gastaldi") == "Gastaldi"
+    assert testo_da_toponimo("Monte Colle Grande") == "Grande"
+    assert testo_da_toponimo("  passo  Gavia  ") == "Gavia"
+    assert testo_da_toponimo("") == ""
+    assert testo_da_toponimo("Passo") == "Passo"
 
 
 async def test_esegui_sentieri_verso_localita(httpx2_mock: respx.Router, monkeypatch, risorse):

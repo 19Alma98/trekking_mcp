@@ -72,7 +72,7 @@ def test_pattern_operatore_cai_matcha_punti():
 def test_query_sentieri_operatore_cai_non_e_letterale(config):
     pattern = overpass.pattern_operatore("CAI")
     ql = overpass.query_sentieri(config, sud=45.0, ovest=7.0, nord=45.5, est=7.5, operatore="CAI")
-    assert f'["operator"~"{overpass._escape(pattern)}",i]' in ql
+    assert f'["operator"~"{overpass.escape(pattern)}",i]' in ql
     assert '["operator"~"CAI",i]' not in ql
 
 

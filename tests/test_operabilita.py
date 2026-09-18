@@ -4,10 +4,13 @@ import httpx
 import pytest
 import respx
 from mcp import Client
+from mcp.server.mcpserver import RequestStateSecurity
+from mcp.server.request_state import InvalidRequestState
 from mcp.types import PromptReference, ResourceTemplateReference
 
-from trekking_mcp import completamenti
+from trekking_mcp import __version__, completamenti
 from trekking_mcp.__main__ import impostazioni_sicurezza, main
+from trekking_mcp.config import Config
 from trekking_mcp.errors import FonteNonDisponibile
 from trekking_mcp.geo import Riquadro
 from trekking_mcp.metriche import Metriche, _percentile
@@ -193,3 +196,27 @@ async def test_nessun_completamento_per_riferimenti_sconosciuti(risorse_con_zone
             {"name": "sentiero", "value": "1"},
         )
     assert esito.completion.values == []
+
+
+def test_lo_stato_sigillato_e_lo_stesso_fra_due_server():
+    chiavi = ["0" * 64]
+    replica_a = RequestStateSecurity(keys=chiavi)
+    replica_b = RequestStateSecurity(keys=chiavi)
+
+    assert replica_b.codec.unseal(replica_a.codec.seal(b"stato")) == b"stato"
+
+    effimera_a, effimera_b = RequestStateSecurity.ephemeral(), RequestStateSecurity.ephemeral()
+    with pytest.raises(InvalidRequestState):
+        effimera_b.codec.unseal(effimera_a.codec.seal(b"stato"))
+
+
+def test_le_chiavi_di_stato_si_leggono_dall_ambiente(monkeypatch):
+    monkeypatch.setenv("TREKKING_MCP_STATE_KEYS", "prima, seconda")
+    assert Config().state_keys == ("prima", "seconda")
+
+    monkeypatch.delenv("TREKKING_MCP_STATE_KEYS")
+    assert Config().state_keys == ()
+
+
+def test_lo_user_agent_dichiara_la_versione():
+    assert __version__ in Config().user_agent

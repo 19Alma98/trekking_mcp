@@ -29,16 +29,7 @@ from mcp.server.caching import CacheableMethod, CacheHint
 from mcp.server.context import CallNext, HandlerResult, ServerMiddleware, ServerRequestContext
 
 from trekking_mcp.config import Config
-
-MS = 1000
-
-# Gli elenchi cambiano solo con una nuova versione del server. Un'ora e' un
-# compromesso: abbastanza da evitare il re-listing continuo di un client HTTP,
-# abbastanza poco da accorgersi di un deploy senza aspettare il giorno dopo.
-TTL_ELENCHI_MS = 3600 * MS
-
-# I documenti di riferimento sono file nel pacchetto: cambiano con una release.
-TTL_SCALE_MS = 24 * 3600 * MS
+from trekking_mcp.constants import MS, TTL_ELENCHI_MS, TTL_SCALE_MS
 
 CACHE_HINTS: dict[CacheableMethod, CacheHint] = {
     "tools/list": CacheHint(ttl_ms=TTL_ELENCHI_MS, scope="public"),

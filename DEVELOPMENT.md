@@ -31,43 +31,78 @@ del Model Context Protocol.
 
 ## 2. Architettura
 
-Tre livelli, con una dipendenza a senso unico: `tools` → `sources` → rete.
+Cinque livelli, con una dipendenza a senso unico: dal montaggio verso le
+fondamenta, mai al contrario.
 
 ```
 src/trekking_mcp/
+│
+│  livello 4 — il montaggio
 ├── server.py            # crea_server(): registra tutto, gestisce il lifespan
 ├── __main__.py          # CLI: scelta del transport
-├── models.py            # Pydantic: il contratto dati verso il client
-├── errors.py            # errori previsti vs. bug
-├── config.py            # configurazione da env, frozen
-├── risorse.py           # il contenitore delle dipendenze condivise
-├── cache.py             # ttlMs/cacheScope: la freschezza dichiarata al client
-├── geo.py               # point-in-polygon, senza dipendenze binarie
-├── metriche.py          # contatori per fonte, in memoria
+│
+│  livello 3 — la superficie MCP
 ├── resources.py         # documenti di riferimento + resource template + metriche
 ├── prompts.py           # workflow riutilizzabili
 ├── completamenti.py     # autocompletamento degli argomenti
+├── risorse.py           # il contenitore delle dipendenze condivise
+├── tools/
+│   ├── registrazione.py # extended_tool(): registrazione + traduzione errori
+│   ├── sentieri.py      # ricerca e dettaglio
+│   ├── luoghi.py        # geocoding, zona valanghe, profilo altimetrico
+│   ├── condizioni.py    # bollettino, meteo
+│   ├── geocode_risolvi.py  # risolvi_localita + elicitation mid-call (SceltaGeocode)
+│   └── gita.py          # tool composito + elicitation via resolver
+│
+│  livello 2 — gli adapter delle fonti
+├── cache.py             # ttlMs/cacheScope: la freschezza dichiarata al client
 ├── sources/             # un adapter per fonte esterna
-│   ├── http.py          # client condiviso: retry, backoff, cache TTL
-│   ├── overpass.py      # OpenStreetMap
-│   ├── caaml.py         # bollettini CAAML v6 (AINEVA, SLF)
+│   ├── http.py          # client condiviso: retry, backoff, cache TTL, coalescing
+│   ├── overpass.py      # OpenStreetMap: query QL, escaping, tag -> modelli
+│   ├── caaml.py         # bollettini CAAML v6 (AINEVA, SLF) + zona -> provider
 │   ├── eaws.py          # perimetri delle zone valanghe, cache su disco
 │   ├── elevation.py     # quote e profili altimetrici
 │   ├── nominatim.py     # geocoding, con rate limiter
 │   ├── luoghi_simili.py # candidati simili nel raggio (Overpass + SequenceMatcher)
 │   └── meteo.py         # Open-Meteo
-└── tools/               # la superficie MCP
-    ├── comuni.py        # extended_tool(): registrazione + errori; geometria
-    ├── sentieri.py      # ricerca e dettaglio
-    ├── condizioni.py    # bollettino, meteo
-    ├── geocode_risolvi.py  # risolvi_localita + elicitation mid-call (SceltaGeocode)
-    └── gita.py          # tool composito + elicitation
+│
+│  livello 1 — il contratto dati
+├── models.py            # Pydantic: l'outputSchema che vede il client
+│
+│  livello 0 — le fondamenta, senza dipendenze interne
+├── payloads.py          # TypedDict delle risposte grezze delle fonti
+├── errors.py            # errori previsti vs. bug
+├── config.py            # configurazione da env, frozen
+├── geo.py               # distanze, riquadri, point-in-polygon
+└── metriche.py          # contatori per fonte, in memoria
 ```
 
 **Perche' questa separazione.** Gli adapter non sanno di essere dietro un server
 MCP: restituiscono modelli, non risposte di protocollo. Questo rende il layer
 `sources/` testabile senza alcuna infrastruttura MCP e riusabile se un giorno
 serve una CLI o un'API REST sopra gli stessi dati.
+
+**E' un test, non una promessa.** `test_architettura.py` legge gli import di ogni
+modulo e fallisce se uno guarda verso l'alto. Serviva: `distanza_km` e
+`riquadro_intorno` stavano in `tools/comuni.py`, e tre adapter in `sources/` li
+importavano — cioe' il layer basso dipendeva da quello alto, l'esatto contrario
+di quanto questa sezione dichiarava. La geometria e' scesa in `geo.py`, il resto
+di `comuni.py` e' diventato `tools/registrazione.py`, e ora la regola e'
+verificata a ogni CI. Un documento che descrive un'architettura diversa da quella
+del codice e' peggio di nessun documento.
+
+L'unico riferimento verso l'alto ammesso e' il **tipo** del contenitore di
+dipendenze (`Risorse`), che gli adapter accettano come primo argomento sotto
+`if TYPE_CHECKING:`. A runtime non c'e' nessun ciclo, e il guard lo rende
+esplicito invece di nasconderlo.
+
+**Il contratto dati non conosce il formato delle fonti.** `Sentiero.da_relation`
+e `Ricovero.da_element` stavano in `models.py`, che quindi importava
+`payloads.OverpassElement`: il contratto pubblico era legato alla forma di
+Overpass, e sostituire la fonte avrebbe voluto dire toccare i modelli. Le due
+funzioni sono ora `sentiero_da_relation` e `ricovero_da_element` in
+`sources/overpass.py`, dove stava gia' `localita_da_elemento` di
+`luoghi_simili`.
 
 **La registrazione e' esplicita.** Ogni modulo di tool espone
 `registra(mcp, risorse)` e `crea_server()` li chiama in ordine. Niente
@@ -500,11 +535,177 @@ ce ne sono: dieci glifi inventati per mostrare che il campo esiste sarebbero
 rumore, e un repo di riferimento dovrebbe insegnare anche quando *non* riempire
 un campo.
 
+### 3.26 Il `requestState` va sigillato con una chiave dichiarata
+
+Un'elicitation non e' una richiesta sola: il server chiede, il client risponde,
+e la seconda meta' deve ritrovare il contesto della prima. Sul wire 2026-07-28
+quel contesto viaggia nel `requestState`, che il client rimanda indietro e che il
+server considera **controllato dall'attaccante**: l'SDK lo sigilla in uscita e
+verifica ogni ritorno.
+
+Con quale chiave, e' una scelta di deploy. `MCPServer` senza
+`request_state_security=` installa `RequestStateSecurity.ephemeral()`: una chiave
+casuale, viva quanto il processo. Per stdio e' esattamente giusto. Su HTTP con
+piu' repliche e' un bug latente: la replica B rifiuta lo stato emesso da A, e
+l'elicitation muore a meta' senza che nessun test lo veda, perche' in test c'e'
+un processo solo. `--stateless` peggiora la cosa mentre sembra migliorarla — la
+flag serve proprio a mettere piu' repliche dietro un bilanciatore.
+
+Da qui `Config.state_keys` (`TREKKING_MCP_STATE_KEYS`): `keys[0]` sigilla, tutte
+verificano, quindi la rotazione e' nuova-in-testa e vecchia-in-coda per un TTL.
+Il server logga un warning quando parte su HTTP senza chiavi: non e' un errore
+(un worker solo funziona), ma va detto prima, non quando un utente vede una
+domanda del server restare senza risposta.
+
+Il contratto e' verificato in
+`test_operabilita.py::test_lo_stato_sigillato_e_lo_stesso_fra_due_server`: due
+policy con le stesse chiavi si capiscono, due effimere no.
+
+### 3.27 La finestra del meteo non comincia a mezzanotte
+
+Open-Meteo restituisce la giornata **dall'ora zero**, non "da adesso". Prendere
+le prime `ore_max` ore della serie — che e' quello che faceva
+`istanti[:ore_max]` — significa rispondere a chi prepara una gita con le ore fra
+mezzanotte e mezzogiorno: meta' finestra sprecata sulla notte, e il pomeriggio,
+quando arrivano i temporali, tagliato fuori.
+
+`_finestra()` sceglie l'inizio con tre regole, in ordine:
+
+1. `ora_inizio` esplicita vince: chi parte alle 4 lo sa meglio del server.
+2. Per **oggi**, si parte dall'ora corrente: un'ora passata non e' una previsione.
+3. Per un giorno **futuro**, dalle 6.
+
+Restituisce l'indice insieme all'istante, perche' le altre serie (temperatura,
+vento, zero termico) sono parallele a `time`: sfasare l'indice attribuirebbe il
+vento delle 14 alle 8 del mattino, che e' peggio di non rispondere. Se la
+finestra cade oltre la fine della serie, degrada alle ultime ore disponibili
+invece di restituire una lista vuota.
+
+### 3.28 Il provider del bollettino si deduce dalla zona
+
+`PROVIDER` dice a quale URL chiedere il bollettino. Diceva solo quello, e il
+legame inverso — questa zona di chi e'? — viveva in due copie: un default
+`provider="aineva"` in `leggi_bollettino` e un dizionario `PREFISSI_PROVIDER` in
+`completamenti.py`. Il risultato: `valuta_gita` chiedeva **ogni** zona ad
+AINEVA, e una zona svizzera tornava "non trovata" con l'elenco delle zone
+italiane allegato, cioe' un errore che manda fuori strada chi lo legge.
+
+Ora il prefisso di zona sta dentro `PROVIDER`, accanto all'URL, e
+`provider_per_zona()` e' l'unica funzione che fa la deduzione. Un terzo provider
+si aggiunge in un posto solo.
+
+La stessa tabella ha fatto emergere il gemello del bug: le zone `slf` non si
+autocompletavano **mai**, perche' i completamenti non scaricano niente (§3.20) e
+i perimetri svizzeri non erano fra i territori caricati. L'invariante che
+mancava e' ora un test — ogni provider deve avere almeno un territorio in
+`TERRITORI_DEFAULT` — e i territori sono passati in `Config`, perche' decidere
+quali indicizzare decide anche quali zone il server sa risolvere.
+
+### 3.29 Una resource sincrona gira in un altro thread
+
+`metriche://fonti` era una funzione sincrona, e l'SDK esegue le funzioni
+sincrone con `anyio.to_thread.run_sync`. `Metriche` e' un dizionario di contatori
+che l'event loop muta a ogni risposta di una fonte: leggerlo da un altro thread
+mentre una fonte nuova viene registrata puo' sollevare *dictionary changed size
+during iteration*, raramente e solo sotto carico, cioe' nel modo peggiore.
+
+La funzione e' `async` anche se non attende nulla. Non e' cerimonia: dichiararla
+`async` la riporta sull'event loop, dove avvengono tutte le scritture, e la
+corsa smette di esistere. Le due resource che leggono file restano sincrone, che
+per un `read_text` bloccante e' la scelta giusta.
+
+### 3.30 Una richiesta identica gia' in corso si aspetta, non si duplica
+
+La cache si popola **dopo** la risposta. Due chiamate identiche partite insieme
+la mancavano entrambe e uscivano entrambe in rete: cache hit rate basso e traffico
+doppio proprio nel caso che conta, perche' un agente chiama i tool in parallelo —
+la sessione in `TODOS.md` mostra Cursor che ne lancia tre insieme.
+
+`ClientHttp` tiene un dizionario delle richieste in volo per chiave di cache. Chi
+arriva secondo aspetta l'esito del primo. Tre dettagli che rendono la cosa
+corretta invece che solo veloce:
+
+- **L'attesa e' `asyncio.wait`, non `await future`.** Se il capofila viene
+  cancellato — il client annulla il tool, il server si spegne — chi aspettava non
+  deve ereditare quella cancellazione: sono richieste di utenti diversi. Vede il
+  future cancellato e rifa' la richiesta per conto suo.
+- **Un errore, invece, si propaga tale e quale.** E' la stessa richiesta, e i
+  retry li ha gia' spesi il capofila: rifarli sarebbe martellare una fonte che
+  ha appena detto di no.
+- **Il contatore e' suo.** Accodarsi non e' un cache hit: la cache era vuota. In
+  `metriche://fonti` c'e' una colonna `coalescing` separata, altrimenti un hit
+  rate gonfiato racconterebbe una cache piu' efficace di quella che e'.
+
+### 3.31 Il tetto della cache va misurato in byte
+
+`CACHE_MAX_ENTRY` contava le voci. Va bene se sono tutte della stessa taglia, e
+qui non lo sono: una ricerca sentieri sta in qualche KB, una risposta `out geom`
+nell'ordine dei MB. 512 voci potevano quindi valere qualche megabyte o qualche
+gigabyte a seconda di cosa ci era finito dentro — cioe' un tetto che non limita
+niente.
+
+Ora ci sono due limiti, voci e byte (`CACHE_MAX_BYTE`, default 64 MB), e una
+risposta piu' grande del tetto non entra affatto: entrerebbe solo per sfrattare
+tutto il resto e uscire alla voce dopo. Il peso e' quello della risposta HTTP
+grezza, misurato dal chiamante, perche' farlo dentro la cache vorrebbe dire
+riserializzare ogni oggetto a ogni `set`.
+
+I valori restano condivisi per riferimento: chi li riceve non deve mutarli.
+Copiarli a ogni hit costerebbe piu' della cache stessa; e' scritto nella docstring
+perche' un invariante non verificabile va almeno dichiarato.
+
+### 3.32 Un `await` che non cede il controllo e' peggio di uno lento
+
+`IndiceRegioni` leggeva file GeoJSON da qualche MB, li passava a `json.loads` e
+ne normalizzava ogni vertice in tuple di float — tutto dentro una coroutine, cioe'
+tutto sull'event loop, per nove territori, sotto lock. La prima ricerca di una
+zona valanghe fermava l'intero server, comprese le richieste che non c'entravano
+niente. Non si vedeva nei test perche' un test non ha traffico concorrente.
+
+Lettura, scrittura e normalizzazione passano da `anyio.to_thread.run_sync`.
+L'unico pezzo che resta sull'event loop e' l'`extend` della lista condivisa, senza
+`await` in mezzo: nessuno puo' osservare l'indice a meta'.
+
+### 3.33 Due domande diverse sul campionamento del profilo
+
+`campiona()` aveva un tetto di 100 punti — cioe' il massimo di **una** richiesta a
+Open-Meteo — e il ciclo a blocchi dentro `quote()` non veniva quindi mai eseguito.
+Conseguenza: su ogni sentiero piu' lungo di una decina di km il `passo_m` chiesto
+veniva ignorato in silenzio, e il dislivello risultava piatto proprio sulle gite
+lunghe, dove serve.
+
+Il nodo e' che ci sono due domande diverse, e una costante sola rispondeva a
+entrambe:
+
+- **quanti punti quotare** — lo decide l'accuratezza del dislivello:
+  `MAX_PUNTI_QUOTE = 300`, tre richieste, tutte cachate a 7 giorni;
+- **quanti punti restituire** — lo decide il costo in contesto per il modello che
+  legge la risposta: `MAX_PUNTI_RESTITUITI = 100`.
+
+Gli aggregati (dislivello, quote estreme) si calcolano su tutti i punti quotati,
+mai sul sottoinsieme mostrato: diradare prima di sommare taglierebbe via le
+contropendenze, che sono esattamente cio' che il dislivello cumulato misura. La
+risposta dichiara `punti_quotati` e `passo_effettivo_m`, cosi' il client sa cosa
+ha ricevuto invece di dedurlo.
+
+### 3.34 Il doppio round-trip per la geometria non risparmiava niente
+
+`leggi_geometria` faceva due query: un `out;` per sapere se la relation aveva
+membri way, e solo in caso affermativo un `out tags geom;`. L'idea era evitare la
+query pesante quando non serve. Non funzionava: una relation **senza** way non ha
+geometria, quindi la sua risposta `out geom` e' piccola comunque, mentre una
+relation **con** way — la quasi totalita' — pagava sempre due round-trip verso
+un'istanza pubblica a rate limit, serializzati dal semaforo.
+
+Una query sola e' migliore o uguale in ogni caso. E' il tipo di ottimizzazione che
+sembra prudente e costa il doppio: vale come promemoria a non fidarsi di un
+pre-controllo senza misurare cosa evita davvero.
+
 ---
 
 ## 4. Testing
 
-**154 test, nessuno tocca la rete.** Le chiamate HTTP sono intercettate con
+**221 test, nessuno tocca la rete.** Le chiamate HTTP sono intercettate con
 `pytest-httpx2` (respx su httpcore2). Una suite che dipende da Overpass
 fallisce a caso, e una CI che fallisce a caso viene ignorata dopo due settimane.
 
@@ -533,7 +734,18 @@ Tre famiglie:
   risponde all'elicitation, il valore iniettato si ritrova nei segnali, il
   rifiuto ferma la chiamata prima di qualunque richiesta di rete.
 - `test_operabilita.py` — sicurezza del transport, contatori delle metriche,
-  completamenti.
+  completamenti, e il contratto sul sigillo del `requestState` (§3.26).
+- `test_meteo_finestra.py` — quali ore risponde il meteo (§3.27): e' una
+  funzione pura, quindi si prova senza rete e senza orologio, passando l'istante.
+- `test_provider_zone.py` — zona → provider, e l'invariante che ogni provider
+  abbia i suoi perimetri fra i territori indicizzati (§3.28).
+- `test_architettura.py` — legge gli import di ogni modulo e fallisce se uno
+  guarda verso l'alto (§2). E' l'unico test che protegge un'affermazione di
+  questo documento invece di un comportamento.
+- `test_cache_coalescing.py` — due richieste identiche in volo, la cancellazione
+  del capofila, e il tetto in byte della cache (§3.30, §3.31). Richiede una rotta
+  che risponde a comando: con una risposta immediata non c'e' nessuna finestra di
+  sovrapposizione da misurare.
 
 I test di contratto sono quelli che valgono di piu' nel tempo: proteggono
 l'interfaccia verso i client MCP, che e' la cosa che si rompe silenziosamente.
@@ -550,6 +762,8 @@ salvate come fixture (vedi roadmap).
 | Cache in memoria, per-processo | Su HTTP multi-worker ogni replica ha la sua cache | **Scelta, non dimenticanza**: vedi §5.1 |
 | Rate limiter Nominatim per-processo | Con piu' repliche il budget di 1 req/s viene superato | Stesso motivo e stesso limite di sopra: un processo solo |
 | Nessuna autenticazione sul transport HTTP | Il server non sa **chi** lo chiama | `Host`/`Origin` validati (§3.18), che e' un'altra cosa; OAuth in roadmap |
+| Elicitation e piu' repliche | Senza `TREKKING_MCP_STATE_KEYS` lo stato di un giro a due round-trip vale solo dentro un processo | Chiavi condivise e ruotabili, piu' un warning all'avvio (§3.26) |
+| Cache in memoria non condivisa fra repliche | Ogni processo riscalda la sua | Tetto in voci **e** in byte (§3.31), coalescing per non duplicare le richieste in volo (§3.30) |
 | Metriche per-processo, azzerate al riavvio | Nessuna serie storica | Bastano a dire quale fonte sta frenando adesso; l'export sta dietro `istantanea()` |
 | Copertura OSM non uniforme | Un sentiero assente non significa inesistente | Dichiarato nelle `instructions` e nel README |
 | `sac_scale` spesso mancante o datato | Difficolta' sconosciuta | Mai degradata a "facile": resta `SCONOSCIUTA` e genera un segnale |
@@ -661,9 +875,10 @@ scraping di siti che non espongono dati aperti.
 - [x] URL del repo in `pyproject.toml`, `README.md` e `config.py`
       (l'User-Agent contiene l'URL del repo: e' richiesto dalla usage policy di
       Overpass, non e' decorativo)
-- [ ] Mettere il proprio nome in `authors`
-- [ ] Aggiungere il file `LICENSE` (MIT, coerente con `pyproject.toml`)
+- [x] Mettere il proprio nome in `authors`
+- [x] Aggiungere il file `LICENSE` (MIT, coerente con `pyproject.toml`)
 - [ ] Registrare una GIF o un asciinema di 20 secondi con un client che usa il
       server, e metterla in cima al README: vale piu' di tre paragrafi
 - [ ] Verificare che la CI sia verde e aggiungere il badge
-- [ ] Controllare la revisione corrente della spec MCP e dichiararla nel README
+- [x] Controllare la revisione corrente della spec MCP e dichiararla nel README
+      (2026-07-28, `LATEST_PROTOCOL_VERSION` dell'SDK 2.2)

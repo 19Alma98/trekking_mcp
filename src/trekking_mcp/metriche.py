@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field
 
-CAMPIONI_LATENZA = 256
+from trekking_mcp.constants import CAMPIONI_LATENZA
 
 
 def _percentile(valori: list[float], q: float) -> float:
@@ -35,6 +35,14 @@ class SintesiFonte(BaseModel):
     cache_hit: int
     cache_miss: int
     cache_hit_rate: float | None = Field(description="None se la fonte non usa la cache")
+    coalescing: int = Field(
+        default=0,
+        description=(
+            "Richieste identiche accodate a una gia' in corso invece di uscire in rete. "
+            "Contatore separato dai cache hit: non hanno trovato nulla in cache, hanno "
+            "aspettato chi ce lo stava mettendo."
+        ),
+    )
     latenza: Latenze
 
 
@@ -56,6 +64,7 @@ class _StatFonte:
     server_error: int = 0
     cache_hit: int = 0
     cache_miss: int = 0
+    coalescing: int = 0
     latenze_ms: deque[float] = field(default_factory=lambda: deque(maxlen=CAMPIONI_LATENZA))
 
     def sintesi(self) -> SintesiFonte:
@@ -70,6 +79,7 @@ class _StatFonte:
             cache_hit=self.cache_hit,
             cache_miss=self.cache_miss,
             cache_hit_rate=round(self.cache_hit / letture, 3) if letture else None,
+            coalescing=self.coalescing,
             latenza=Latenze(
                 p50_ms=round(_percentile(campioni, 0.50)),
                 p95_ms=round(_percentile(campioni, 0.95)),
@@ -94,6 +104,9 @@ class Metriche:
 
     def cache_miss(self, fonte: str) -> None:
         self._stat(fonte).cache_miss += 1
+
+    def coalescing(self, fonte: str) -> None:
+        self._stat(fonte).coalescing += 1
 
     def chiamata(self, fonte: str, durata_ms: float) -> None:
         stat = self._stat(fonte)

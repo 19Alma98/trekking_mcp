@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, TypedDict, cast
 
 from trekking_mcp.config import Config
+from trekking_mcp.constants import LINGUA_DEFAULT, PROVIDER_DEFAULT
 from trekking_mcp.errors import NonTrovato
 from trekking_mcp.models import (
     Bollettino,
@@ -44,6 +45,8 @@ if TYPE_CHECKING:
 class _Provider(TypedDict):
     url: Callable[[Config, str], str]
     attribuzione: str
+    prefisso_zone: str
+    """Prefisso degli ID di zona del provider: AINEVA copre l'Italia, SLF la Svizzera."""
 
 
 # L'URL e' funzione del Config, non di un singleton letto alla definizione:
@@ -52,12 +55,23 @@ PROVIDER: dict[str, _Provider] = {
     "aineva": {
         "url": lambda cfg, lang: f"{cfg.aineva_url}/albina_files/latest/{lang}.json",
         "attribuzione": "Bollettino valanghe: AINEVA / servizi valanghe regionali",
+        "prefisso_zone": "IT-",
     },
     "slf": {
         "url": lambda cfg, lang: f"{cfg.slf_url}/{lang}/json",
         "attribuzione": "Bollettino valanghe: WSL-SLF, CC BY 4.0",
+        "prefisso_zone": "CH-",
     },
 }
+
+
+def provider_per_zona(zona_id: str) -> str:
+    """Il provider che emette il bollettino di questa zona, dal prefisso dell'ID."""
+    for nome, dati in PROVIDER.items():
+        if zona_id.startswith(dati["prefisso_zone"]):
+            return nome
+    return PROVIDER_DEFAULT
+
 
 _GRADI = {
     "low": GradoPericolo.DEBOLE,
@@ -157,9 +171,14 @@ def normalizza(grezzo: CaamlBulletin, *, zona_id: str, provider: str, url: str) 
 
 
 async def leggi_bollettino(
-    risorse: Risorse, *, zona_id: str, provider: str = "aineva", lingua: str = "it"
+    risorse: Risorse, *, zona_id: str, provider: str | None = None, lingua: str = LINGUA_DEFAULT
 ) -> Bollettino:
-    """Scarica il bollettino corrente e ne estrae la zona richiesta."""
+    """Scarica il bollettino corrente e ne estrae la zona richiesta.
+
+    Con `provider=None` lo deduce dall'ID di zona.
+    """
+    if provider is None:
+        provider = provider_per_zona(zona_id)
     if provider not in PROVIDER:
         raise NonTrovato("provider", provider, list(PROVIDER))
 

@@ -1,11 +1,13 @@
 from dataclasses import replace
+from urllib.parse import parse_qs, urlparse
 
+import httpx
 import pytest
 import respx
 
 from trekking_mcp.config import Config
 from trekking_mcp.geo import anelli_di_geometria, contiene, nel_riquadro, riquadro_di
-from trekking_mcp.models import Coord
+from trekking_mcp.models import Coord, PuntoQuotato
 from trekking_mcp.sources import eaws, elevation, nominatim, overpass
 
 QUADRATO_CON_BUCO = {
@@ -330,3 +332,48 @@ async def test_il_limitatore_serializza_le_richieste():
         await limitatore.attendi()
 
     assert time.monotonic() - inizio >= 0.09
+
+
+def test_campionamento_rispetta_il_passo_su_percorsi_lunghi():
+    punti = [Coord(lat=45.0 + n * 0.00036, lon=7.0) for n in range(600)]
+
+    campionati = elevation.campiona(punti, passo_m=100)
+
+    assert len(campionati) > 100, "un percorso lungo deve poter usare piu' di una richiesta"
+    assert len(campionati) <= elevation.MAX_PUNTI_QUOTE
+    assert campionati[0] == punti[0]
+    assert campionati[-1] == punti[-1]
+
+
+def test_dirada_tiene_gli_estremi_e_il_tetto():
+    quotati = [PuntoQuotato(coord=Coord(lat=45.0 + n * 0.001, lon=7.0), quota_m=1000.0 + n) for n in range(250)]
+
+    diradati = elevation.dirada(quotati, massimo=50)
+
+    assert len(diradati) <= 50
+    assert diradati[0] == quotati[0]
+    assert diradati[-1] == quotati[-1]
+    assert [p.quota_m for p in diradati] == sorted(p.quota_m for p in diradati)
+
+
+def test_dirada_non_tocca_una_lista_gia_corta():
+    quotati = [PuntoQuotato(coord=Coord(lat=45.0, lon=7.0), quota_m=1000.0)]
+    assert elevation.dirada(quotati, massimo=50) == quotati
+
+
+async def test_il_profilo_aggrega_su_tutti_i_punti_ma_ne_restituisce_pochi(httpx2_mock: respx.Router, risorse):
+    punti = [Coord(lat=45.0 + n * 0.00036, lon=7.0) for n in range(600)]
+
+    def quote_finte(request):
+        quante = len(parse_qs(urlparse(str(request.url)).query)["latitude"][0].split(","))
+        return httpx.Response(200, json={"elevation": [1000.0 + (20 if n % 2 else 0) for n in range(quante)]})
+
+    httpx2_mock.get(url__startswith="https://api.open-meteo.com/v1/elevation").mock(side_effect=quote_finte)
+
+    profilo = await elevation.profilo(risorse, punti, passo_m=100)
+
+    assert profilo.punti_quotati is not None
+    assert profilo.punti_quotati > len(profilo.punti), "la risposta mostra un sottoinsieme"
+    assert len(profilo.punti) <= elevation.MAX_PUNTI_RESTITUITI
+    assert profilo.dislivello_positivo_m > 0
+    assert profilo.passo_effettivo_m is not None

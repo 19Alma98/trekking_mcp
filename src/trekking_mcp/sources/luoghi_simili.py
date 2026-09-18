@@ -5,62 +5,41 @@ import logging
 from typing import TYPE_CHECKING
 
 from trekking_mcp.config import Config
+from trekking_mcp.constants import (
+    MAX_CANDIDATI_SIMILI,
+    MAX_ELEMENTI_OVERPASS_SIMILI,
+    PREFISSI_TOPONIMO,
+    SOGLIA_SIMILARITA,
+    TIPI_LUOGO,
+)
 from trekking_mcp.errors import FonteNonDisponibile
+from trekking_mcp.geo import distanza_km, riquadro_intorno
 from trekking_mcp.models import Coord, Localita
 from trekking_mcp.payloads import OverpassElement
 from trekking_mcp.sources import overpass
-from trekking_mcp.tools.comuni import distanza_km, riquadro_intorno
 
 if TYPE_CHECKING:
     from trekking_mcp.risorse import Risorse
 
 log = logging.getLogger(__name__)
 
-SOGLIA_SIMILARITA = 0.55
-MAX_CANDIDATI_SIMILI = 3
-
-_INTESTAZIONE = "[out:json][timeout:{timeout}];"
-_MAX_ELEMENTI_OUT = 500
-
-_PREFISSI = frozenset(
-    {
-        "monte",
-        "mont",
-        "monti",
-        "cima",
-        "pizzo",
-        "col",
-        "colle",
-        "passo",
-        "rifugio",
-        "bivacco",
-    }
-)
-
 
 def query_luoghi_bbox(config: Config, sud: float, ovest: float, nord: float, est: float) -> str:
-    bbox = f"{sud},{ovest},{nord},{est}"
-    return (
-        _INTESTAZIONE.format(timeout=int(config.timeout_s) - 5)
-        + "("
-        + f'node["natural"~"^(peak|saddle)$"]({bbox});'
-        + f'way["natural"~"^(peak|saddle)$"]({bbox});'
-        + f'node["tourism"~"^(alpine_hut|wilderness_hut)$"]({bbox});'
-        + f'way["tourism"~"^(alpine_hut|wilderness_hut)$"]({bbox});'
-        + f'node["place"~"^(village|hamlet|town|locality|isolated_dwelling)$"]({bbox});'
-        + f'way["place"~"^(village|hamlet|town|locality|isolated_dwelling)$"]({bbox});'
-        + ");"
-        + f"out tags center {_MAX_ELEMENTI_OUT};"
+    """Tutti i luoghi nominabili in un riquadro, per cercarne uno somigliante."""
+    riquadro = overpass.bbox(sud, ovest, nord, est)
+    selettori = "".join(
+        f'{elemento}["{chiave}"~"^({"|".join(sorted(valori))})$"]({riquadro});'
+        for chiave, valori in TIPI_LUOGO.items()
+        for elemento in ("node", "way")
     )
+    return overpass.intestazione(config) + "(" + selettori + ");" + f"out tags center {MAX_ELEMENTI_OVERPASS_SIMILI};"
 
 
 def _tipo_da_tags(tags: dict[str, str]) -> str | None:
-    if tags.get("natural") in {"peak", "saddle"}:
-        return tags["natural"]
-    if tags.get("tourism") in {"alpine_hut", "wilderness_hut"}:
-        return tags["tourism"]
-    if tags.get("place") in {"village", "hamlet", "town", "locality", "isolated_dwelling"}:
-        return tags["place"]
+    for chiave, valori in TIPI_LUOGO.items():
+        valore = tags.get(chiave)
+        if valore in valori:
+            return valore
     return None
 
 
@@ -101,7 +80,7 @@ def localita_da_elemento(el: OverpassElement) -> Localita | None:
 
 def normalizza_nome_luogo(nome: str) -> str:
     parti = nome.strip().casefold().split()
-    while len(parti) >= 2 and parti[0] in _PREFISSI:
+    while len(parti) >= 2 and parti[0] in PREFISSI_TOPONIMO:
         parti = parti[1:]
     return " ".join(parti)
 

@@ -12,13 +12,13 @@ from typing import Any
 import httpx2
 
 from trekking_mcp.config import Config
+from trekking_mcp.constants import RETRY_AFTER_MAX_S
 from trekking_mcp.errors import FonteNonDisponibile
 from trekking_mcp.metriche import Metriche
 
 log = logging.getLogger(__name__)
 
-# Tetto all'attesa chiesta via `Retry-After`
-RETRY_AFTER_MAX_S = 120.0
+_RIFAI = object()
 
 
 def secondi_retry_after(risposta: httpx2.Response) -> float | None:
@@ -41,11 +41,17 @@ def ritardo_retry(tentativo: int, retry_after: float | None = None) -> float:
 
 
 class CacheTTL:
-    """LRU con scadenza. Volutamente minimale: nessuna dipendenza esterna."""
+    """LRU con scadenza, con un tetto sia alle voci sia ai byte.
 
-    def __init__(self, max_entry: int = 512) -> None:
-        self._dati: OrderedDict[str, tuple[float, Any]] = OrderedDict()
+    Volutamente minimale: nessuna dipendenza esterna, e un'interfaccia piccola
+    perche' chi volesse Redis sostituisce la classe, non i chiamanti.
+    """
+
+    def __init__(self, max_entry: int = 512, max_byte: int = 64 * 1024 * 1024) -> None:
+        self._dati: OrderedDict[str, tuple[float, Any, int]] = OrderedDict()
         self._max = max_entry
+        self._max_byte = max_byte
+        self._byte = 0
         self._lock = asyncio.Lock()
 
     @staticmethod
@@ -53,38 +59,55 @@ class CacheTTL:
         grezzo = json.dumps(parti, sort_keys=True, default=str)
         return hashlib.sha256(grezzo.encode()).hexdigest()[:32]
 
+    @property
+    def byte(self) -> int:
+        """Peso stimato di quanto c'e' in cache, per le metriche e per i test."""
+        return self._byte
+
     async def get(self, chiave: str) -> Any | None:
         async with self._lock:
             voce = self._dati.get(chiave)
             if voce is None:
                 return None
-            scadenza, valore = voce
+            scadenza, valore, _ = voce
             if time.monotonic() > scadenza:
-                del self._dati[chiave]
+                self._scarta(chiave)
                 return None
             self._dati.move_to_end(chiave)
             return valore
 
-    async def set(self, chiave: str, valore: Any, ttl_s: int) -> None:
+    async def set(self, chiave: str, valore: Any, ttl_s: int, *, peso: int = 0) -> None:
         async with self._lock:
-            self._dati[chiave] = (time.monotonic() + ttl_s, valore)
-            self._dati.move_to_end(chiave)
-            while len(self._dati) > self._max:
-                self._dati.popitem(last=False)
+            if chiave in self._dati:
+                self._scarta(chiave)
+            if peso > self._max_byte:
+                log.debug("risposta da %d byte oltre il tetto di cache: non memorizzata", peso)
+                return
+            self._dati[chiave] = (time.monotonic() + ttl_s, valore, peso)
+            self._byte += peso
+            while self._dati and (len(self._dati) > self._max or self._byte > self._max_byte):
+                self._scarta(next(iter(self._dati)))
+
+    def _scarta(self, chiave: str) -> None:
+        """Rimuove una voce tenendo aggiornato il totale. Chiamare sotto lock."""
+        _, _, peso = self._dati.pop(chiave)
+        self._byte -= peso
 
     async def svuota(self) -> None:
         async with self._lock:
             self._dati.clear()
+            self._byte = 0
 
 
 class ClientHttp:
-    """Wrapper su httpx2 con retry esponenziale e cache opzionale."""
+    """Wrapper su httpx2 con retry esponenziale, cache e coalescing."""
 
     def __init__(self, config: Config, metriche: Metriche, cache: CacheTTL | None = None) -> None:
         self._client: httpx2.AsyncClient | None = None
         self.config = config
         self.metriche = metriche
-        self.cache = cache or CacheTTL(config.cache_max_entry)
+        self.cache = cache or CacheTTL(config.cache_max_entry, config.cache_max_byte)
+        self._in_volo: dict[str, asyncio.Future[Any]] = {}
 
     async def avvia(self) -> None:
         if self._client is None:
@@ -126,7 +149,72 @@ class ClientHttp:
                 self.metriche.cache_hit(fonte)
                 log.debug("cache hit %s %s", fonte, url)
                 return cachato
+
+            if (in_volo := self._in_volo.get(chiave)) is not None:
+                log.debug("coalescing %s %s", fonte, url)
+                risultato = await self._attendi(in_volo)
+                if risultato is not _RIFAI:
+                    self.metriche.coalescing(fonte)
+                    return risultato
+
             self.metriche.cache_miss(fonte)
+            return await self._guida(
+                metodo, url, fonte=fonte, ttl_s=ttl_s, chiave=chiave, max_retry=max_retry, **kwargs
+            )
+
+        return await self._richiedi(metodo, url, fonte=fonte, ttl_s=None, chiave=chiave, max_retry=max_retry, **kwargs)
+
+    async def _attendi(self, in_volo: asyncio.Future[Any]) -> Any:
+        """Attende la richiesta identica gia' in corso."""
+        await asyncio.wait([in_volo])
+        if in_volo.cancelled():
+            return _RIFAI
+        return in_volo.result()
+
+    async def _guida(
+        self,
+        metodo: str,
+        url: str,
+        *,
+        fonte: str,
+        ttl_s: int | None,
+        chiave: str,
+        max_retry: int | None,
+        **kwargs: Any,
+    ) -> Any:
+        """Fa la richiesta come capofila, pubblicando l'esito a chi si accoda."""
+        attesa: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
+        self._in_volo[chiave] = attesa
+        try:
+            dati = await self._richiedi(
+                metodo, url, fonte=fonte, ttl_s=ttl_s, chiave=chiave, max_retry=max_retry, **kwargs
+            )
+        except asyncio.CancelledError:
+            attesa.cancel()
+            raise
+        except BaseException as exc:
+            attesa.set_exception(exc)
+            attesa.exception()
+            raise
+        else:
+            attesa.set_result(dati)
+            return dati
+        finally:
+            self._in_volo.pop(chiave, None)
+
+    async def _richiedi(
+        self,
+        metodo: str,
+        url: str,
+        *,
+        fonte: str,
+        ttl_s: int | None,
+        chiave: str,
+        max_retry: int | None,
+        **kwargs: Any,
+    ) -> Any:
+        """Una richiesta con i suoi retry. Non consulta la cache: la popola."""
+        assert self._client is not None
 
         ultimo_errore: Exception | None = None
         tentativi = self.config.max_retry if max_retry is None else max_retry
@@ -145,8 +233,8 @@ class ClientHttp:
                     raise FonteNonDisponibile(fonte=fonte, dettaglio=f"HTTP {risposta.status_code} (errore definitivo)")
                 risposta.raise_for_status()
                 dati = risposta.json()
-                if usa_cache and ttl_s is not None:
-                    await self.cache.set(chiave, dati, ttl_s)
+                if ttl_s is not None:
+                    await self.cache.set(chiave, dati, ttl_s, peso=len(risposta.content))
                 return dati
             except (httpx2.HTTPError, ValueError) as exc:
                 ultimo_errore = exc

@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
+import anyio.to_thread
+
 from trekking_mcp.config import Config
 from trekking_mcp.errors import FonteNonDisponibile, NonTrovato
 from trekking_mcp.geo import Anello, Riquadro, anelli_di_geometria, contiene, nel_riquadro, riquadro_di
@@ -21,22 +23,6 @@ from trekking_mcp.payloads import EawsFeatureCollection
 from trekking_mcp.sources.http import ClientHttp
 
 log = logging.getLogger(__name__)
-
-ATTRIBUZIONE = "Perimetri delle zone valanghe: progetto EAWS Regions (regions.avalanches.org)"
-
-# Codici dei file per territorio. IT-21 = Piemonte, IT-23 = Valle d'Aosta,
-# IT-25 = Lombardia, IT-32-BZ = Bolzano, IT-32-TN = Trento, IT-34 = Veneto,
-# IT-36 = Friuli, IT-57 = Marche. CH = Svizzera.
-TERRITORI_ITALIA = [
-    "IT-21",
-    "IT-23",
-    "IT-25",
-    "IT-32-BZ",
-    "IT-32-TN",
-    "IT-34",
-    "IT-36",
-    "IT-57",
-]
 
 
 @dataclass(frozen=True)
@@ -78,27 +64,39 @@ class IndiceRegioni:
         cartella.mkdir(parents=True, exist_ok=True)
         return cartella / f"eaws_{territorio}.geojson"
 
+    def _leggi_da_disco(self, territorio: str) -> EawsFeatureCollection | None:
+        """Sincrona di proposito: gira in un thread. Vedi `_scarica`."""
+        percorso = self._percorso_cache(territorio)
+        if not percorso.exists():
+            return None
+        if time.time() - percorso.stat().st_mtime >= self._config.ttl_regioni_s:
+            return None
+        log.debug("regioni %s dalla cache su disco", territorio)
+        return cast(EawsFeatureCollection, json.loads(percorso.read_text(encoding="utf-8")))
+
+    def _scrivi_su_disco(self, territorio: str, dati: EawsFeatureCollection) -> None:
+        """Scrittura atomica: piu' repliche sullo stesso disco al peggio riscaricano."""
+        percorso = self._percorso_cache(territorio)
+        temporaneo = percorso.with_suffix(".tmp")
+        temporaneo.write_text(json.dumps(dati), encoding="utf-8")
+        temporaneo.replace(percorso)
+
     async def _scarica(self, territorio: str) -> EawsFeatureCollection:
         """Legge dalla cache su disco, o scarica se assente o scaduta."""
-        percorso = self._percorso_cache(territorio)
-
-        if percorso.exists():
-            eta = time.time() - percorso.stat().st_mtime
-            if eta < self._config.ttl_regioni_s:
-                log.debug("regioni %s dalla cache su disco", territorio)
-                return cast(EawsFeatureCollection, json.loads(percorso.read_text(encoding="utf-8")))
+        if (da_disco := await anyio.to_thread.run_sync(self._leggi_da_disco, territorio)) is not None:
+            return da_disco
 
         url = f"{self._config.eaws_regions_url}/micro-regions/{territorio}_micro-regions.geojson.json"
         log.info("scarico i perimetri %s", territorio)
         dati = cast(EawsFeatureCollection, await self._http.json("GET", url, fonte="eaws-regions", ttl_s=None))
 
-        temporaneo = percorso.with_suffix(".tmp")
-        temporaneo.write_text(json.dumps(dati), encoding="utf-8")
-        temporaneo.replace(percorso)
+        await anyio.to_thread.run_sync(self._scrivi_su_disco, territorio, dati)
         return dati
 
-    def _indicizza(self, geojson: EawsFeatureCollection) -> int:
-        aggiunte = 0
+    @staticmethod
+    def _micro_regioni(geojson: EawsFeatureCollection) -> list[MicroRegione]:
+        """Normalizza i perimetri in oggetti pronti all'uso."""
+        regioni: list[MicroRegione] = []
         for feature in geojson.get("features") or []:
             proprieta = feature.get("properties") or {}
             id_zona = proprieta.get("id") or proprieta.get("regionID")
@@ -110,7 +108,7 @@ class IndiceRegioni:
                 continue
 
             anelli_esterni = [poligono[0] for poligono in poligoni if poligono]
-            self._regioni.append(
+            regioni.append(
                 MicroRegione(
                     id_zona=str(id_zona),
                     nome=proprieta.get("name") or proprieta.get("name_it"),
@@ -118,13 +116,12 @@ class IndiceRegioni:
                     poligoni=poligoni,
                 )
             )
-            aggiunte += 1
-        return aggiunte
+        return regioni
 
-    async def carica(self, territori: list[str] | None = None) -> None:
+    async def carica(self, territori: Sequence[str] | None = None) -> None:
         """Carica i territori richiesti, saltando quelli gia' in indice."""
         async with self._lock:
-            for territorio in territori or TERRITORI_ITALIA:
+            for territorio in territori if territori is not None else self._config.eaws_territori:
                 if territorio in self._territori_caricati:
                     continue
                 try:
@@ -133,9 +130,10 @@ class IndiceRegioni:
                     log.warning("perimetri %s non disponibili: %s", territorio, exc)
                     continue
 
-                aggiunte = self._indicizza(geojson)
+                nuove = await anyio.to_thread.run_sync(self._micro_regioni, geojson)
+                self._regioni.extend(nuove)
                 self._territori_caricati.add(territorio)
-                log.info("indicizzate %d micro-regioni per %s", aggiunte, territorio)
+                log.info("indicizzate %d micro-regioni per %s", len(nuove), territorio)
 
     async def cerca(self, lat: float, lon: float) -> list[MicroRegione]:
         """Micro-regioni che contengono il punto."""

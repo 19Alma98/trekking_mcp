@@ -7,26 +7,28 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.context import Context
 from pydantic import Field
 
+from trekking_mcp.constants import PREFISSI_TOPONIMO
 from trekking_mcp.errors import NonTrovato
+from trekking_mcp.geo import distanza_km, riquadro_intorno
 from trekking_mcp.models import DifficoltaCAI, Ricovero, SentieriVersoLocalita, Sentiero
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import nominatim, overpass
-from trekking_mcp.tools.comuni import distanza_km, extended_tool, riquadro_intorno
 from trekking_mcp.tools.geocode_risolvi import risolvi_localita
+from trekking_mcp.tools.registrazione import extended_tool
 
 log = logging.getLogger(__name__)
 
-_PREFISSI_TOPONIMO = frozenset(
-    {"monte", "mont", "monti", "cima", "pizzo", "col", "colle", "passo", "rifugio", "bivacco"}
-)
-
 
 def testo_da_toponimo(nome: str) -> str:
+    """La parola da passare a Overpass come filtro testuale.
+
+    Overpass cerca su `name|from|to|description` con una regex.
+    """
     parti = nome.strip().split()
     if not parti:
         return nome.strip()
-    if len(parti) >= 2 and parti[0].casefold() in _PREFISSI_TOPONIMO:
-        return parti[-1]
+    while len(parti) >= 2 and parti[0].casefold() in PREFISSI_TOPONIMO:
+        parti = parti[1:]
     return parti[-1]
 
 

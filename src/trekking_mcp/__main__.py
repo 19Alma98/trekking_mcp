@@ -16,9 +16,9 @@ import sys
 
 from mcp.server.transport_security import TransportSecuritySettings
 
+from trekking_mcp.config import Config
+from trekking_mcp.constants import HOST_LOCALI
 from trekking_mcp.server import crea_server
-
-HOST_LOCALI = frozenset({"127.0.0.1", "localhost", "::1"})
 
 
 def impostazioni_sicurezza(
@@ -89,7 +89,17 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         parser.error(str(exc))
 
-    crea_server().run(
+    config = Config()
+    if not config.state_keys:
+        log = logging.getLogger(__name__)
+        log.warning(
+            "TREKKING_MCP_STATE_KEYS non impostata: il requestState e' sigillato con una chiave "
+            "effimera di questo processo. Le elicitation (valuta_gita, disambiguazione del "
+            "geocoding) non sopravvivono a un riavvio ne' a una seconda replica%s.",
+            " — e --stateless serve proprio a questo" if args.stateless else "",
+        )
+
+    crea_server(config).run(
         transport="streamable-http",
         host=args.host,
         port=args.port,
