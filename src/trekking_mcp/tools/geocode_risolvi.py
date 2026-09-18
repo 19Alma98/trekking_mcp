@@ -7,11 +7,11 @@ from mcp.server.mcpserver.context import Context
 from pydantic import BaseModel, Field
 
 from trekking_mcp.errors import NonTrovato
+from trekking_mcp.geo import distanza_km
 from trekking_mcp.models import Localita
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import nominatim
 from trekking_mcp.sources.luoghi_simili import cerca_simili_nel_raggio
-from trekking_mcp.tools.comuni import distanza_km
 
 MAX_ESPANSIONI = 2
 

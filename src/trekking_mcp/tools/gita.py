@@ -10,6 +10,7 @@ from mcp.server.mcpserver.resolve import Elicit, Resolve
 from pydantic import BaseModel, Field
 
 from trekking_mcp.errors import ErroreSentieri, NonTrovato
+from trekking_mcp.geo import distanza_km
 from trekking_mcp.models import (
     Bollettino,
     Coord,
@@ -24,7 +25,7 @@ from trekking_mcp.models import (
 )
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import caaml, eaws, elevation, meteo, overpass
-from trekking_mcp.tools.comuni import distanza_km, extended_tool
+from trekking_mcp.tools.registrazione import extended_tool
 
 log = logging.getLogger(__name__)
 

@@ -4,8 +4,8 @@ import logging
 from itertools import pairwise
 from typing import TYPE_CHECKING
 
+from trekking_mcp.geo import distanza_km
 from trekking_mcp.models import Coord, ProfiloAltimetrico, PuntoQuotato
-from trekking_mcp.tools.comuni import distanza_km
 
 if TYPE_CHECKING:
     from trekking_mcp.risorse import Risorse
@@ -16,8 +16,21 @@ ATTRIBUZIONE = "Modello di elevazione: Open-Meteo / Copernicus DEM"
 
 PUNTI_PER_RICHIESTA = 100
 
+# Quanti punti si quotano davvero. Governa l'accuratezza del dislivello, che e'
+# il numero che dice se una gita e' impegnativa: prima era 100, cioe' il tetto
+# della singola richiesta, e il `passo_m` chiesto dall'utente veniva silenziosamente
+# ignorato su ogni sentiero piu' lungo di 10 km. `quote()` sa spezzare in blocchi
+# da PUNTI_PER_RICHIESTA: 300 sono tre richieste a Open-Meteo, tutte cachate.
+MAX_PUNTI_QUOTE = 300
 
-def campiona(punti: list[Coord], passo_m: float = 100.0, massimo: int = 100) -> list[Coord]:
+# Quanti punti finiscono nella risposta. Il profilo lo legge un modello, e mille
+# coppie di coordinate sono contesto bruciato senza informazione aggiunta: la
+# forma della salita si vede benissimo con cento. Aggregati (dislivello, quote
+# estreme) restano calcolati su tutti i punti quotati.
+MAX_PUNTI_RESTITUITI = 100
+
+
+def campiona(punti: list[Coord], passo_m: float = 100.0, massimo: int = MAX_PUNTI_QUOTE) -> list[Coord]:
     """Riduce una polilinea mantenendo la forma del profilo.
 
     Si tiene un punto ogni `passo_m` di percorso, non uno ogni N indici: la
@@ -97,6 +110,21 @@ def _dislivelli(quote_m: list[float], soglia_m: float = 5.0) -> tuple[int, int]:
     return round(salita), round(discesa)
 
 
+def dirada(quotati: list[PuntoQuotato], massimo: int = MAX_PUNTI_RESTITUITI) -> list[PuntoQuotato]:
+    """Riduce i punti da restituire tenendo primo e ultimo.
+
+    Separato dal campionamento perche' risponde a un'altra domanda. `campiona`
+    decide quanti punti *quotare*, e la risposta la da' l'accuratezza del
+    dislivello; questa decide quanti *mostrarne*, e la risposta la da' il costo in
+    contesto per il modello che legge.
+    """
+    if len(quotati) <= massimo:
+        return quotati
+    fattore = (len(quotati) - 1) / (massimo - 1)
+    indici = sorted({round(i * fattore) for i in range(massimo)} | {len(quotati) - 1})
+    return [quotati[i] for i in indici]
+
+
 async def profilo(risorse: Risorse, punti: list[Coord], *, passo_m: float = 100.0) -> ProfiloAltimetrico:
     """Profilo altimetrico di una polilinea."""
     campionati = campiona(punti, passo_m=passo_m)
@@ -111,15 +139,21 @@ async def profilo(risorse: Risorse, punti: list[Coord], *, passo_m: float = 100.
     if not quotati:
         return ProfiloAltimetrico(punti=[], lunghezza_km=0.0, dislivello_positivo_m=0, dislivello_negativo_m=0)
 
+    # Dislivelli e quote estreme su **tutti** i punti quotati, non sul
+    # sottoinsieme restituito: sono gli aggregati che contano, e diradarli prima
+    # di sommarli taglierebbe via proprio le contropendenze.
     valori = [p.quota_m for p in quotati]
     salita, discesa = _dislivelli(valori)
     lunghezza = sum(distanza_km(a.lat, a.lon, b.lat, b.lon) for a, b in pairwise(punti))
+    passo_effettivo = round(lunghezza * 1000 / max(len(quotati) - 1, 1)) if lunghezza else None
 
     return ProfiloAltimetrico(
-        punti=quotati,
+        punti=dirada(quotati),
         lunghezza_km=round(lunghezza, 2),
         dislivello_positivo_m=salita,
         dislivello_negativo_m=discesa,
         quota_minima_m=round(min(valori)),
         quota_massima_m=round(max(valori)),
+        punti_quotati=len(quotati),
+        passo_effettivo_m=passo_effettivo,
     )

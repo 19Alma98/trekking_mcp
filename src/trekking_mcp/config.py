@@ -83,6 +83,13 @@ class Config:
 
     cache_max_entry: int = field(default_factory=lambda: int(os.getenv("CACHE_MAX_ENTRY", "512")))
 
+    cache_max_byte: int = field(default_factory=lambda: int(os.getenv("CACHE_MAX_BYTE", str(64 * 1024 * 1024))))
+    """Tetto in byte della cache HTTP in memoria.
+
+    Solo il numero di voci non basta: una ricerca sentieri sta in qualche KB, una
+    risposta `out geom` nell'ordine dei MB. 512 voci potevano quindi valere
+    qualche megabyte o qualche gigabyte."""
+
     eaws_territori: tuple[str, ...] = field(default_factory=lambda: _elenco_env("EAWS_TERRITORI", TERRITORI_DEFAULT))
 
     state_keys: tuple[str, ...] = field(default_factory=lambda: _elenco_env("TREKKING_MCP_STATE_KEYS", ()))

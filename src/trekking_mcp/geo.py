@@ -1,5 +1,19 @@
+"""Geometria: distanze, riquadri, point-in-polygon.
+
+Niente shapely e niente GEOS: point-in-polygon e haversine sono cinquanta righe
+di matematica scolastica, e una dipendenza binaria costa a chiunque provi a
+installare il progetto (§3.11).
+
+Questo modulo non importa nulla del resto del pacchetto tranne i tipi dei
+payload. E' il fondo della pila: `tools` e `sources` dipendono da lui, lui da
+nessuno. Prima `distanza_km` e `riquadro_intorno` stavano in `tools/comuni.py`,
+e tre adapter in `sources/` importavano *verso l'alto* dal layer dei tool —
+esattamente il contrario della dipendenza a senso unico dichiarata in §2.
+"""
+
 from __future__ import annotations
 
+import math
 from typing import cast
 
 from trekking_mcp.payloads import GeoJsonGeometry, GeoJsonMultiPolygonCoords, GeoJsonPolygonCoords
@@ -7,6 +21,35 @@ from trekking_mcp.payloads import GeoJsonGeometry, GeoJsonMultiPolygonCoords, Ge
 # (ovest, sud, est, nord), come da convenzione GeoJSON `bbox`.
 Riquadro = tuple[float, float, float, float]
 Anello = list[tuple[float, float]]
+
+RAGGIO_TERRA_KM = 6371.0
+
+# Lunghezza di un grado di latitudine, in km. Costante a sufficienza: varia di
+# meno dell'1% fra equatore e polo, e queste funzioni servono a costruire
+# riquadri di ricerca, non a misurare.
+KM_PER_GRADO = 111.0
+
+
+def riquadro_intorno(lat: float, lon: float, raggio_km: float) -> tuple[float, float, float, float]:
+    """Riquadro (sud, ovest, nord, est) attorno a un punto.
+
+    Approssimazione piana: il grado di longitudine si accorcia con il coseno
+    della latitudine. Sufficiente per una bbox di ricerca, non per misure.
+
+    Nota l'ordine, diverso da `Riquadro`: e' quello che vuole Overpass
+    (`bbox:sud,ovest,nord,est`), ed e' li' che questo risultato finisce.
+    """
+    delta_lat = raggio_km / KM_PER_GRADO
+    delta_lon = raggio_km / (KM_PER_GRADO * max(math.cos(math.radians(lat)), 0.01))
+    return (lat - delta_lat, lon - delta_lon, lat + delta_lat, lon + delta_lon)
+
+
+def distanza_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Distanza great-circle (haversine), in km."""
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+    return 2 * RAGGIO_TERRA_KM * math.asin(math.sqrt(a))
 
 
 def riquadro_di(anelli: list[Anello]) -> Riquadro:

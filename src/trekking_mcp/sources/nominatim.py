@@ -7,9 +7,9 @@ import logging
 import time
 from typing import TYPE_CHECKING, cast
 
+from trekking_mcp.geo import distanza_km, riquadro_intorno
 from trekking_mcp.models import Coord, Localita
 from trekking_mcp.payloads import NominatimExtratags, NominatimResult
-from trekking_mcp.tools.comuni import distanza_km, riquadro_intorno
 
 if TYPE_CHECKING:
     from trekking_mcp.risorse import Risorse

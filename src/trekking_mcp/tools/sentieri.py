@@ -8,12 +8,13 @@ from mcp.server.mcpserver.context import Context
 from pydantic import Field
 
 from trekking_mcp.errors import NonTrovato
+from trekking_mcp.geo import distanza_km, riquadro_intorno
 from trekking_mcp.models import DifficoltaCAI, Ricovero, SentieriVersoLocalita, Sentiero
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import nominatim, overpass
 from trekking_mcp.sources.luoghi_simili import PREFISSI_TOPONIMO
-from trekking_mcp.tools.comuni import distanza_km, extended_tool, riquadro_intorno
 from trekking_mcp.tools.geocode_risolvi import risolvi_localita
+from trekking_mcp.tools.registrazione import extended_tool
 
 log = logging.getLogger(__name__)
 

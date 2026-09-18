@@ -22,6 +22,7 @@ Non e' un wrapper 1:1 su una API. Copre i tre primitivi del protocollo e un paio
 | **Dual transport** | stdio e Streamable HTTP dallo stesso `crea_server()` |
 | **Osservabilita'** | Latenza p50/p95, 429 e hit rate per fonte, esposti come resource |
 | **Cache hints** | Ogni risposta dichiara per quanto vale (`ttlMs`/`cacheScope`), resource per resource |
+| **Coalescing** | Due chiamate identiche in volo diventano una richiesta sola: un agente chiama i tool in parallelo |
 | **Client incluso** | Un client MCP minimale, per dimostrare di conoscere entrambi i lati |
 | **Geometria** | Point-in-polygon e profili altimetrici in Python puro, senza dipendenze binarie |
 

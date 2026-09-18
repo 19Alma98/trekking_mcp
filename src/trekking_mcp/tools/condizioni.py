@@ -8,7 +8,7 @@ from pydantic import Field
 from trekking_mcp.models import Bollettino, MeteoQuota
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import caaml, meteo
-from trekking_mcp.tools.comuni import extended_tool
+from trekking_mcp.tools.registrazione import extended_tool
 
 
 def registra(mcp: MCPServer, risorse: Risorse) -> None:

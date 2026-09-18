@@ -20,6 +20,10 @@ log = logging.getLogger(__name__)
 # Tetto all'attesa chiesta via `Retry-After`
 RETRY_AFTER_MAX_S = 120.0
 
+# Sentinella: il capofila del coalescing e' stato cancellato, chi aspettava
+# rifaccia la richiesta per conto proprio.
+_RIFAI = object()
+
 
 def secondi_retry_after(risposta: httpx2.Response) -> float | None:
     """Parse di `Retry-After` in secondi. Solo valori numerici (non HTTP-date)."""
@@ -41,11 +45,31 @@ def ritardo_retry(tentativo: int, retry_after: float | None = None) -> float:
 
 
 class CacheTTL:
-    """LRU con scadenza. Volutamente minimale: nessuna dipendenza esterna."""
+    """LRU con scadenza, con un tetto sia alle voci sia ai byte.
 
-    def __init__(self, max_entry: int = 512) -> None:
-        self._dati: OrderedDict[str, tuple[float, Any]] = OrderedDict()
+    Volutamente minimale: nessuna dipendenza esterna, e un'interfaccia piccola
+    perche' chi volesse Redis sostituisce la classe, non i chiamanti (§5.1).
+
+    **Il tetto in byte non e' un dettaglio.** Contare solo le voci va bene se
+    sono tutte della stessa taglia; qui non lo sono: una ricerca sentieri sta in
+    qualche KB, una risposta `out geom` sta nell'ordine dei MB. 512 voci
+    potevano quindi valere qualche megabyte o qualche gigabyte a seconda di cosa
+    ci era finito dentro, cioe' un tetto che non limita niente.
+
+    Il peso e' quello della risposta HTTP grezza, misurato dal chiamante: farlo
+    qui vorrebbe dire riserializzare in JSON ogni oggetto a ogni `set`.
+
+    I valori sono **condivisi per riferimento**: chi li riceve non deve mutarli.
+    Copiarli a ogni hit costerebbe piu' della cache che stiamo cercando di
+    ottimizzare; qui i chiamanti costruiscono modelli Pydantic e non toccano il
+    dict di partenza.
+    """
+
+    def __init__(self, max_entry: int = 512, max_byte: int = 64 * 1024 * 1024) -> None:
+        self._dati: OrderedDict[str, tuple[float, Any, int]] = OrderedDict()
         self._max = max_entry
+        self._max_byte = max_byte
+        self._byte = 0
         self._lock = asyncio.Lock()
 
     @staticmethod
@@ -53,38 +77,58 @@ class CacheTTL:
         grezzo = json.dumps(parti, sort_keys=True, default=str)
         return hashlib.sha256(grezzo.encode()).hexdigest()[:32]
 
+    @property
+    def byte(self) -> int:
+        """Peso stimato di quanto c'e' in cache, per le metriche e per i test."""
+        return self._byte
+
     async def get(self, chiave: str) -> Any | None:
         async with self._lock:
             voce = self._dati.get(chiave)
             if voce is None:
                 return None
-            scadenza, valore = voce
+            scadenza, valore, _ = voce
             if time.monotonic() > scadenza:
-                del self._dati[chiave]
+                self._scarta(chiave)
                 return None
             self._dati.move_to_end(chiave)
             return valore
 
-    async def set(self, chiave: str, valore: Any, ttl_s: int) -> None:
+    async def set(self, chiave: str, valore: Any, ttl_s: int, *, peso: int = 0) -> None:
         async with self._lock:
-            self._dati[chiave] = (time.monotonic() + ttl_s, valore)
-            self._dati.move_to_end(chiave)
-            while len(self._dati) > self._max:
-                self._dati.popitem(last=False)
+            if chiave in self._dati:
+                self._scarta(chiave)
+            # Una singola risposta piu' grande del tetto non si cacha: entrerebbe
+            # solo per sfrattare tutto il resto e uscire alla voce dopo.
+            if peso > self._max_byte:
+                log.debug("risposta da %d byte oltre il tetto di cache: non memorizzata", peso)
+                return
+            self._dati[chiave] = (time.monotonic() + ttl_s, valore, peso)
+            self._byte += peso
+            while self._dati and (len(self._dati) > self._max or self._byte > self._max_byte):
+                self._scarta(next(iter(self._dati)))
+
+    def _scarta(self, chiave: str) -> None:
+        """Rimuove una voce tenendo aggiornato il totale. Chiamare sotto lock."""
+        _, _, peso = self._dati.pop(chiave)
+        self._byte -= peso
 
     async def svuota(self) -> None:
         async with self._lock:
             self._dati.clear()
+            self._byte = 0
 
 
 class ClientHttp:
-    """Wrapper su httpx2 con retry esponenziale e cache opzionale."""
+    """Wrapper su httpx2 con retry esponenziale, cache e coalescing."""
 
     def __init__(self, config: Config, metriche: Metriche, cache: CacheTTL | None = None) -> None:
         self._client: httpx2.AsyncClient | None = None
         self.config = config
         self.metriche = metriche
-        self.cache = cache or CacheTTL(config.cache_max_entry)
+        self.cache = cache or CacheTTL(config.cache_max_entry, config.cache_max_byte)
+        self._in_volo: dict[str, asyncio.Future[Any]] = {}
+        """Richieste identiche gia' in corso, per chiave di cache. Vedi `json()`."""
 
     async def avvia(self) -> None:
         if self._client is None:
@@ -126,7 +170,91 @@ class ClientHttp:
                 self.metriche.cache_hit(fonte)
                 log.debug("cache hit %s %s", fonte, url)
                 return cachato
+
+            # Coalescing (single flight). La cache si popola solo *dopo* la
+            # risposta: due chiamate identiche partite insieme la mancavano
+            # entrambe e uscivano entrambe in rete. Un agente fa esattamente
+            # questo, perche' chiama i tool in parallelo.
+            if (in_volo := self._in_volo.get(chiave)) is not None:
+                log.debug("coalescing %s %s", fonte, url)
+                risultato = await self._attendi(in_volo)
+                if risultato is not _RIFAI:
+                    # Contato solo qui: se il capofila e' stato cancellato,
+                    # l'accodamento non ha risparmiato nessuna richiesta e
+                    # conteggiarlo gonfierebbe la statistica.
+                    self.metriche.coalescing(fonte)
+                    return risultato
+
             self.metriche.cache_miss(fonte)
+            return await self._guida(
+                metodo, url, fonte=fonte, ttl_s=ttl_s, chiave=chiave, max_retry=max_retry, **kwargs
+            )
+
+        # Senza cache non si accoda: chi rinuncia a condividere la *risposta* non
+        # deve vedersela condividere in forma di richiesta.
+        return await self._richiedi(metodo, url, fonte=fonte, ttl_s=None, chiave=chiave, max_retry=max_retry, **kwargs)
+
+    async def _attendi(self, in_volo: asyncio.Future[Any]) -> Any:
+        """Attende la richiesta identica gia' in corso.
+
+        `asyncio.wait` invece di `await in_volo`: cosi' la cancellazione del
+        *capofila* non diventa la cancellazione di chi aspetta. Sono richieste di
+        utenti diversi, e un tool cancellato non deve trascinarsi dietro l'altro.
+        Se il capofila viene cancellato, chi aspetta rifa' la richiesta da se'; se
+        invece fallisce, l'errore e' lo stesso che avrebbe avuto chiedendo in
+        proprio — i retry li ha gia' spesi lui — e si rilancia tale e quale.
+        """
+        await asyncio.wait([in_volo])
+        if in_volo.cancelled():
+            return _RIFAI
+        return in_volo.result()
+
+    async def _guida(
+        self,
+        metodo: str,
+        url: str,
+        *,
+        fonte: str,
+        ttl_s: int | None,
+        chiave: str,
+        max_retry: int | None,
+        **kwargs: Any,
+    ) -> Any:
+        """Fa la richiesta come capofila, pubblicando l'esito a chi si accoda."""
+        attesa: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
+        self._in_volo[chiave] = attesa
+        try:
+            dati = await self._richiedi(
+                metodo, url, fonte=fonte, ttl_s=ttl_s, chiave=chiave, max_retry=max_retry, **kwargs
+            )
+        except asyncio.CancelledError:
+            attesa.cancel()
+            raise
+        except BaseException as exc:
+            attesa.set_exception(exc)
+            # Segna l'eccezione come letta: se nessuno si e' accodato, asyncio
+            # loggherebbe "Future exception was never retrieved" a fine giro.
+            attesa.exception()
+            raise
+        else:
+            attesa.set_result(dati)
+            return dati
+        finally:
+            self._in_volo.pop(chiave, None)
+
+    async def _richiedi(
+        self,
+        metodo: str,
+        url: str,
+        *,
+        fonte: str,
+        ttl_s: int | None,
+        chiave: str,
+        max_retry: int | None,
+        **kwargs: Any,
+    ) -> Any:
+        """Una richiesta con i suoi retry. Non consulta la cache: la popola."""
+        assert self._client is not None
 
         ultimo_errore: Exception | None = None
         tentativi = self.config.max_retry if max_retry is None else max_retry
@@ -145,8 +273,10 @@ class ClientHttp:
                     raise FonteNonDisponibile(fonte=fonte, dettaglio=f"HTTP {risposta.status_code} (errore definitivo)")
                 risposta.raise_for_status()
                 dati = risposta.json()
-                if usa_cache and ttl_s is not None:
-                    await self.cache.set(chiave, dati, ttl_s)
+                if ttl_s is not None:
+                    # Il peso e' quello della risposta grezza: misurarlo qui e'
+                    # gratis, riserializzare l'oggetto dentro la cache no.
+                    await self.cache.set(chiave, dati, ttl_s, peso=len(risposta.content))
                 return dati
             except (httpx2.HTTPError, ValueError) as exc:
                 ultimo_errore = exc

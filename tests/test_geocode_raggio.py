@@ -8,7 +8,7 @@ from pydantic import BaseModel, ValidationError
 
 from trekking_mcp.errors import FonteNonDisponibile, NonTrovato
 from trekking_mcp.models import Coord, Localita
-from trekking_mcp.sources import luoghi_simili, nominatim
+from trekking_mcp.sources import luoghi_simili, nominatim, overpass
 from trekking_mcp.sources.luoghi_simili import (
     cerca_simili_nel_raggio,
     localita_da_elemento,
@@ -102,9 +102,19 @@ def test_filtra_simili_ordina_per_ratio_poi_distanza():
 
 def test_query_luoghi_bbox_include_tipi_utili(config):
     ql = query_luoghi_bbox(config, 45.0, 7.0, 46.0, 8.0)
-    assert '["natural"~"^(peak|saddle)$"]' in ql
-    assert '["tourism"~"^(alpine_hut|wilderness_hut)$"]' in ql
-    assert '["place"~"^(village|hamlet|town|locality|isolated_dwelling)$"]' in ql
+
+    # I valori sono ordinati (la query si genera da `TIPI_LUOGO`), quindi si
+    # controlla la presenza di ciascuno invece della stringa letterale: una
+    # regex equivalente con i termini in un altro ordine non e' una regressione.
+    for chiave, valori in luoghi_simili.TIPI_LUOGO.items():
+        for elemento in ("node", "way"):
+            assert f'{elemento}["{chiave}"~"^(' in ql
+        for valore in valori:
+            assert valore in ql
+
+    assert "out tags center 500;" in ql
+    # Il preambolo arriva da `overpass`, non da una seconda copia locale.
+    assert ql.startswith(overpass.intestazione(config))
     assert "out tags center" in ql
 
 

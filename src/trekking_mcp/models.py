@@ -1,11 +1,18 @@
+"""Il contratto dati verso il client: i modelli Pydantic da cui nasce l'`outputSchema`.
+
+Questo modulo **non sa da dove arrivano i dati**. La traduzione dal formato di
+una fonte al modello sta nell'adapter di quella fonte (`sources/overpass.py`
+per i tag OSM): `models.py` importava `payloads.OverpassElement` e ospitava
+`Sentiero.da_relation`, il che legava il contratto pubblico alla forma di
+Overpass. Cambiare fonte voleva dire toccare i modelli.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime
 from enum import IntEnum, StrEnum
 
 from pydantic import BaseModel, Field
-
-from trekking_mcp.payloads import OverpassElement
 
 
 class SacScale(StrEnum):
@@ -69,43 +76,6 @@ class Sentiero(BaseModel):
     )
     osm_url: str
 
-    @classmethod
-    def da_relation(cls, rel: OverpassElement) -> Sentiero:
-        tags: dict[str, str] = rel.get("tags", {})
-        sac = None
-        if raw := tags.get("sac_scale"):
-            try:
-                sac = SacScale(raw)
-            except ValueError:
-                sac = None
-
-        centro = None
-        if c := rel.get("center"):
-            centro = Coord(lat=c["lat"], lon=c["lon"])
-
-        lunghezza = None
-        if raw := tags.get("distance"):
-            try:
-                lunghezza = float(raw.replace("km", "").strip())
-            except ValueError:
-                lunghezza = None
-
-        return cls(
-            osm_relation_id=rel["id"],
-            ref=tags.get("ref"),
-            nome=tags.get("name"),
-            da=tags.get("from"),
-            a=tags.get("to"),
-            operatore=tags.get("operator"),
-            rete=tags.get("network"),
-            sac_scale=sac,
-            difficolta_cai=SAC_TO_CAI.get(sac, DifficoltaCAI.SCONOSCIUTA) if sac else DifficoltaCAI.SCONOSCIUTA,
-            visibilita=tags.get("trail_visibility"),
-            lunghezza_km=lunghezza,
-            centro=centro,
-            osm_url=f"https://www.openstreetmap.org/relation/{rel['id']}",
-        )
-
 
 class PuntoQuotato(BaseModel):
     coord: Coord
@@ -115,12 +85,29 @@ class PuntoQuotato(BaseModel):
 class ProfiloAltimetrico(BaseModel):
     """Profilo di un percorso: quote campionate e dislivelli cumulati."""
 
-    punti: list[PuntoQuotato] = Field(default_factory=list)
+    punti: list[PuntoQuotato] = Field(
+        default_factory=list,
+        description="Campione dei punti quotati, diradato per restare leggibile: vedi `punti_quotati`",
+    )
     lunghezza_km: float
     dislivello_positivo_m: int
     dislivello_negativo_m: int
     quota_minima_m: int | None = None
     quota_massima_m: int | None = None
+    punti_quotati: int | None = Field(
+        default=None,
+        description=(
+            "Punti su cui sono calcolati dislivelli e quote estreme. Puo' essere maggiore "
+            "di len(punti): la risposta ne mostra un sottoinsieme, gli aggregati usano tutti."
+        ),
+    )
+    passo_effettivo_m: int | None = Field(
+        default=None,
+        description=(
+            "Distanza media fra i punti quotati. Puo' essere maggiore del `passo_m` chiesto: "
+            "su un percorso lungo il campionamento viene diradato per non moltiplicare le richieste."
+        ),
+    )
 
 
 class ZonaValanghe(BaseModel):
@@ -160,44 +147,6 @@ class Ricovero(BaseModel):
     telefono: str | None = None
     sito_web: str | None = None
     osm_url: str
-
-    @classmethod
-    def da_element(cls, el: OverpassElement) -> Ricovero:
-        tags: dict[str, str] = el.get("tags", {})
-        if tags.get("tourism") == "alpine_hut":
-            tipo = TipoRicovero.RIFUGIO
-        elif tags.get("tourism") == "wilderness_hut":
-            tipo = TipoRicovero.BIVACCO
-        else:
-            tipo = TipoRicovero.RIPARO
-
-        # `or` non va bene qui: un nodo sull'equatore o sul meridiano di
-        # Greenwich ha lat/lon 0.0, che e' falsy, e cadrebbe su `center` che per
-        # un nodo non esiste (KeyError). La presenza si chiede con `in`.
-        if "lat" in el and "lon" in el:
-            lat, lon = el["lat"], el["lon"]
-        elif "center" in el:
-            lat, lon = el["center"]["lat"], el["center"]["lon"]
-        else:
-            raise ValueError(f"elemento Overpass {el.get('id')} senza coordinate")
-
-        def _int(chiave: str) -> int | None:
-            try:
-                return int(float(tags[chiave]))
-            except (KeyError, ValueError):
-                return None
-
-        return cls(
-            osm_id=el["id"],
-            nome=tags.get("name"),
-            tipo=tipo,
-            quota_m=_int("ele"),
-            coord=Coord(lat=lat, lon=lon),
-            posti_letto=_int("beds") or _int("capacity"),
-            telefono=tags.get("phone") or tags.get("contact:phone"),
-            sito_web=tags.get("website") or tags.get("contact:website"),
-            osm_url=f"https://www.openstreetmap.org/{el.get('type', 'node')}/{el['id']}",
-        )
 
 
 class SentieriVersoLocalita(BaseModel):

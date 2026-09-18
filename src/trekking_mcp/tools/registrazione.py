@@ -1,8 +1,14 @@
+"""Come un tool entra nel server: registrazione e contratto d'errore.
+
+Un solo modo di registrare un tool, cosi' che la traduzione degli errori non si
+possa dimenticare (§3.23). La geometria, che prima stava qui, e' in `geo.py`:
+questo modulo parla di MCP e di niente altro.
+"""
+
 from __future__ import annotations
 
 import functools
 import logging
-import math
 from collections.abc import Awaitable, Callable
 from typing import ParamSpec, TypeVar
 
@@ -56,23 +62,3 @@ def extended_tool(
         return registrato(gestisci_errori(fn))
 
     return decoratore
-
-
-def riquadro_intorno(lat: float, lon: float, raggio_km: float) -> tuple[float, float, float, float]:
-    """Riquadro (sud, ovest, nord, est) attorno a un punto.
-
-    Approssimazione piana: il grado di longitudine si accorcia con il coseno
-    della latitudine. Sufficiente per una bbox di ricerca, non per misure.
-    """
-    delta_lat = raggio_km / 111.0
-    delta_lon = raggio_km / (111.0 * max(math.cos(math.radians(lat)), 0.01))
-    return (lat - delta_lat, lon - delta_lon, lat + delta_lat, lon + delta_lon)
-
-
-def distanza_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Distanza great-circle (haversine), in km."""
-    r = 6371.0
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
-    return 2 * r * math.asin(math.sqrt(a))

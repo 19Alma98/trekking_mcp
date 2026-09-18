@@ -37,6 +37,7 @@ a few mechanisms you rarely see implemented:
 | **Dual transport** | stdio and Streamable HTTP from the same `crea_server()` |
 | **Observability** | p50/p95 latency, 429s and cache hit rate per source, exposed as a resource |
 | **Cache hints** | Every response declares how long it is worth (`ttlMs`/`cacheScope`), resource by resource |
+| **Coalescing** | Two identical in-flight calls become one request: an agent calls tools in parallel |
 | **Request-state sealing** | Shared, rotatable keys so a two-round-trip elicitation survives a restart or a second replica |
 | **Client included** | A minimal MCP client, to show both sides of the protocol |
 | **Geometry** | Point-in-polygon and elevation profiles in pure Python, no binary dependencies |
