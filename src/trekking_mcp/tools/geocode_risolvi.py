@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from trekking_mcp.errors import NonTrovato
 from trekking_mcp.models import Localita
+from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import nominatim
 from trekking_mcp.sources.luoghi_simili import cerca_simili_nel_raggio
 from trekking_mcp.tools.comuni import distanza_km
@@ -58,6 +59,7 @@ def messaggio_scelta_geocode(
 
 
 async def risolvi_localita(
+    risorse: Risorse,
     ctx: Context,
     nome: str,
     *,
@@ -69,11 +71,11 @@ async def risolvi_localita(
     raggio = float(raggio_km)
     espansioni = 0
     while True:
-        esatti = await nominatim.cerca(nome, limite=limite, lat=lat, lon=lon, raggio_km=raggio)
+        esatti = await nominatim.cerca(risorse, nome, limite=limite, lat=lat, lon=lon, raggio_km=raggio)
         if esatti:
             return esatti
 
-        simili = await cerca_simili_nel_raggio(nome, lat=lat, lon=lon, raggio_km=raggio)
+        simili = await cerca_simili_nel_raggio(risorse, nome, lat=lat, lon=lon, raggio_km=raggio)
         messaggio = messaggio_scelta_geocode(nome, lat=lat, lon=lon, raggio_km=raggio, simili=simili)
         esito = await ctx.elicit(messaggio, SceltaGeocode)
 

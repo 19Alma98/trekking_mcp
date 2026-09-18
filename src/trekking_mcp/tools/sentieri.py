@@ -4,13 +4,13 @@ from typing import Annotated
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.context import Context
-from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from trekking_mcp.errors import NonTrovato
 from trekking_mcp.models import DifficoltaCAI, Ricovero, SentieriVersoLocalita, Sentiero
+from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import nominatim, overpass
-from trekking_mcp.tools.comuni import distanza_km, gestisci_errori, riquadro_intorno
+from trekking_mcp.tools.comuni import distanza_km, riquadro_intorno, strumento
 from trekking_mcp.tools.geocode_risolvi import risolvi_localita
 
 _PREFISSI_TOPONIMO = frozenset(
@@ -28,6 +28,7 @@ def testo_da_toponimo(nome: str) -> str:
 
 
 async def esegui_sentieri_verso_localita(
+    risorse: Risorse,
     *,
     nome: str,
     ctx: Context | None = None,
@@ -42,6 +43,7 @@ async def esegui_sentieri_verso_localita(
         if ctx is None:
             raise TypeError("ctx e' obbligatorio quando vicino_a_lat/lon sono impostati")
         candidati = await risolvi_localita(
+            risorse,
             ctx,
             nome,
             lat=vicino_a_lat,
@@ -50,17 +52,18 @@ async def esegui_sentieri_verso_localita(
             limite=1,
         )
     else:
-        candidati = await nominatim.cerca(nome, limite=1, lat=vicino_a_lat, lon=vicino_a_lon)
+        candidati = await nominatim.cerca(risorse, nome, limite=1, lat=vicino_a_lat, lon=vicino_a_lon)
     if not candidati:
         raise NonTrovato("localita'", nome)
     localita = candidati[0]
     testo = testo_da_toponimo(nome)
     sud, ovest, nord, est = riquadro_intorno(localita.coord.lat, localita.coord.lon, raggio_km)
-    grezzi = await overpass.cerca_sentieri(sud=sud, ovest=ovest, nord=nord, est=est, testo=testo)
+    grezzi = await overpass.cerca_sentieri(risorse, sud=sud, ovest=ovest, nord=nord, est=est, testo=testo)
     sentieri = ordina_sentieri_per_distanza(grezzi, lat=localita.coord.lat, lon=localita.coord.lon, limite=limite)
     ricoveri: list[Ricovero] = []
     if includi_ricoveri:
         ricoveri = await overpass.cerca_ricoveri(
+            risorse,
             lat=localita.coord.lat,
             lon=localita.coord.lon,
             raggio_m=int(raggio_km * 1000),
@@ -86,8 +89,9 @@ def ordina_sentieri_per_distanza(risultati: list[Sentiero], *, lat: float, lon: 
     return arricchiti[:limite]
 
 
-def registra(mcp: MCPServer) -> None:
-    @mcp.tool(
+def registra(mcp: MCPServer, risorse: Risorse) -> None:
+    @strumento(
+        mcp,
         name="cerca_sentieri",
         title="Cerca sentieri escursionistici",
         description=(
@@ -97,9 +101,7 @@ def registra(mcp: MCPServer) -> None:
             "Il numero del sentiero va in `ref` (es. '103'). "
             "Fonte: relation OSM route=hiking."
         ),
-        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
-    @gestisci_errori
     async def cerca_sentieri(
         ctx: Context,
         lat: Annotated[float, Field(description="Latitudine del centro ricerca", ge=-90, le=90)],
@@ -120,7 +122,7 @@ def registra(mcp: MCPServer) -> None:
         await ctx.log("info", f"Overpass: riquadro {raggio_km}km attorno a {lat:.4f},{lon:.4f}")
 
         risultati = await overpass.cerca_sentieri(
-            sud=sud, ovest=ovest, nord=nord, est=est, ref=ref, operatore=operatore, testo=testo
+            risorse, sud=sud, ovest=ovest, nord=nord, est=est, ref=ref, operatore=operatore, testo=testo
         )
 
         if difficolta_max is not None:
@@ -136,7 +138,8 @@ def registra(mcp: MCPServer) -> None:
 
         return ordina_sentieri_per_distanza(risultati, lat=lat, lon=lon, limite=limite)
 
-    @mcp.tool(
+    @strumento(
+        mcp,
         name="dettaglio_sentiero",
         title="Dettaglio di un sentiero",
         description=(
@@ -144,32 +147,30 @@ def registra(mcp: MCPServer) -> None:
             "Necessario solo se non hai gia' i campi da cerca_sentieri: non richiama "
             "dati diversi dalla search sui tag."
         ),
-        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
-    @gestisci_errori
     async def dettaglio_sentiero(
         osm_relation_id: Annotated[int, Field(description="ID della relation OSM", gt=0)],
     ) -> Sentiero | None:
-        return await overpass.leggi_sentiero(osm_relation_id)
+        return await overpass.leggi_sentiero(risorse, osm_relation_id)
 
-    @mcp.tool(
+    @strumento(
+        mcp,
         name="cerca_ricoveri",
         title="Cerca rifugi e bivacchi",
         description=(
             "Cerca rifugi gestiti, bivacchi e ripari entro un raggio da un punto. "
             "I dati su posti letto e contatti dipendono dalla mappatura OSM e possono mancare."
         ),
-        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
-    @gestisci_errori
     async def cerca_ricoveri(
         lat: Annotated[float, Field(ge=-90, le=90)],
         lon: Annotated[float, Field(ge=-180, le=180)],
         raggio_km: Annotated[float, Field(description="Raggio in km", gt=0, le=30)] = 5,
     ) -> list[Ricovero]:
-        return await overpass.cerca_ricoveri(lat=lat, lon=lon, raggio_m=int(raggio_km * 1000))
+        return await overpass.cerca_ricoveri(risorse, lat=lat, lon=lon, raggio_m=int(raggio_km * 1000))
 
-    @mcp.tool(
+    @strumento(
+        mcp,
         name="sentieri_verso_localita",
         title="Sentieri verso un luogo per nome",
         description=(
@@ -179,9 +180,7 @@ def registra(mcp: MCPServer) -> None:
             "raggio_km (default 5) vale solo per sentieri e ricoveri. "
             "Preferisci questo a una catena di cerca_localita + cerca_sentieri."
         ),
-        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
     )
-    @gestisci_errori
     async def sentieri_verso_localita(
         ctx: Context,
         nome: Annotated[str, Field(description="Toponimo, es. 'Mucrone' o 'Monte Mucrone'", min_length=2)],
@@ -204,6 +203,7 @@ def registra(mcp: MCPServer) -> None:
         includi_ricoveri: Annotated[bool, Field(description="Includi rifugi/bivacchi vicini")] = True,
     ) -> SentieriVersoLocalita:
         return await esegui_sentieri_verso_localita(
+            risorse,
             ctx=ctx,
             nome=nome,
             vicino_a_lat=vicino_a_lat,
