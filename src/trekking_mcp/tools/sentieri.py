@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from mcp.server.mcpserver import MCPServer
@@ -12,6 +13,8 @@ from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import nominatim, overpass
 from trekking_mcp.tools.comuni import distanza_km, riquadro_intorno, strumento
 from trekking_mcp.tools.geocode_risolvi import risolvi_localita
+
+log = logging.getLogger(__name__)
 
 _PREFISSI_TOPONIMO = frozenset(
     {"monte", "mont", "monti", "cima", "pizzo", "col", "colle", "passo", "rifugio", "bivacco"}
@@ -103,7 +106,6 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
         ),
     )
     async def cerca_sentieri(
-        ctx: Context,
         lat: Annotated[float, Field(description="Latitudine del centro ricerca", ge=-90, le=90)],
         lon: Annotated[float, Field(description="Longitudine del centro ricerca", ge=-180, le=180)],
         raggio_km: Annotated[float, Field(description="Raggio di ricerca in km (default 5, max 50)", gt=0, le=50)] = 5,
@@ -119,7 +121,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
         limite: Annotated[int, Field(description="Numero massimo di risultati", ge=1, le=100)] = 25,
     ) -> list[Sentiero]:
         sud, ovest, nord, est = riquadro_intorno(lat, lon, raggio_km)
-        await ctx.log("info", f"Overpass: riquadro {raggio_km}km attorno a {lat:.4f},{lon:.4f}")
+        log.info("Overpass: riquadro %skm attorno a %.4f,%.4f", raggio_km, lat, lon)
 
         risultati = await overpass.cerca_sentieri(
             risorse, sud=sud, ovest=ovest, nord=nord, est=est, ref=ref, operatore=operatore, testo=testo

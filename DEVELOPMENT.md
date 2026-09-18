@@ -187,12 +187,40 @@ fresca ≥ 5 cm). Nessuna euristica opaca, nessun modello. Sono righe che si
 leggono, si discutono e si testano. In un dominio di sicurezza e' l'unica scelta
 difendibile: se una soglia e' sbagliata, si vede e si corregge.
 
-### 3.9 Log su stderr
+### 3.9 Log su stderr, non verso il client
 
 Su stdio **stdout e' il canale del protocollo**. Un singolo `print()` corrompe
 la sessione. `logging.basicConfig(stream=sys.stderr)` in `__main__.py` non e'
 una preferenza: e' l'errore piu' comune al primo server MCP ed e' il motivo per
 cui il codice non contiene un solo `print`.
+
+Il server non manda log nemmeno al client. La *logging capability* del
+protocollo — `ctx.log()` e i suoi alias — e' deprecata dalla revisione
+2026-07-28 (SEP-2577), insieme a sampling e roots. `ctx.report_progress` no:
+il progresso server -> client resta, ed e' quello che usano
+`profilo_altimetrico` e `valuta_gita`.
+
+I cinque `ctx.log` che c'erano non hanno perso niente nel passaggio a stderr,
+e il motivo dice qualcosa sul disegno:
+
+- I tre `warning` di `valuta_gita` (profilo, zona, bollettino non recuperati)
+  erano gia' accompagnati, ognuno, da un `SegnaleAttenzione` nell'output
+  strutturato. Il modello li vedeva li', dove non puo' non vederli; la notifica
+  di log era una copia peggiore. Il dettaglio dell'eccezione, che al modello
+  non serve, ora va a chi opera il server.
+- I due `info` (`cerca_sentieri`, `zona_valanghe_da_coordinate`) narravano
+  un'operazione a un passo solo. Non c'era progresso da riportare: inventare
+  un `report_progress` con un passo su uno sarebbe stato rumore.
+
+La regola generale e' quella di §3.7: cio' che il modello deve sapere sta nel
+risultato, non in un canale laterale che il client puo' ignorare.
+
+**La deprecazione e' una build rotta, non una riga di warning.**
+`filterwarnings = ["error::mcp.shared.exceptions.MCPDeprecationWarning"]` in
+`pyproject.toml` fa fallire i test su qualunque API deprecata dell'SDK. Un
+warning nell'output dei test non lo legge nessuno; e' cosi' che ci si accorge
+di una revisione del protocollo quando il supporto viene rimosso, invece che
+quando esce.
 
 ### 3.10 Nessuna API key
 

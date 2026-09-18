@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from mcp.server.mcpserver import MCPServer
@@ -11,6 +12,8 @@ from trekking_mcp.models import Coord, Localita, ProfiloAltimetrico, ZonaValangh
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import eaws, elevation, nominatim, overpass
 from trekking_mcp.tools.comuni import strumento
+
+log = logging.getLogger(__name__)
 
 
 def registra(mcp: MCPServer, risorse: Risorse) -> None:
@@ -25,11 +28,10 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
         ),
     )
     async def zona_valanghe_da_coordinate(
-        ctx: Context,
         lat: Annotated[float, Field(ge=-90, le=90)],
         lon: Annotated[float, Field(ge=-180, le=180)],
     ) -> ZonaValanghe:
-        await ctx.log("info", "cerco la micro-regione EAWS del punto")
+        log.info("cerco la micro-regione EAWS del punto")
         regione = await eaws.zona_da_coordinate(risorse.eaws, lat, lon)
         return ZonaValanghe(
             id_zona=regione.id_zona,

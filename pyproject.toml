@@ -51,6 +51,12 @@ packages = ["src/trekking_mcp"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = ["-q", "-p", "pytest_httpx2"]
+# Una API dell'SDK deprecata deve rompere la build, non stampare una riga che
+# nessuno legge. E' il modo per accorgersi di una revisione del protocollo
+# quando esce, invece che quando il supporto viene rimosso.
+filterwarnings = [
+    "error::mcp.shared.exceptions.MCPDeprecationWarning",
+]
 
 [tool.ruff]
 line-length = 120

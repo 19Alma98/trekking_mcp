@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date
 from typing import Annotated
 
@@ -24,6 +25,8 @@ from trekking_mcp.models import (
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import caaml, eaws, elevation, meteo, overpass
 from trekking_mcp.tools.comuni import distanza_km, strumento
+
+log = logging.getLogger(__name__)
 
 
 class ProfiloUscita(BaseModel):
@@ -217,7 +220,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
                 sentiero = sentiero.model_copy(update={"profilo": profilo_alt})
                 fonti.append(elevation.ATTRIBUZIONE)
             except Exception as exc:
-                await ctx.log("warning", f"profilo altimetrico non calcolato: {exc}")
+                log.warning("profilo altimetrico non calcolato: %s", exc)
                 buchi.append(
                     SegnaleAttenzione(
                         categoria="dati",
@@ -267,7 +270,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
                 zona = ZonaValanghe(id_zona=regione.id_zona, nome=regione.nome, coord_richiesta=sentiero.centro)
                 fonti.append(eaws.ATTRIBUZIONE)
             except Exception as exc:
-                await ctx.log("warning", f"zona valanghe non determinata: {exc}")
+                log.warning("zona valanghe non determinata: %s", exc)
                 buchi.append(
                     SegnaleAttenzione(
                         categoria="valanghe",
@@ -286,7 +289,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
                 bollettino = await caaml.leggi_bollettino(risorse, zona_id=zona_valanghe)
                 fonti.append(caaml.PROVIDER["aineva"]["attribuzione"])
             except Exception as exc:
-                await ctx.log("warning", f"bollettino non disponibile: {exc}")
+                log.warning("bollettino non disponibile: %s", exc)
 
         await ctx.report_progress(5, passi, "Scarico il meteo")
         previsioni: list[MeteoQuota] = []
