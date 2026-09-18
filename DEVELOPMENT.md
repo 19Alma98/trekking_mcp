@@ -41,8 +41,10 @@ src/trekking_mcp/
 ├── errors.py            # errori previsti vs. bug
 ├── config.py            # configurazione da env, frozen
 ├── geo.py               # point-in-polygon, senza dipendenze binarie
-├── resources.py         # documenti di riferimento + resource template
+├── metriche.py          # contatori per fonte, in memoria
+├── resources.py         # documenti di riferimento + resource template + metriche
 ├── prompts.py           # workflow riutilizzabili
+├── completamenti.py     # autocompletamento degli argomenti
 ├── sources/             # un adapter per fonte esterna
 │   ├── http.py          # client condiviso: retry, backoff, cache TTL
 │   ├── overpass.py      # OpenStreetMap
@@ -265,11 +267,79 @@ finiva nel ciclo di retry con backoff esponenziale, moltiplicato per otto
 territori. Un 4xx diverso da 429 e' definitivo, e riprovare martella una fonte
 che ha gia' risposto chiaramente.
 
+### 3.18 Il bind pubblico va dichiarato, non subito
+
+L'SDK attiva la protezione da DNS rebinding (validazione di `Host` e `Origin`)
+**solo** quando il bind e' su `127.0.0.1`, `localhost` o `::1`. Chi scrive
+`--host 0.0.0.0` per esporre il server la perde senza accorgersene, ed e'
+esattamente il caso in cui serve: un sito qualunque puo' far chiamare dal
+browser della vittima un server che crede di essere privato.
+
+`impostazioni_sicurezza()` rovescia il default: fuori da localhost il comando
+**non parte** finche' non si dichiara almeno un `--allow-host`. Fallire
+all'avvio e' l'unico momento in cui qualcuno legge il messaggio; un warning nel
+log verrebbe ignorato.
+
+Non sostituisce l'autenticazione, che resta in roadmap: `Host`/`Origin` dicono
+da dove arriva la richiesta, non chi la manda.
+
+### 3.19 Le metriche come resource, non come endpoint
+
+Osservabilita' senza infrastruttura: un registro in memoria (`metriche.py`)
+esposto come resource `metriche://fonti`. Niente Prometheus, niente sidecar,
+niente scrittura su disco.
+
+Perche' una resource e non un `/metrics` HTTP: su stdio un endpoint HTTP non
+esiste, e stdio e' il modo in cui questo server viene usato il 90% delle volte.
+Una resource funziona su entrambi i transport e la si legge dallo stesso client
+con cui si usa il server.
+
+Cosa si misura, e perche' proprio questo: chiamate, errori, retry, 429, 5xx,
+latenza p50/p95 e hit rate della cache, **per fonte**. Sono le colonne che
+rispondono alla domanda che ci si pone davvero quando una risposta tarda: quale
+fonte sta frenando, e sta frenando o sta rifiutando?
+
+Le latenze stanno in una finestra scorrevole di 256 campioni, i contatori no:
+un p95 calcolato su tutta la vita del processo descrive soprattutto il passato,
+e una lista che cresce all'infinito e' una perdita di memoria travestita da
+metrica.
+
+`hit_rate` e' `None`, non `0.0`, per le fonti che non usano la cache: zero
+direbbe "cache inefficace", che e' un'altra cosa da "cache non prevista".
+
+### 3.20 I completamenti non possono scaricare niente
+
+`completion/complete` serve a completare `zona_id`: `IT-21-AO-01` non si
+ricostruisce a mente. I valori vengono dall'indice EAWS **gia' in memoria**, e
+se l'indice e' vuoto la risposta e' una lista vuota.
+
+La tentazione e' caricarlo al volo. Ma un completamento parte a ogni carattere
+digitato: innescare li' decine di MB di download significherebbe bloccare
+l'editor di chi scrive. Meglio non completare che completare dopo quindici
+secondi.
+
+Il `context` della richiesta porta gli argomenti gia' risolti, e viene usato:
+scelto `provider=slf`, `zona_id` propone solo `CH-*`. E' la differenza fra un
+completamento utile e un elenco.
+
+### 3.21 `valuta_gita` non scarica la geometria di sua iniziativa
+
+`con_profilo` era `true` di default. In sessione reale la query `out geom`
+andava in 504 su Overpass e si portava dietro tutto il tool. Ora e' `false`:
+il dislivello si chiede, non si subisce.
+
+Il corollario e' che i buchi vanno dichiarati. Una relation senza posizione
+utilizzabile produceva tre liste vuote (rifugi, meteo, zona) che si leggono come
+"non c'e' niente nei dintorni", cioe' il contrario di quello che era successo.
+Ogni dato non raccolto e' ora un `SegnaleAttenzione` di categoria `dati`. E'
+la regola di §3.7 applicata anche al caso banale: un campo vuoto, da solo,
+mente.
+
 ---
 
 ## 4. Testing
 
-**46 test, nessuno tocca la rete.** Le chiamate HTTP sono intercettate con
+**109 test, nessuno tocca la rete.** Le chiamate HTTP sono intercettate con
 `pytest-httpx2` (respx su httpcore2). Una suite che dipende da Overpass
 fallisce a caso, e una CI che fallisce a caso viene ignorata dopo due settimane.
 
@@ -287,13 +357,17 @@ Tre famiglie:
   abbiano descrizione e `outputSchema`, che siano marcati `readOnly`, che il
   parametro elicitato resti fuori dallo schema, che i prompt contengano ancora i
   vincoli di sicurezza.
+- `test_gita.py` — **end-to-end con un client MCP in-process**: il client
+  risponde all'elicitation, il valore iniettato si ritrova nei segnali, il
+  rifiuto ferma la chiamata prima di qualunque richiesta di rete.
+- `test_operabilita.py` — sicurezza del transport, contatori delle metriche,
+  completamenti.
 
 I test di contratto sono quelli che valgono di piu' nel tempo: proteggono
 l'interfaccia verso i client MCP, che e' la cosa che si rompe silenziosamente.
 
-Cosa **non** e' coperto e andrebbe aggiunto: test end-to-end del giro di
-elicitation con un client in-process, e test su risposte CAAML reali salvate
-come fixture (vedi roadmap).
+Cosa **non** e' coperto e andrebbe aggiunto: test su risposte CAAML reali
+salvate come fixture (vedi roadmap).
 
 ---
 
@@ -301,14 +375,32 @@ come fixture (vedi roadmap).
 
 | Limite | Impatto | Mitigazione |
 |---|---|---|
-| Cache in memoria, per-processo | Su HTTP multi-worker ogni replica ha la sua cache | Va sostituita con Redis prima di un deploy serio |
-| Nessuna autenticazione sul transport HTTP | Il server e' aperto a chi lo raggiunge | L'SDK supporta OAuth; non implementato (vedi roadmap) |
+| Cache in memoria, per-processo | Su HTTP multi-worker ogni replica ha la sua cache | **Scelta, non dimenticanza**: vedi §5.1 |
+| Rate limiter Nominatim per-processo | Con piu' repliche il budget di 1 req/s viene superato | Stesso motivo e stesso limite di sopra: un processo solo |
+| Nessuna autenticazione sul transport HTTP | Il server non sa **chi** lo chiama | `Host`/`Origin` validati (§3.18), che e' un'altra cosa; OAuth in roadmap |
+| Metriche per-processo, azzerate al riavvio | Nessuna serie storica | Bastano a dire quale fonte sta frenando adesso; l'export sta dietro `istantanea()` |
 | Copertura OSM non uniforme | Un sentiero assente non significa inesistente | Dichiarato nelle `instructions` e nel README |
 | `sac_scale` spesso mancante o datato | Difficolta' sconosciuta | Mai degradata a "facile": resta `SCONOSCIUTA` e genera un segnale |
 | Ray casting sul bordo dei poligoni | Un punto esattamente sul confine puo' cadere di qua o di la' | Irrilevante: le micro-regioni confinanti hanno bollettini simili |
 | Cache dei perimetri per-processo, su disco condiviso | Piu' repliche scrivono lo stesso file | La scrittura e' atomica, quindi al peggio si riscarica |
 | Il profilo altimetrico costa una query Overpass pesante | `valuta_gita` e' piu' lento | Disattivabile con `con_profilo=false` |
 | Solo previsione, nessun dato storico | Niente analisi retrospettive | Fuori scope |
+
+### 5.1 Perche' la cache resta in memoria
+
+Redis risolverebbe le prime due righe della tabella, e per un deploy
+multi-replica sarebbe la scelta giusta. Non viene adottato lo stesso, e la
+ragione e' esplicita: **il progetto deve restare clonabile e leggibile senza
+montare infrastruttura.** `uv sync && trekking-mcp` e' tutto quello che serve
+oggi; aggiungere Redis significherebbe un servizio da avviare, una connessione
+da configurare e un percorso di errore in piu' per chiunque voglia solo leggere
+il codice o provarlo.
+
+Il costo di questa scelta e' dichiarato: **un processo solo.** Non e' una
+configurazione da cui scalare orizzontalmente, ed e' una cosa da sapere prima
+di metterci carico multi-utente, non dopo. L'interfaccia di `CacheTTL` e'
+comunque piccola e sincrona per rimpiazzo: chi ne avesse bisogno sostituisce la
+classe, non i chiamanti.
 
 ---
 
@@ -349,6 +441,8 @@ aggiunto alla fine.
 - [x] Cache TTL, retry con backoff, errori tipizzati
 - [x] Client MCP minimale
 - [x] Test di contratto in CI
+- [x] Completamento degli argomenti (`completion/complete`)
+- [x] Test end-to-end del giro di elicitation, con client in-process
 
 ### Fase 2 — utilita' reale (fatto)
 - [x] **Lookup zona valanghe da coordinate.** I poligoni delle micro-regioni
@@ -363,10 +457,13 @@ aggiunto alla fine.
 - [x] Ricerca per toponimo via Nominatim, con rispetto della usage policy.
 
 ### Fase 3 — deploy
-- [ ] Cache su Redis, dietro la stessa interfaccia di `CacheTTL`
+- [x] Metriche: latenza per fonte, hit rate della cache, rate limit incontrati
+- [x] Validazione di `Host`/`Origin` sul transport HTTP, obbligatoria fuori da
+      localhost
 - [ ] OAuth sul transport HTTP (supportato dall'SDK via `token_verifier`)
 - [ ] Immagine Docker e healthcheck
-- [ ] Metriche: latenza per fonte, hit rate della cache, rate limit incontrati
+- [ ] Mirror Overpass dedicato: `overpass-api.de` non e' un backend di produzione
+- ~~Cache su Redis~~ — **non si fa**, per scelta: vedi §5.1
 
 ### Esplicitamente fuori scope
 Routing e tracce GPX, dati storici, previsione autonoma del pericolo valanghe,
