@@ -30,10 +30,10 @@ DENTRO = (45.05, 7.05)
 
 
 @pytest.fixture
-def indice(monkeypatch):
+def indice(monkeypatch, risorse):
     """Indice isolato, con un solo territorio e un download finto ma lento."""
     monkeypatch.setattr(eaws, "TERRITORI_ITALIA", ["IT-21"])
-    idx = eaws.IndiceRegioni()
+    idx = risorse.eaws
     idx.scaricamenti = 0
 
     async def _scarica(territorio: str) -> EawsFeatureCollection:

@@ -12,7 +12,8 @@ from mcp.types import (
     ResourceTemplateReference,
 )
 
-from trekking_mcp.sources import caaml, eaws
+from trekking_mcp.risorse import Risorse
+from trekking_mcp.sources import caaml
 
 URI_BOLLETTINO = "bollettino://{provider}/{zona_id}"
 MAX_VALORI = 100
@@ -31,10 +32,10 @@ def _filtra(candidati: list[str], parziale: str) -> Completion:
     )
 
 
-def zone_note(provider: str | None = None) -> list[str]:
+def zone_note(risorse: Risorse, provider: str | None = None) -> list[str]:
     """ID di zona dall'indice EAWS gia' in memoria."""
     prefisso = PREFISSI_PROVIDER.get(provider or "")
-    return [r.id_zona for r in eaws.INDICE.regioni if prefisso is None or r.id_zona.startswith(prefisso)]
+    return [r.id_zona for r in risorse.eaws.regioni if prefisso is None or r.id_zona.startswith(prefisso)]
 
 
 _Handler = Callable[
@@ -43,7 +44,7 @@ _Handler = Callable[
 ]
 
 
-def registra(mcp: MCPServer) -> None:
+def registra(mcp: MCPServer, risorse: Risorse) -> None:
     completion = cast(Callable[[], Callable[[_Handler], _Handler]], mcp.completion)
 
     @completion()
@@ -58,10 +59,10 @@ def registra(mcp: MCPServer) -> None:
             if argument.name == "provider":
                 return _filtra(list(caaml.PROVIDER), argument.value)
             if argument.name == "zona_id":
-                return _filtra(zone_note(risolti.get("provider")), argument.value)
+                return _filtra(zone_note(risorse, risolti.get("provider")), argument.value)
             return None
 
         if isinstance(ref, PromptReference) and ref.name == "spiega_bollettino" and argument.name == "zona_id":
-            return _filtra(zone_note(), argument.value)
+            return _filtra(zone_note(risorse), argument.value)
 
         return None

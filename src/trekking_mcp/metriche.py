@@ -130,6 +130,3 @@ class Metriche:
 
     def azzera(self) -> None:
         self._fonti.clear()
-
-
-METRICHE = Metriche()

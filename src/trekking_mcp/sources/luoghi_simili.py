@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import difflib
 import logging
+from typing import TYPE_CHECKING
 
-from trekking_mcp.config import CONFIG
+from trekking_mcp.config import Config
 from trekking_mcp.errors import FonteNonDisponibile
 from trekking_mcp.models import Coord, Localita
 from trekking_mcp.payloads import OverpassElement
 from trekking_mcp.sources import overpass
 from trekking_mcp.tools.comuni import distanza_km, riquadro_intorno
+
+if TYPE_CHECKING:
+    from trekking_mcp.risorse import Risorse
 
 log = logging.getLogger(__name__)
 
@@ -34,10 +38,10 @@ _PREFISSI = frozenset(
 )
 
 
-def query_luoghi_bbox(sud: float, ovest: float, nord: float, est: float) -> str:
+def query_luoghi_bbox(config: Config, sud: float, ovest: float, nord: float, est: float) -> str:
     bbox = f"{sud},{ovest},{nord},{est}"
     return (
-        _INTESTAZIONE.format(timeout=int(CONFIG.timeout_s) - 5)
+        _INTESTAZIONE.format(timeout=int(config.timeout_s) - 5)
         + "("
         + f'node["natural"~"^(peak|saddle)$"]({bbox});'
         + f'way["natural"~"^(peak|saddle)$"]({bbox});'
@@ -129,6 +133,7 @@ def filtra_simili(
 
 
 async def cerca_simili_nel_raggio(
+    risorse: Risorse,
     nome: str,
     *,
     lat: float,
@@ -137,7 +142,7 @@ async def cerca_simili_nel_raggio(
 ) -> list[Localita]:
     sud, ovest, nord, est = riquadro_intorno(lat, lon, raggio_km)
     try:
-        dati = await overpass.esegui(query_luoghi_bbox(sud, ovest, nord, est))
+        dati = await overpass.esegui(risorse, query_luoghi_bbox(risorse.config, sud, ovest, nord, est))
     except FonteNonDisponibile as exc:
         log.warning("overpass luoghi simili non disponibile: %s", exc)
         return []

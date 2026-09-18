@@ -2,21 +2,12 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs
 
-import pytest
 import respx
 from mcp import Client
 from mcp.client.session import ClientRequestContext
 from mcp.types import ElicitRequestParams, ElicitResult
 
 from trekking_mcp.server import crea_server
-from trekking_mcp.sources.http import CLIENT
-
-
-@pytest.fixture(autouse=True)
-async def _svuota_cache():
-    await CLIENT.cache.svuota()
-    yield
-    await CLIENT.cache.svuota()
 
 
 def _risponde(difficolta_max: str = "E", artva: bool = True):
