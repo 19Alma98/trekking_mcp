@@ -47,7 +47,6 @@ def bbox(sud: float, ovest: float, nord: float, est: float) -> str:
     return f"{sud},{ovest},{nord},{est}"
 
 
-
 def sentiero_da_relation(rel: OverpassElement) -> Sentiero:
     """Una relation `route=hiking` nel modello `Sentiero`."""
     tags: dict[str, str] = rel.get("tags", {})

@@ -25,8 +25,7 @@ log = logging.getLogger(__name__)
 
 
 def query_luoghi_bbox(config: Config, sud: float, ovest: float, nord: float, est: float) -> str:
-    """Tutti i luoghi nominabili in un riquadro, per cercarne uno somigliante.
-    """
+    """Tutti i luoghi nominabili in un riquadro, per cercarne uno somigliante."""
     riquadro = overpass.bbox(sud, ovest, nord, est)
     selettori = "".join(
         f'{elemento}["{chiave}"~"^({"|".join(sorted(valori))})$"]({riquadro});'
