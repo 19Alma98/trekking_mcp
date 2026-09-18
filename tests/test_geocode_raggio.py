@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 import respx
 from mcp.server.elicitation import AcceptedElicitation, CancelledElicitation, DeclinedElicitation
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from trekking_mcp.errors import FonteNonDisponibile, NonTrovato
 from trekking_mcp.models import Coord, Localita
@@ -288,7 +288,24 @@ async def test_risolvi_terza_espansione_solleva_non_trovato(monkeypatch, risorse
         await geocode_risolvi.risolvi_localita(risorse, ctx, "Mucone", lat=45.57, lon=8.05, raggio_km=30)  # type: ignore[arg-type]
 
 
-async def test_risolvi_usa_n_invalido_solleva_non_trovato(monkeypatch, risorse):
+def test_un_azione_fuori_enum_non_arriva_nemmeno_al_tool():
+    """Con `azione` come Literal il valore assurdo muore nella validazione.
+
+    Prima `azione` era una `str` e "usa_99" viaggiava fino al corpo di
+    `risolvi_localita`, che doveva accorgersene da solo. Ora lo schema che il
+    client riceve porta l'enum, e Pydantic rifiuta quello che non c'e' dentro.
+    """
+    with pytest.raises(ValidationError):
+        geocode_risolvi.SceltaGeocode(azione="usa_99", nuovo_raggio_km=50)  # type: ignore[arg-type]
+
+
+async def test_un_candidato_valido_ma_assente_solleva_non_trovato(monkeypatch, risorse):
+    """`usa_3` e' nell'enum, ma i simili trovati possono essere meno di tre.
+
+    E' il pezzo che l'enum non puo' garantire, quindi il controllo a runtime
+    resta: qui c'e' un solo candidato e si chiede il terzo.
+    """
+
     async def _vuoto(*args, **kwargs):
         return []
 
@@ -301,7 +318,7 @@ async def test_risolvi_usa_n_invalido_solleva_non_trovato(monkeypatch, risorse):
     monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.cerca_simili_nel_raggio", _simili)
     ctx = FakeCtx(
         elicit_results=[
-            AcceptedElicitation(data=geocode_risolvi.SceltaGeocode(azione="usa_99", nuovo_raggio_km=50)),
+            AcceptedElicitation(data=geocode_risolvi.SceltaGeocode(azione="usa_3", nuovo_raggio_km=50)),
         ]
     )
     with pytest.raises(NonTrovato):

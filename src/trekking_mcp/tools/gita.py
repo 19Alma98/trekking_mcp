@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.context import Context
@@ -29,14 +29,26 @@ from trekking_mcp.tools.comuni import distanza_km, strumento
 log = logging.getLogger(__name__)
 
 
+# I quattro gradi CAI dichiarabili: `DifficoltaCAI` meno SCONOSCIUTA, che non e'
+# una risposta che un utente possa dare. `test_elicitation.py` tiene allineati
+# i due elenchi.
+DifficoltaDichiarata = Literal["T", "E", "EE", "EEA"]
+
+
 class ProfiloUscita(BaseModel):
     """Cosa serve sapere sull'utente, e che il modello non puo' dedurre.
 
     Lo schema di elicitation ammette solo campi primitivi e piatti: niente
     oggetti annidati. E' un vincolo del protocollo, non una scelta di stile.
+
+    `difficolta_max` e' un `Literal` e non una stringa libera: i quattro valori
+    ammessi arrivano al client come `enum` nel JSON Schema, quindi la scelta si
+    presenta come tale e una risposta fuori scala viene respinta dalla
+    validazione invece di arrivare fino a `_segnali`. Un `StrEnum` non andrebbe
+    bene: Pydantic lo rende come `$ref`, che l'SDK rifiuta.
     """
 
-    difficolta_max: str = Field(
+    difficolta_max: DifficoltaDichiarata = Field(
         description="Difficolta' massima che ti senti di affrontare: T, E, EE o EEA",
         default="E",
     )
@@ -79,11 +91,7 @@ def _segnali(
                 messaggio="Difficolta' non mappata in OSM: verificare su una guida o carta prima di partire.",
             )
         )
-    elif (
-        profilo.difficolta_max in [d.value for d in ordine]
-        and difficolta in ordine
-        and ordine.index(difficolta) > ordine.index(DifficoltaCAI(profilo.difficolta_max))
-    ):
+    elif difficolta in ordine and ordine.index(difficolta) > ordine.index(DifficoltaCAI(profilo.difficolta_max)):
         segnali.append(
             SegnaleAttenzione(
                 categoria="difficolta",
