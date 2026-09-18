@@ -1,10 +1,3 @@
-"""`valuta_gita` end-to-end, con un client MCP in-process.
-
-E' l'unico punto in cui si vede il giro completo: il client risponde
-all'elicitation, il valore iniettato arriva nel corpo del tool e i buchi di
-copertura escono come segnali invece che come campi vuoti.
-"""
-
 from __future__ import annotations
 
 from urllib.parse import parse_qs
@@ -27,7 +20,6 @@ async def _svuota_cache():
 
 
 def _risponde(difficolta_max: str = "E", artva: bool = True):
-    """Client che accetta l'elicitation, come farebbe un utente reale."""
     chiamate: list[str] = []
 
     async def callback(context: ClientRequestContext, params: ElicitRequestParams) -> ElicitResult:
@@ -63,7 +55,6 @@ RELATION_SENZA_POSIZIONE = {
 
 
 async def test_di_default_non_scarica_la_geometria(httpx2_mock: respx.Router):
-    """`out geom` e' la query che fa cadere Overpass: non deve partire da sola."""
     rotta = httpx2_mock.post(url__startswith="https://overpass-api.de").respond(200, json=RELATION_SENZA_POSIZIONE)
     callback, _ = _risponde()
 
@@ -76,7 +67,6 @@ async def test_di_default_non_scarica_la_geometria(httpx2_mock: respx.Router):
 
 
 async def test_il_profilo_elicitato_arriva_nel_corpo_del_tool(httpx2_mock: respx.Router):
-    """Il gruppo dichiara T, il sentiero e' EE: il segnale critico prova il giro completo."""
     httpx2_mock.post(url__startswith="https://overpass-api.de").respond(200, json=RELATION_SENZA_POSIZIONE)
     callback, chiamate = _risponde(difficolta_max="T")
 
@@ -91,11 +81,6 @@ async def test_il_profilo_elicitato_arriva_nel_corpo_del_tool(httpx2_mock: respx
 
 
 async def test_una_relation_senza_posizione_produce_un_segnale(httpx2_mock: respx.Router):
-    """Senza centro non si raccolgono rifugi, zona e meteo.
-
-    Tre liste vuote si leggono come "non c'e' niente nei dintorni", che e' il
-    contrario di quello che e' successo. Il buco va dichiarato.
-    """
     httpx2_mock.post(url__startswith="https://overpass-api.de").respond(200, json=RELATION_SENZA_POSIZIONE)
     callback, _ = _risponde()
 
@@ -123,12 +108,6 @@ async def test_con_profilo_senza_geometria_lo_dichiara(httpx2_mock: respx.Router
 
 
 async def test_il_rifiuto_dell_elicitation_ferma_la_chiamata(httpx2_mock: respx.Router):
-    """Rifiutare e' un esito legittimo: il tool non deve proseguire con un default.
-
-    Il resolver gira *prima* del corpo, quindi il rifiuto costa zero richieste:
-    nessuna fonte esterna viene toccata per una chiamata che l'utente ha fermato.
-    """
-
     async def rifiuta(context: ClientRequestContext, params: ElicitRequestParams) -> ElicitResult:
         return ElicitResult(action="decline")
 

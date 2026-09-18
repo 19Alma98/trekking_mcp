@@ -1,11 +1,3 @@
-"""Autocompletamento degli argomenti (`completion/complete`).
-
-Gli identificativi delle zone valanghe sono la cosa meno indovinabile di questo
-server: `IT-21-AO-01` non si ricostruisce a mente. Il tool
-`zona_valanghe_da_coordinate` risolve il caso dell'agente; questo risolve quello
-della persona che scrive a mano un URI `bollettino://...` o compila il prompt.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
@@ -40,13 +32,7 @@ def _filtra(candidati: list[str], parziale: str) -> Completion:
 
 
 def zone_note(provider: str | None = None) -> list[str]:
-    """ID di zona dall'indice EAWS **gia' in memoria**.
-
-    Un completamento deve rispondere mentre l'utente digita: scaricare qui i
-    perimetri (decine di MB) al primo carattere sarebbe peggio che non
-    completare affatto. Finche' nessuno ha usato una zona, la lista e' vuota e
-    si popola da sola al primo uso.
-    """
+    """ID di zona dall'indice EAWS gia' in memoria."""
     prefisso = PREFISSI_PROVIDER.get(provider or "")
     return [r.id_zona for r in eaws.INDICE.regioni if prefisso is None or r.id_zona.startswith(prefisso)]
 
@@ -58,9 +44,6 @@ _Handler = Callable[
 
 
 def registra(mcp: MCPServer) -> None:
-    # `MCPServer.completion()` non e' annotato nell'SDK: senza questo cast
-    # mypy --strict considera untyped tutto cio' che decora. Un cast solo, qui,
-    # invece di un type: ignore sparso nel corpo.
     completion = cast(Callable[[], Callable[[_Handler], _Handler]], mcp.completion)
 
     @completion()

@@ -45,11 +45,6 @@ def registra(mcp: MCPServer) -> None:
         mime_type="application/json",
     )
     def metriche_fonti() -> str:
-        """Osservabilita' come resource, non come endpoint.
-
-        Una resource funziona su entrambi i transport, stdio compreso, dove un
-        `/metrics` HTTP non esisterebbe nemmeno.
-        """
         return METRICHE.istantanea().model_dump_json(indent=2)
 
     @mcp.resource(

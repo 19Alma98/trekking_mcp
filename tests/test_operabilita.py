@@ -1,9 +1,3 @@
-"""Operabilita': sicurezza del transport HTTP, metriche, completamenti.
-
-Sono le parti che non si vedono chiamando un tool, e che per questo si rompono
-in silenzio.
-"""
-
 from __future__ import annotations
 
 import json
@@ -37,17 +31,12 @@ async def _no_sleep(_: float) -> None:
     return None
 
 
-# --- sicurezza del transport HTTP ------------------------------------------
-
-
 def test_bind_locale_lascia_il_default_dell_sdk():
-    """Su localhost l'SDK attiva da solo la protezione: non va scavalcata."""
     assert impostazioni_sicurezza("127.0.0.1", [], []) is None
     assert impostazioni_sicurezza("localhost", [], []) is None
 
 
 def test_bind_pubblico_senza_allow_host_e_rifiutato():
-    """E' il caso in cui la protezione serve, ed e' quello in cui l'SDK la spegne."""
     with pytest.raises(ValueError, match="allow-host"):
         impostazioni_sicurezza("0.0.0.0", [], [])
 
@@ -61,13 +50,9 @@ def test_allow_host_attiva_la_protezione():
 
 
 def test_main_non_avvia_un_server_pubblico_non_protetto():
-    """Deve fallire *prima* di mettersi in ascolto, non loggare un avviso."""
     with pytest.raises(SystemExit) as esito:
         main(["--transport", "http", "--host", "0.0.0.0"])
     assert esito.value.code == 2
-
-
-# --- metriche ---------------------------------------------------------------
 
 
 def test_percentile_per_rango():
@@ -79,7 +64,6 @@ def test_percentile_per_rango():
 
 
 def test_hit_rate_none_se_la_fonte_non_usa_la_cache():
-    """0.0 direbbe 'cache inefficace', che e' un'altra cosa da 'cache non usata'."""
     m = Metriche()
     m.chiamata("eaws-regions", 12.0)
     assert m.istantanea().fonti["eaws-regions"].cache_hit_rate is None
@@ -105,7 +89,6 @@ def test_conteggi_per_fonte():
 
 
 def test_la_finestra_delle_latenze_non_cresce():
-    """Contatori a vita, latenze a finestra: la memoria deve restare piatta."""
     m = Metriche()
     for n in range(1000):
         m.chiamata("meteo", float(n))
@@ -154,9 +137,6 @@ async def test_la_resource_metriche_e_leggibile():
     assert "nota" in dati
 
 
-# --- completamenti ----------------------------------------------------------
-
-
 def _micro_regione(id_zona: str) -> eaws.MicroRegione:
     riquadro: Riquadro = (0.0, 0.0, 1.0, 1.0)
     return eaws.MicroRegione(id_zona=id_zona, nome=id_zona, riquadro=riquadro, poligoni=[])
@@ -178,11 +158,6 @@ def test_zone_note_filtrate_per_provider(indice_finto):
 
 
 def test_zone_note_non_scarica_nulla(httpx2_mock: respx.Router, monkeypatch):
-    """Completare non deve poter innescare decine di MB di download.
-
-    A indice vuoto la risposta e' una lista vuota, non un caricamento: chi
-    digita si aspetta una risposta in millisecondi.
-    """
     monkeypatch.setattr(eaws, "INDICE", eaws.IndiceRegioni())
     assert completamenti.zone_note() == []
     assert not httpx2_mock.calls
@@ -199,7 +174,6 @@ async def test_completa_zona_id_della_resource_template(indice_finto):
 
 
 async def test_il_provider_gia_scelto_restringe_le_zone(indice_finto):
-    """Il contesto e' l'unica cosa che distingue un completamento utile da un elenco."""
     async with Client(crea_server()) as client:
         esito = await client.complete(
             ResourceTemplateReference(uri="bollettino://{provider}/{zona_id}"),

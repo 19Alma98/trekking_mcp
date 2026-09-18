@@ -7,21 +7,7 @@ Report dettagliato: canvas `report-mcp-sessione-torino` nel progetto Cursor.
 
 ---
 
-## Deciso: niente cache condivisa
-
-- [x] ~~Cache condivisa (Redis o equivalente)~~ — **non si fa.**
-  - Il progetto resta clonabile e studiabile senza infrastruttura da montare
-  - Il costo accettato e' esplicito: **un processo solo**, niente scale-out
-  - Motivazione e via d'uscita in `DEVELOPMENT.md` §5.1
-
----
-
 ## P1 — affidabilità e latenza percepita
-
-- [x] **`valuta_gita`: default `con_profilo=false`; segnali espliciti se manca geometria/centro**
-  - Relation senza way → `centro=null` → ora produce un `SegnaleAttenzione`
-    di categoria `dati`, non tre liste vuote in silenzio
-  - `out geom` non parte piu' da solo: si chiede
 
 - [ ] **Mirror Overpass self-hosted o istanza dedicata**
   - `overpass-api.de` non è un backend di produzione
@@ -34,10 +20,6 @@ Report dettagliato: canvas `report-mcp-sessione-torino` nel progetto Cursor.
 ---
 
 ## P2 — operabilità e uso agentico
-
-- [x] **Metriche: latenza per fonte, hit rate cache, conteggio 429/504**
-  - Registro in memoria, esposto come resource `metriche://fonti`
-  - Riga di riepilogo nel log allo spegnimento
 
 - [ ] **Guidance agent: evitare fan-out parallelo su tool Overpass**
   - Le instructions del server aiutano; in sessione Cursor ha comunque chiamato 3 tool Overpass insieme

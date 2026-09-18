@@ -28,11 +28,6 @@ def impostazioni_sicurezza(
 ) -> TransportSecuritySettings | None:
     """Protezione da DNS rebinding per il transport HTTP.
 
-    L'SDK la attiva da solo **solo** se il bind e' su localhost: chi mette
-    `--host 0.0.0.0` per esporre il server perde la protezione senza accorgersene,
-    ed e' esattamente il caso in cui serve. Qui quel bind viene rifiutato finche'
-    non si dichiara chi puo' chiamare.
-
     Restituisce `None` su localhost senza flag, per lasciare il default dell'SDK.
     """
     if not allow_host and not allow_origin:

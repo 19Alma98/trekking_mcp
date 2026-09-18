@@ -1,19 +1,3 @@
-"""Metriche delle fonti esterne, tenute in memoria dal processo.
-
-Senza numeri, davanti a un server lento si tira a indovinare quale fonte stia
-frenando. Le domande a cui questo modulo risponde sono quattro: quale fonte,
-quanto spesso, quanto ha fatto aspettare, quante volte ci ha detto di no.
-
-Deliberatamente senza Prometheus, senza sidecar e senza scrittura su disco:
-un registro in memoria e una resource MCP che lo espone. Chi clona il repo
-vede le metriche senza montare niente, e chi volesse esportarle altrove ha un
-solo punto da cui leggerle (`istantanea()`).
-
-Le latenze sono campionate in una finestra scorrevole invece che accumulate:
-i percentili di tutta la vita del processo descrivono soprattutto il passato,
-e la memoria resta costante.
-"""
-
 from __future__ import annotations
 
 import math
@@ -26,11 +10,7 @@ CAMPIONI_LATENZA = 256
 
 
 def _percentile(valori: list[float], q: float) -> float:
-    """Percentile per rango, senza interpolazione.
-
-    Su qualche centinaio di campioni l'interpolazione non aggiunge nulla e
-    rende il numero piu' difficile da spiegare.
-    """
+    """Percentile per rango, senza interpolazione."""
     if not valori:
         return 0.0
     ordinati = sorted(valori)
@@ -99,12 +79,7 @@ class _StatFonte:
 
 
 class Metriche:
-    """Registro dei contatori, una riga per fonte.
-
-    Nessun lock: sono incrementi di interi senza `await` in mezzo, quindi il
-    loop asyncio non puo' interromperli a meta'. Un lock qui sarebbe solo un
-    costo (e la cache lo tiene gia' per i suoi motivi, che sono altri).
-    """
+    """Registro dei contatori, una riga per fonte."""
 
     def __init__(self) -> None:
         self._fonti: dict[str, _StatFonte] = {}
