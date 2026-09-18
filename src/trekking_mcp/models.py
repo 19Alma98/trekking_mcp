@@ -171,8 +171,15 @@ class Ricovero(BaseModel):
         else:
             tipo = TipoRicovero.RIPARO
 
-        lat = el.get("lat") or el["center"]["lat"]
-        lon = el.get("lon") or el["center"]["lon"]
+        # `or` non va bene qui: un nodo sull'equatore o sul meridiano di
+        # Greenwich ha lat/lon 0.0, che e' falsy, e cadrebbe su `center` che per
+        # un nodo non esiste (KeyError). La presenza si chiede con `in`.
+        if "lat" in el and "lon" in el:
+            lat, lon = el["lat"], el["lon"]
+        elif "center" in el:
+            lat, lon = el["center"]["lat"], el["center"]["lon"]
+        else:
+            raise ValueError(f"elemento Overpass {el.get('id')} senza coordinate")
 
         def _int(chiave: str) -> int | None:
             try:
@@ -258,8 +265,16 @@ class Bollettino(BaseModel):
     )
 
     @property
-    def grado_massimo(self) -> GradoPericolo:
-        return max((v.grado for v in self.valutazioni), default=GradoPericolo.DEBOLE)
+    def grado_massimo(self) -> GradoPericolo | None:
+        """Il grado piu' alto fra le valutazioni, o `None` se non ce n'e' nessuna.
+
+        Il default **non** puo' essere `DEBOLE`: un bollettino i cui
+        `dangerRatings` non si sono potuti interpretare non e' un bollettino che
+        dichiara pericolo debole. Restituire 1 in quel caso farebbe leggere
+        l'assenza di dato come rassicurazione — l'opposto della regola 5 di
+        DEVELOPMENT.md §6. `None` obbliga il chiamante a dire che non lo sa.
+        """
+        return max((v.grado for v in self.valutazioni), default=None)
 
 
 class MeteoQuota(BaseModel):

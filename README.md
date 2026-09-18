@@ -1,6 +1,9 @@
 # trekking-mcp
 
-Server [Model Context Protocol](https://modelcontextprotocol.io) per l'escursionismo sulle Alpi e sugli Appennini italiani: sentieri numerati, rifugi e bivacchi, bollettini valanghe e meteo di quota, esposti a un assistente AI come tool, resource e prompt.
+*[English](README.en.md)*
+
+Server [Model Context Protocol](https://modelcontextprotocol.io) (revisione
+della spec `2026-07-28`, SDK Python `mcp` 2.x) per l'escursionismo sulle Alpi e sugli Appennini italiani: sentieri numerati, rifugi e bivacchi, bollettini valanghe e meteo di quota, esposti a un assistente AI come tool, resource e prompt.
 
 > **Avvertenza.** I bollettini valanghe sono documenti ufficiali di sicurezza. Questo progetto li rilegge e li normalizza, non li interpreta e non produce valutazioni del rischio. Non sostituisce il bollettino integrale, la formazione specifica, ne' il giudizio sul terreno. Usalo per preparare una gita, mai per decidere se farla.
 
@@ -54,6 +57,10 @@ trekking-mcp --transport http --port 8000            # solo 127.0.0.1
 trekking-mcp --transport http --host 0.0.0.0 \
   --allow-host trekking.example.org:* \
   --allow-origin https://app.example.org
+
+# con piu' repliche: le chiavi che sigillano il requestState vanno condivise,
+# altrimenti un'elicitation iniziata su una replica muore sull'altra
+export TREKKING_MCP_STATE_KEYS="$(python -c 'import secrets; print(secrets.token_hex(32))')"
 ```
 
 Il secondo comando senza `--allow-host` viene **rifiutato**: l'SDK attiva la
@@ -74,6 +81,11 @@ quando non serve. Vedi [DEVELOPMENT.md](DEVELOPMENT.md) §3.18.
 | `bollettino_valanghe` | Bollettino corrente di una zona, da CAAML v6 |
 | `meteo_quota` | Previsione oraria corretta per l'elevazione, con zero termico e raffiche |
 | `valuta_gita` | Compone tutto quanto sopra per un sentiero e una data |
+
+`meteo_quota` non risponde con le prime ore della serie di Open-Meteo, che
+comincia a mezzanotte: parte dall'ora corrente se la data e' oggi, dalle 6 se e'
+un giorno futuro, e da `ora_inizio` se lo si indica. Una gita non si prepara
+guardando la notte. Vedi [DEVELOPMENT.md](DEVELOPMENT.md) §3.27.
 
 Il flusso tipico non richiede che l'utente conosca un solo codice. Quando il punto
 di arrivo e' un nome, `sentieri_verso_localita` fa da solo geocoding, ricerca sentieri

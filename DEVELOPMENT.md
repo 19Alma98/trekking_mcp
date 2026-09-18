@@ -500,11 +500,90 @@ ce ne sono: dieci glifi inventati per mostrare che il campo esiste sarebbero
 rumore, e un repo di riferimento dovrebbe insegnare anche quando *non* riempire
 un campo.
 
+### 3.26 Il `requestState` va sigillato con una chiave dichiarata
+
+Un'elicitation non e' una richiesta sola: il server chiede, il client risponde,
+e la seconda meta' deve ritrovare il contesto della prima. Sul wire 2026-07-28
+quel contesto viaggia nel `requestState`, che il client rimanda indietro e che il
+server considera **controllato dall'attaccante**: l'SDK lo sigilla in uscita e
+verifica ogni ritorno.
+
+Con quale chiave, e' una scelta di deploy. `MCPServer` senza
+`request_state_security=` installa `RequestStateSecurity.ephemeral()`: una chiave
+casuale, viva quanto il processo. Per stdio e' esattamente giusto. Su HTTP con
+piu' repliche e' un bug latente: la replica B rifiuta lo stato emesso da A, e
+l'elicitation muore a meta' senza che nessun test lo veda, perche' in test c'e'
+un processo solo. `--stateless` peggiora la cosa mentre sembra migliorarla — la
+flag serve proprio a mettere piu' repliche dietro un bilanciatore.
+
+Da qui `Config.state_keys` (`TREKKING_MCP_STATE_KEYS`): `keys[0]` sigilla, tutte
+verificano, quindi la rotazione e' nuova-in-testa e vecchia-in-coda per un TTL.
+Il server logga un warning quando parte su HTTP senza chiavi: non e' un errore
+(un worker solo funziona), ma va detto prima, non quando un utente vede una
+domanda del server restare senza risposta.
+
+Il contratto e' verificato in
+`test_operabilita.py::test_lo_stato_sigillato_e_lo_stesso_fra_due_server`: due
+policy con le stesse chiavi si capiscono, due effimere no.
+
+### 3.27 La finestra del meteo non comincia a mezzanotte
+
+Open-Meteo restituisce la giornata **dall'ora zero**, non "da adesso". Prendere
+le prime `ore_max` ore della serie — che e' quello che faceva
+`istanti[:ore_max]` — significa rispondere a chi prepara una gita con le ore fra
+mezzanotte e mezzogiorno: meta' finestra sprecata sulla notte, e il pomeriggio,
+quando arrivano i temporali, tagliato fuori.
+
+`_finestra()` sceglie l'inizio con tre regole, in ordine:
+
+1. `ora_inizio` esplicita vince: chi parte alle 4 lo sa meglio del server.
+2. Per **oggi**, si parte dall'ora corrente: un'ora passata non e' una previsione.
+3. Per un giorno **futuro**, dalle 6.
+
+Restituisce l'indice insieme all'istante, perche' le altre serie (temperatura,
+vento, zero termico) sono parallele a `time`: sfasare l'indice attribuirebbe il
+vento delle 14 alle 8 del mattino, che e' peggio di non rispondere. Se la
+finestra cade oltre la fine della serie, degrada alle ultime ore disponibili
+invece di restituire una lista vuota.
+
+### 3.28 Il provider del bollettino si deduce dalla zona
+
+`PROVIDER` dice a quale URL chiedere il bollettino. Diceva solo quello, e il
+legame inverso — questa zona di chi e'? — viveva in due copie: un default
+`provider="aineva"` in `leggi_bollettino` e un dizionario `PREFISSI_PROVIDER` in
+`completamenti.py`. Il risultato: `valuta_gita` chiedeva **ogni** zona ad
+AINEVA, e una zona svizzera tornava "non trovata" con l'elenco delle zone
+italiane allegato, cioe' un errore che manda fuori strada chi lo legge.
+
+Ora il prefisso di zona sta dentro `PROVIDER`, accanto all'URL, e
+`provider_per_zona()` e' l'unica funzione che fa la deduzione. Un terzo provider
+si aggiunge in un posto solo.
+
+La stessa tabella ha fatto emergere il gemello del bug: le zone `slf` non si
+autocompletavano **mai**, perche' i completamenti non scaricano niente (§3.20) e
+i perimetri svizzeri non erano fra i territori caricati. L'invariante che
+mancava e' ora un test — ogni provider deve avere almeno un territorio in
+`TERRITORI_DEFAULT` — e i territori sono passati in `Config`, perche' decidere
+quali indicizzare decide anche quali zone il server sa risolvere.
+
+### 3.29 Una resource sincrona gira in un altro thread
+
+`metriche://fonti` era una funzione sincrona, e l'SDK esegue le funzioni
+sincrone con `anyio.to_thread.run_sync`. `Metriche` e' un dizionario di contatori
+che l'event loop muta a ogni risposta di una fonte: leggerlo da un altro thread
+mentre una fonte nuova viene registrata puo' sollevare *dictionary changed size
+during iteration*, raramente e solo sotto carico, cioe' nel modo peggiore.
+
+La funzione e' `async` anche se non attende nulla. Non e' cerimonia: dichiararla
+`async` la riporta sull'event loop, dove avvengono tutte le scritture, e la
+corsa smette di esistere. Le due resource che leggono file restano sincrone, che
+per un `read_text` bloccante e' la scelta giusta.
+
 ---
 
 ## 4. Testing
 
-**154 test, nessuno tocca la rete.** Le chiamate HTTP sono intercettate con
+**179 test, nessuno tocca la rete.** Le chiamate HTTP sono intercettate con
 `pytest-httpx2` (respx su httpcore2). Una suite che dipende da Overpass
 fallisce a caso, e una CI che fallisce a caso viene ignorata dopo due settimane.
 
@@ -533,7 +612,11 @@ Tre famiglie:
   risponde all'elicitation, il valore iniettato si ritrova nei segnali, il
   rifiuto ferma la chiamata prima di qualunque richiesta di rete.
 - `test_operabilita.py` — sicurezza del transport, contatori delle metriche,
-  completamenti.
+  completamenti, e il contratto sul sigillo del `requestState` (§3.26).
+- `test_meteo_finestra.py` — quali ore risponde il meteo (§3.27): e' una
+  funzione pura, quindi si prova senza rete e senza orologio, passando l'istante.
+- `test_provider_zone.py` — zona → provider, e l'invariante che ogni provider
+  abbia i suoi perimetri fra i territori indicizzati (§3.28).
 
 I test di contratto sono quelli che valgono di piu' nel tempo: proteggono
 l'interfaccia verso i client MCP, che e' la cosa che si rompe silenziosamente.
@@ -550,6 +633,8 @@ salvate come fixture (vedi roadmap).
 | Cache in memoria, per-processo | Su HTTP multi-worker ogni replica ha la sua cache | **Scelta, non dimenticanza**: vedi §5.1 |
 | Rate limiter Nominatim per-processo | Con piu' repliche il budget di 1 req/s viene superato | Stesso motivo e stesso limite di sopra: un processo solo |
 | Nessuna autenticazione sul transport HTTP | Il server non sa **chi** lo chiama | `Host`/`Origin` validati (§3.18), che e' un'altra cosa; OAuth in roadmap |
+| Elicitation e piu' repliche | Senza `TREKKING_MCP_STATE_KEYS` lo stato di un giro a due round-trip vale solo dentro un processo | Chiavi condivise e ruotabili, piu' un warning all'avvio (§3.26) |
+| `CACHE_MAX_ENTRY` conta le voci, non i byte | Una risposta `out geom` sta nell'ordine dei MB: 512 voci non sono 512 unita' di memoria | Nota in `leggi_geometria`; un tetto in byte e' lavoro aperto |
 | Metriche per-processo, azzerate al riavvio | Nessuna serie storica | Bastano a dire quale fonte sta frenando adesso; l'export sta dietro `istantanea()` |
 | Copertura OSM non uniforme | Un sentiero assente non significa inesistente | Dichiarato nelle `instructions` e nel README |
 | `sac_scale` spesso mancante o datato | Difficolta' sconosciuta | Mai degradata a "facile": resta `SCONOSCIUTA` e genera un segnale |
@@ -661,9 +746,10 @@ scraping di siti che non espongono dati aperti.
 - [x] URL del repo in `pyproject.toml`, `README.md` e `config.py`
       (l'User-Agent contiene l'URL del repo: e' richiesto dalla usage policy di
       Overpass, non e' decorativo)
-- [ ] Mettere il proprio nome in `authors`
-- [ ] Aggiungere il file `LICENSE` (MIT, coerente con `pyproject.toml`)
+- [x] Mettere il proprio nome in `authors`
+- [x] Aggiungere il file `LICENSE` (MIT, coerente con `pyproject.toml`)
 - [ ] Registrare una GIF o un asciinema di 20 secondi con un client che usa il
       server, e metterla in cima al README: vale piu' di tre paragrafi
 - [ ] Verificare che la CI sia verde e aggiungere il badge
-- [ ] Controllare la revisione corrente della spec MCP e dichiararla nel README
+- [x] Controllare la revisione corrente della spec MCP e dichiararla nel README
+      (2026-07-28, `LATEST_PROTOCOL_VERSION` dell'SDK 2.2)

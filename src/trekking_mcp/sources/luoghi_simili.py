@@ -22,7 +22,10 @@ MAX_CANDIDATI_SIMILI = 3
 _INTESTAZIONE = "[out:json][timeout:{timeout}];"
 _MAX_ELEMENTI_OUT = 500
 
-_PREFISSI = frozenset(
+# Prefissi generici dei toponimi di montagna: "Monte Rosa" e "Rosa" sono lo
+# stesso posto, e chi scrive in chat ne omette meta'. Condiviso con
+# `tools.sentieri.testo_da_toponimo`.
+PREFISSI_TOPONIMO = frozenset(
     {
         "monte",
         "mont",
@@ -101,7 +104,7 @@ def localita_da_elemento(el: OverpassElement) -> Localita | None:
 
 def normalizza_nome_luogo(nome: str) -> str:
     parti = nome.strip().casefold().split()
-    while len(parti) >= 2 and parti[0] in _PREFISSI:
+    while len(parti) >= 2 and parti[0] in PREFISSI_TOPONIMO:
         parti = parti[1:]
     return " ".join(parti)
 

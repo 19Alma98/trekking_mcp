@@ -11,22 +11,30 @@ from trekking_mcp.errors import NonTrovato
 from trekking_mcp.models import DifficoltaCAI, Ricovero, SentieriVersoLocalita, Sentiero
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import nominatim, overpass
+from trekking_mcp.sources.luoghi_simili import PREFISSI_TOPONIMO
 from trekking_mcp.tools.comuni import distanza_km, extended_tool, riquadro_intorno
 from trekking_mcp.tools.geocode_risolvi import risolvi_localita
 
 log = logging.getLogger(__name__)
 
-_PREFISSI_TOPONIMO = frozenset(
-    {"monte", "mont", "monti", "cima", "pizzo", "col", "colle", "passo", "rifugio", "bivacco"}
-)
-
 
 def testo_da_toponimo(nome: str) -> str:
+    """La parola da passare a Overpass come filtro testuale.
+
+    Overpass cerca su `name|from|to|description` con una regex: un toponimo
+    intero ("Rifugio Gastaldi") non matcha una way taggata "Sentiero per il
+    Gastaldi", mentre l'ultima parola significativa si. I prefissi generici
+    (monte, rifugio, passo...) si buttano perche' compaiono in mezzo mondo e
+    allargherebbero il match invece di restringerlo.
+
+    L'insieme dei prefissi e' quello di `luoghi_simili`: sono lo stesso concetto
+    e finora erano due copie che potevano divergere.
+    """
     parti = nome.strip().split()
     if not parti:
         return nome.strip()
-    if len(parti) >= 2 and parti[0].casefold() in _PREFISSI_TOPONIMO:
-        return parti[-1]
+    while len(parti) >= 2 and parti[0].casefold() in PREFISSI_TOPONIMO:
+        parti = parti[1:]
     return parti[-1]
 
 

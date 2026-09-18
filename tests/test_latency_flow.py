@@ -71,6 +71,14 @@ def test_testo_da_toponimo_usa_ultima_parola_significativa():
     assert testo_da_toponimo("Monte Mucrone") == "Mucrone"
     assert testo_da_toponimo("Mucrone") == "Mucrone"
     assert testo_da_toponimo("Rifugio Gastaldi") == "Gastaldi"
+    # Prefissi in fila: prima i due rami erano identici, quindi il ciclo di
+    # scarto non c'era e "Colle" restava un prefisso non consumato.
+    assert testo_da_toponimo("Monte Colle Grande") == "Grande"
+    assert testo_da_toponimo("  passo  Gavia  ") == "Gavia"
+    assert testo_da_toponimo("") == ""
+    # Un nome fatto di soli prefissi resta se stesso: meglio un filtro larghi
+    # che una stringa vuota che matcha tutto.
+    assert testo_da_toponimo("Passo") == "Passo"
 
 
 async def test_esegui_sentieri_verso_localita(httpx2_mock: respx.Router, monkeypatch, risorse):

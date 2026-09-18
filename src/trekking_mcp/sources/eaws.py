@@ -24,20 +24,6 @@ log = logging.getLogger(__name__)
 
 ATTRIBUZIONE = "Perimetri delle zone valanghe: progetto EAWS Regions (regions.avalanches.org)"
 
-# Codici dei file per territorio. IT-21 = Piemonte, IT-23 = Valle d'Aosta,
-# IT-25 = Lombardia, IT-32-BZ = Bolzano, IT-32-TN = Trento, IT-34 = Veneto,
-# IT-36 = Friuli, IT-57 = Marche. CH = Svizzera.
-TERRITORI_ITALIA = [
-    "IT-21",
-    "IT-23",
-    "IT-25",
-    "IT-32-BZ",
-    "IT-32-TN",
-    "IT-34",
-    "IT-36",
-    "IT-57",
-]
-
 
 @dataclass(frozen=True)
 class MicroRegione:
@@ -121,10 +107,16 @@ class IndiceRegioni:
             aggiunte += 1
         return aggiunte
 
-    async def carica(self, territori: list[str] | None = None) -> None:
-        """Carica i territori richiesti, saltando quelli gia' in indice."""
+    async def carica(self, territori: Sequence[str] | None = None) -> None:
+        """Carica i territori richiesti, saltando quelli gia' in indice.
+
+        L'elenco di default e' `Config.eaws_territori`: e' li' perche' quali
+        territori indicizzare decide anche quali zone sa risolvere
+        `zona_valanghe_da_coordinate` e quali `zona_id` si autocompletano, quindi
+        e' configurazione, non una costante di questo modulo.
+        """
         async with self._lock:
-            for territorio in territori or TERRITORI_ITALIA:
+            for territorio in territori if territori is not None else self._config.eaws_territori:
                 if territorio in self._territori_caricati:
                     continue
                 try:

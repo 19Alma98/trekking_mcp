@@ -4,10 +4,13 @@ import httpx
 import pytest
 import respx
 from mcp import Client
+from mcp.server.mcpserver import RequestStateSecurity
+from mcp.server.request_state import InvalidRequestState
 from mcp.types import PromptReference, ResourceTemplateReference
 
-from trekking_mcp import completamenti
+from trekking_mcp import __version__, completamenti
 from trekking_mcp.__main__ import impostazioni_sicurezza, main
+from trekking_mcp.config import Config
 from trekking_mcp.errors import FonteNonDisponibile
 from trekking_mcp.geo import Riquadro
 from trekking_mcp.metriche import Metriche, _percentile
@@ -193,3 +196,39 @@ async def test_nessun_completamento_per_riferimenti_sconosciuti(risorse_con_zone
             {"name": "sentiero", "value": "1"},
         )
     assert esito.completion.values == []
+
+
+def test_lo_stato_sigillato_e_lo_stesso_fra_due_server():
+    """Perche' `Config.state_keys` esiste.
+
+    L'SDK, senza chiavi, sigilla il `requestState` con una chiave generata dal
+    processo. Un'elicitation e' un giro a due round-trip: se il secondo arriva a
+    un'altra replica, o dopo un riavvio, lo stato viene rifiutato e la chiamata
+    muore a meta'. Con le chiavi dichiarate le due parti si capiscono. Questo
+    test e' documentazione eseguibile di quel contratto.
+    """
+    # L'SDK pretende almeno 32 byte di segreto: una chiave corta viene rifiutata
+    # all'avvio, non silenziosamente accettata.
+    chiavi = ["0" * 64]
+    replica_a = RequestStateSecurity(keys=chiavi)
+    replica_b = RequestStateSecurity(keys=chiavi)
+
+    assert replica_b.codec.unseal(replica_a.codec.seal(b"stato")) == b"stato"
+
+    effimera_a, effimera_b = RequestStateSecurity.ephemeral(), RequestStateSecurity.ephemeral()
+    with pytest.raises(InvalidRequestState):
+        effimera_b.codec.unseal(effimera_a.codec.seal(b"stato"))
+
+
+def test_le_chiavi_di_stato_si_leggono_dall_ambiente(monkeypatch):
+    monkeypatch.setenv("TREKKING_MCP_STATE_KEYS", "prima, seconda")
+    assert Config().state_keys == ("prima", "seconda")
+
+    monkeypatch.delenv("TREKKING_MCP_STATE_KEYS")
+    assert Config().state_keys == ()
+
+
+def test_lo_user_agent_dichiara_la_versione():
+    # La usage policy di Overpass chiede di identificarsi: un UA che dice "0.1"
+    # per sempre non permette di capire quale build genera traffico.
+    assert __version__ in Config().user_agent

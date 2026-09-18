@@ -4,7 +4,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import MCPServer, RequestStateSecurity
 from mcp_types import Icon
 
 from trekking_mcp import __version__, completamenti, prompts, resources
@@ -60,6 +60,15 @@ def crea_server(config: Config | None = None, *, risorse: Risorse | None = None)
     if risorse is None:
         risorse = Risorse.crea(config)
 
+    # Le interazioni a piu' round-trip (elicitation) tornano al server con un
+    # `requestState` che il server stesso ha sigillato. Se non si passa una
+    # chiave, l'SDK ne genera una effimera per processo: corretto per stdio e
+    # per un worker solo, sbagliato appena ci sono due repliche o un riavvio in
+    # mezzo, perche' la replica B rifiuta lo stato emesso dalla replica A e
+    # l'elicitation muore a meta'. Con le chiavi in `Config` la sigla e'
+    # condivisa e ruotabile. Vedi DEVELOPMENT.md §3.26.
+    stato = RequestStateSecurity(keys=list(risorse.config.state_keys)) if risorse.config.state_keys else None
+
     @asynccontextmanager
     async def lifespan(_: MCPServer[Risorse]) -> AsyncIterator[Risorse]:
         """Apre e chiude il pool HTTP; un solo pool per server."""
@@ -84,6 +93,7 @@ def crea_server(config: Config | None = None, *, risorse: Risorse | None = None)
         # hanno freschezze diverse fra loro e le distingue il middleware.
         # Vedi cache.py.
         cache_hints=CACHE_HINTS,
+        request_state_security=stato,
         middleware=[FreschezzaPerResource(risorse.config)],
     )
 

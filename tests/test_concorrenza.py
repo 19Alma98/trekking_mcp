@@ -3,7 +3,6 @@ import asyncio
 import pytest
 
 from trekking_mcp.payloads import EawsFeatureCollection
-from trekking_mcp.sources import eaws
 
 GEOJSON_UNA_ZONA: EawsFeatureCollection = {
     "features": [
@@ -21,9 +20,8 @@ DENTRO = (45.05, 7.05)
 
 
 @pytest.fixture
-def indice(monkeypatch, risorse):
-    monkeypatch.setattr(eaws, "TERRITORI_ITALIA", ["IT-21"])
-    idx = risorse.eaws
+def indice(monkeypatch, risorse_con):
+    idx = risorse_con(eaws_territori=("IT-21",)).eaws
     idx.scaricamenti = 0
 
     async def _scarica(territorio: str) -> EawsFeatureCollection:

@@ -1,6 +1,9 @@
+from datetime import UTC, datetime
+
 import pytest
 
 from trekking_mcp.models import (
+    Bollettino,
     DifficoltaCAI,
     GradoPericolo,
     Ricovero,
@@ -99,3 +102,35 @@ def test_ricovero_quota_decimale():
 def test_etichette_pericolo():
     assert GradoPericolo.MARCATO.etichetta == "Marcato"
     assert int(GradoPericolo.MOLTO_FORTE) == 5
+
+
+def test_un_ricovero_sull_equatore_non_esplode():
+    # `el.get("lat") or el["center"]["lat"]`: 0.0 e' falsy, e un nodo non ha
+    # `center`. Il bug non si vedeva sulle Alpi e sarebbe uscito al primo
+    # riuso del codice fuori dall'Italia.
+    ricovero = Ricovero.da_element(
+        {"id": 7, "type": "node", "lat": 0.0, "lon": 0.0, "tags": {"tourism": "alpine_hut", "name": "Zero"}}
+    )
+
+    assert (ricovero.coord.lat, ricovero.coord.lon) == (0.0, 0.0)
+
+
+def test_un_elemento_senza_coordinate_e_un_errore_esplicito():
+    with pytest.raises(ValueError, match="senza coordinate"):
+        Ricovero.da_element({"id": 8, "type": "node", "tags": {"tourism": "alpine_hut"}})
+
+
+def test_un_bollettino_senza_gradi_leggibili_non_dichiara_pericolo_debole():
+    # Regola 5 di DEVELOPMENT.md §6: l'assenza di dato non e' un dato
+    # rassicurante. `grado_massimo` deve dire "non lo so", non "1".
+    senza = Bollettino(
+        id_bollettino="x",
+        zona_id="IT-21-TEST",
+        valido_da=datetime(2026, 1, 1, tzinfo=UTC),
+        valido_fino=datetime(2026, 1, 2, tzinfo=UTC),
+        valutazioni=[],
+        fonte="aineva",
+        fonte_url="https://esempio.test",
+    )
+
+    assert senza.grado_massimo is None

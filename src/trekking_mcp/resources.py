@@ -44,7 +44,16 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
         ),
         mime_type="application/json",
     )
-    def metriche_fonti() -> str:
+    async def metriche_fonti() -> str:
+        """`async` di proposito, anche se non attende niente.
+
+        L'SDK esegue una funzione sincrona in un worker thread
+        (`anyio.to_thread.run_sync`). `Metriche` e' un dict di contatori mutato
+        dall'event loop a ogni risposta HTTP: leggerlo da un altro thread mentre
+        una fonte nuova viene registrata puo' sollevare "dictionary changed size
+        during iteration". Dichiararla `async` la riporta sull'event loop, dove
+        avvengono tutte le scritture, e la corsa non esiste piu'.
+        """
         return risorse.metriche.istantanea().model_dump_json(indent=2)
 
     @mcp.resource(

@@ -204,8 +204,11 @@ async def leggi_sentiero(risorse: Risorse, osm_relation_id: int) -> Sentiero | N
 async def leggi_geometria(risorse: Risorse, osm_relation_id: int) -> tuple[Sentiero, list[Coord]] | None:
     """Sentiero piu' la sua polilinea completa.
 
-    Non usa la cache condivisa con TTL breve: la risposta e' grande e la
-    geometria dei sentieri e' la cosa piu' stabile che questo server tratti.
+    Passa dalla stessa cache in memoria delle altre query, con lo stesso TTL
+    (`ttl_overpass_s`, 24h): la geometria di un sentiero e' la cosa piu' stabile
+    che questo server tratti, quindi il TTL lungo e' quello giusto. Attenzione
+    al peso: una risposta `out geom` sta nell'ordine dei MB, e `CACHE_MAX_ENTRY`
+    conta le voci, non i byte.
     """
     meta = await esegui(risorse, query_relation_membri(risorse.config, osm_relation_id))
     relazioni = [el for el in meta.get("elements", []) if el.get("type") == "relation"]
