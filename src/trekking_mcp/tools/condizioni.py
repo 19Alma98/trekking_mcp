@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
+from trekking_mcp.constants import LINGUA_DEFAULT, PROVIDER_DEFAULT
 from trekking_mcp.models import Bollettino, MeteoQuota
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import caaml, meteo
@@ -25,8 +26,10 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
     )
     async def bollettino_valanghe(
         zona_id: Annotated[str, Field(description="Identificativo della zona, es. 'IT-21-AO-01'")],
-        provider: Annotated[Literal["aineva", "slf"], Field(description="aineva = Italia, slf = Svizzera")] = "aineva",
-        lingua: Annotated[Literal["it", "en", "de", "fr"], Field(description="Lingua dei testi")] = "it",
+        provider: Annotated[
+            Literal["aineva", "slf"], Field(description="aineva = Italia, slf = Svizzera")
+        ] = PROVIDER_DEFAULT,
+        lingua: Annotated[Literal["it", "en", "de", "fr"], Field(description="Lingua dei testi")] = LINGUA_DEFAULT,
     ) -> Bollettino:
         return await caaml.leggi_bollettino(risorse, zona_id=zona_id, provider=provider, lingua=lingua)
 

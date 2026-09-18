@@ -4,37 +4,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from trekking_mcp import __version__
-
-SITO = "https://github.com/19Alma98/trekking_mcp"
-
-# La usage policy di Overpass chiede di identificarsi *con la versione*: un UA
-# che dice "0.1" per sempre non permette a chi gestisce l'istanza di capire
-# quale build sta generando traffico. Quindi la versione si legge dal pacchetto,
-# non si riscrive a mano qui.
-UA_DEFAULT = f"trekking-mcp/{__version__} (+{SITO})"
-
-# Codici dei file EAWS Regions da indicizzare. IT-21 = Piemonte, IT-23 = Valle
-# d'Aosta, IT-25 = Lombardia, IT-32-BZ = Bolzano, IT-32-TN = Trento,
-# IT-34 = Veneto, IT-36 = Friuli, IT-57 = Marche, CH = Svizzera.
-#
-# La Svizzera e' nell'elenco perche' `bollettino_valanghe` accetta il provider
-# `slf`: senza i suoi perimetri, `zona_valanghe_da_coordinate` non risolve un
-# punto svizzero e l'autocompletamento di `zona_id` con provider `slf` resta
-# vuoto per sempre. Un codice che non esiste non e' fatale: `carica()` logga un
-# warning e va avanti (vedi `IndiceRegioni.carica`). Si sovrascrive l'elenco con
-# EAWS_TERRITORI.
-TERRITORI_DEFAULT = (
-    "IT-21",
-    "IT-23",
-    "IT-25",
-    "IT-32-BZ",
-    "IT-32-TN",
-    "IT-34",
-    "IT-36",
-    "IT-57",
-    "CH",
-)
+from trekking_mcp.constants import TERRITORI_DEFAULT, UA_DEFAULT
 
 
 def _elenco_env(nome: str, default: tuple[str, ...]) -> tuple[str, ...]:

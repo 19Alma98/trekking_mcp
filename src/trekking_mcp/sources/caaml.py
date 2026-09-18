@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, TypedDict, cast
 
 from trekking_mcp.config import Config
+from trekking_mcp.constants import LINGUA_DEFAULT, PROVIDER_DEFAULT
 from trekking_mcp.errors import NonTrovato
 from trekking_mcp.models import (
     Bollettino,
@@ -62,8 +63,6 @@ PROVIDER: dict[str, _Provider] = {
         "prefisso_zone": "CH-",
     },
 }
-
-PROVIDER_DEFAULT = "aineva"
 
 
 def provider_per_zona(zona_id: str) -> str:
@@ -177,7 +176,7 @@ def normalizza(grezzo: CaamlBulletin, *, zona_id: str, provider: str, url: str) 
 
 
 async def leggi_bollettino(
-    risorse: Risorse, *, zona_id: str, provider: str | None = None, lingua: str = "it"
+    risorse: Risorse, *, zona_id: str, provider: str | None = None, lingua: str = LINGUA_DEFAULT
 ) -> Bollettino:
     """Scarica il bollettino corrente e ne estrae la zona richiesta.
 
