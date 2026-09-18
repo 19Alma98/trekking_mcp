@@ -91,8 +91,6 @@ def main(argv: list[str] | None = None) -> int:
 
     config = Config()
     if not config.state_keys:
-        # Non e' un errore: un worker solo funziona. Ma va detto adesso, non
-        # quando un'elicitation fallisce in produzione su una replica diversa.
         log = logging.getLogger(__name__)
         log.warning(
             "TREKKING_MCP_STATE_KEYS non impostata: il requestState e' sigillato con una chiave "

@@ -1,19 +1,3 @@
-"""La dipendenza a senso unico, verificata invece che dichiarata.
-
-DEVELOPMENT.md §2 promette `tools` -> `sources` -> rete, e che un adapter non
-sappia di stare dietro un server MCP. Era falso in tre punti: `sources/`
-importava `tools.comuni` per `distanza_km`. Un documento che descrive
-un'architettura diversa da quella del codice e' peggio di nessun documento,
-quindi la regola e' un test.
-
-Gli import sotto `if TYPE_CHECKING:` si contano a parte. Non e' un'eccezione di
-comodo: a runtime non esiste nessun ciclo, e l'unico riferimento verso l'alto
-che resta e' il *tipo* del contenitore di dipendenze (`Risorse`), che gli
-adapter accettano come primo argomento. Il guard rende quel riferimento
-esplicito, e questo test lo tiene l'unico ammesso — un `sources/` che importasse
-a runtime un modulo del layer sopra fallirebbe comunque.
-"""
-
 import ast
 from pathlib import Path
 
@@ -21,8 +5,6 @@ import pytest
 
 SRC = Path(__file__).resolve().parent.parent / "src" / "trekking_mcp"
 
-# Chi puo' importare chi, dal basso verso l'alto. Un modulo puo' importare i
-# livelli sotto il suo e il suo, mai sopra.
 LIVELLI = [
     {"payloads", "errors", "config", "constants", "geo", "metriche"},  # fondamenta: nessuna dipendenza interna
     {"models"},  # il contratto dati verso il client
@@ -32,8 +14,6 @@ LIVELLI = [
 ]
 
 LIVELLO_DI = {modulo: n for n, moduli in enumerate(LIVELLI) for modulo in moduli}
-
-# Il solo riferimento verso l'alto ammesso, e solo sotto `if TYPE_CHECKING:`.
 TIPI_AMMESSI_VERSO_L_ALTO = {"risorse"}
 
 

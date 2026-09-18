@@ -1,15 +1,4 @@
-"""Adapter Open-Meteo: previsione oraria corretta per l'elevazione.
-
-Il parametro `elevation` conta: in montagna la differenza fra la quota del
-modello e quella reale del punto puo' valere diversi gradi, e quindi sposta la
-quota neve. Open-Meteo e' gratuito e senza chiave.
-
-La serie oraria che Open-Meteo restituisce comincia sempre a **mezzanotte** del
-giorno richiesto, non "da adesso" e non dall'alba. Prendere le prime N ore
-cosi' come arrivano significa rispondere con la notte: per una gita e' l'unica
-finestra che non interessa, e il pomeriggio — quando arrivano i temporali —
-resta fuori. Da qui `_finestra()`: vedi DEVELOPMENT.md §3.27.
-"""
+"""Adapter Open-Meteo: previsione oraria corretta per l'elevazione."""
 
 from __future__ import annotations
 
@@ -73,10 +62,6 @@ def _finestra(
         except ValueError:
             return True
 
-    # `next` sull'indice della prima ora utile invece di un filtro: la serie e'
-    # ordinata, e se la finestra cade oltre la fine (previsione richiesta per
-    # stasera alle 23 con ore_max alto) si degrada alle ultime ore disponibili
-    # invece di restituire una lista vuota.
     inizio = next((i for i, istante in coppie if da_tenere(istante)), max(len(coppie) - ore_max, 0))
     return coppie[inizio : inizio + ore_max]
 

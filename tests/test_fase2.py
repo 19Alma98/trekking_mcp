@@ -335,13 +335,6 @@ async def test_il_limitatore_serializza_le_richieste():
 
 
 def test_campionamento_rispetta_il_passo_su_percorsi_lunghi():
-    """Il tetto era 100 punti, cioe' il massimo di *una* richiesta.
-
-    Conseguenza: su qualunque sentiero piu' lungo di ~10 km il `passo_m` chiesto
-    veniva ignorato, e il ciclo a blocchi dentro `quote()` non veniva mai
-    eseguito. Il dislivello ne usciva piatto proprio sulle gite lunghe.
-    """
-    # 600 punti a ~40 m l'uno dall'altro: circa 24 km.
     punti = [Coord(lat=45.0 + n * 0.00036, lon=7.0) for n in range(600)]
 
     campionati = elevation.campiona(punti, passo_m=100)
@@ -360,7 +353,6 @@ def test_dirada_tiene_gli_estremi_e_il_tetto():
     assert len(diradati) <= 50
     assert diradati[0] == quotati[0]
     assert diradati[-1] == quotati[-1]
-    # Monotono: si tiene l'ordine, non un campione casuale.
     assert [p.quota_m for p in diradati] == sorted(p.quota_m for p in diradati)
 
 
@@ -370,17 +362,10 @@ def test_dirada_non_tocca_una_lista_gia_corta():
 
 
 async def test_il_profilo_aggrega_su_tutti_i_punti_ma_ne_restituisce_pochi(httpx2_mock: respx.Router, risorse):
-    """Gli aggregati non devono essere calcolati sul sottoinsieme mostrato.
-
-    Diradare prima di sommare taglierebbe via le contropendenze, cioe' proprio
-    cio' che il dislivello cumulato serve a misurare.
-    """
     punti = [Coord(lat=45.0 + n * 0.00036, lon=7.0) for n in range(600)]
 
     def quote_finte(request):
         quante = len(parse_qs(urlparse(str(request.url)).query)["latitude"][0].split(","))
-        # Dente di sega: sale e scende di 20 m, cosi' un campione troppo rado
-        # perderebbe le contropendenze.
         return httpx.Response(200, json={"elevation": [1000.0 + (20 if n % 2 else 0) for n in range(quante)]})
 
     httpx2_mock.get(url__startswith="https://api.open-meteo.com/v1/elevation").mock(side_effect=quote_finte)

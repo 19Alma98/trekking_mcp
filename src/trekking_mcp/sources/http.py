@@ -18,8 +18,6 @@ from trekking_mcp.metriche import Metriche
 
 log = logging.getLogger(__name__)
 
-# Sentinella: il capofila del coalescing e' stato cancellato, chi aspettava
-# rifaccia la richiesta per conto proprio.
 _RIFAI = object()
 
 
@@ -46,21 +44,7 @@ class CacheTTL:
     """LRU con scadenza, con un tetto sia alle voci sia ai byte.
 
     Volutamente minimale: nessuna dipendenza esterna, e un'interfaccia piccola
-    perche' chi volesse Redis sostituisce la classe, non i chiamanti (§5.1).
-
-    **Il tetto in byte non e' un dettaglio.** Contare solo le voci va bene se
-    sono tutte della stessa taglia; qui non lo sono: una ricerca sentieri sta in
-    qualche KB, una risposta `out geom` sta nell'ordine dei MB. 512 voci
-    potevano quindi valere qualche megabyte o qualche gigabyte a seconda di cosa
-    ci era finito dentro, cioe' un tetto che non limita niente.
-
-    Il peso e' quello della risposta HTTP grezza, misurato dal chiamante: farlo
-    qui vorrebbe dire riserializzare in JSON ogni oggetto a ogni `set`.
-
-    I valori sono **condivisi per riferimento**: chi li riceve non deve mutarli.
-    Copiarli a ogni hit costerebbe piu' della cache che stiamo cercando di
-    ottimizzare; qui i chiamanti costruiscono modelli Pydantic e non toccano il
-    dict di partenza.
+    perche' chi volesse Redis sostituisce la classe, non i chiamanti.
     """
 
     def __init__(self, max_entry: int = 512, max_byte: int = 64 * 1024 * 1024) -> None:
@@ -96,8 +80,6 @@ class CacheTTL:
         async with self._lock:
             if chiave in self._dati:
                 self._scarta(chiave)
-            # Una singola risposta piu' grande del tetto non si cacha: entrerebbe
-            # solo per sfrattare tutto il resto e uscire alla voce dopo.
             if peso > self._max_byte:
                 log.debug("risposta da %d byte oltre il tetto di cache: non memorizzata", peso)
                 return
@@ -126,7 +108,6 @@ class ClientHttp:
         self.metriche = metriche
         self.cache = cache or CacheTTL(config.cache_max_entry, config.cache_max_byte)
         self._in_volo: dict[str, asyncio.Future[Any]] = {}
-        """Richieste identiche gia' in corso, per chiave di cache. Vedi `json()`."""
 
     async def avvia(self) -> None:
         if self._client is None:
@@ -169,17 +150,10 @@ class ClientHttp:
                 log.debug("cache hit %s %s", fonte, url)
                 return cachato
 
-            # Coalescing (single flight). La cache si popola solo *dopo* la
-            # risposta: due chiamate identiche partite insieme la mancavano
-            # entrambe e uscivano entrambe in rete. Un agente fa esattamente
-            # questo, perche' chiama i tool in parallelo.
             if (in_volo := self._in_volo.get(chiave)) is not None:
                 log.debug("coalescing %s %s", fonte, url)
                 risultato = await self._attendi(in_volo)
                 if risultato is not _RIFAI:
-                    # Contato solo qui: se il capofila e' stato cancellato,
-                    # l'accodamento non ha risparmiato nessuna richiesta e
-                    # conteggiarlo gonfierebbe la statistica.
                     self.metriche.coalescing(fonte)
                     return risultato
 
@@ -188,20 +162,10 @@ class ClientHttp:
                 metodo, url, fonte=fonte, ttl_s=ttl_s, chiave=chiave, max_retry=max_retry, **kwargs
             )
 
-        # Senza cache non si accoda: chi rinuncia a condividere la *risposta* non
-        # deve vedersela condividere in forma di richiesta.
         return await self._richiedi(metodo, url, fonte=fonte, ttl_s=None, chiave=chiave, max_retry=max_retry, **kwargs)
 
     async def _attendi(self, in_volo: asyncio.Future[Any]) -> Any:
-        """Attende la richiesta identica gia' in corso.
-
-        `asyncio.wait` invece di `await in_volo`: cosi' la cancellazione del
-        *capofila* non diventa la cancellazione di chi aspetta. Sono richieste di
-        utenti diversi, e un tool cancellato non deve trascinarsi dietro l'altro.
-        Se il capofila viene cancellato, chi aspetta rifa' la richiesta da se'; se
-        invece fallisce, l'errore e' lo stesso che avrebbe avuto chiedendo in
-        proprio — i retry li ha gia' spesi lui — e si rilancia tale e quale.
-        """
+        """Attende la richiesta identica gia' in corso."""
         await asyncio.wait([in_volo])
         if in_volo.cancelled():
             return _RIFAI
@@ -230,8 +194,6 @@ class ClientHttp:
             raise
         except BaseException as exc:
             attesa.set_exception(exc)
-            # Segna l'eccezione come letta: se nessuno si e' accodato, asyncio
-            # loggherebbe "Future exception was never retrieved" a fine giro.
             attesa.exception()
             raise
         else:
@@ -272,8 +234,6 @@ class ClientHttp:
                 risposta.raise_for_status()
                 dati = risposta.json()
                 if ttl_s is not None:
-                    # Il peso e' quello della risposta grezza: misurarlo qui e'
-                    # gratis, riserializzare l'oggetto dentro la cache no.
                     await self.cache.set(chiave, dati, ttl_s, peso=len(risposta.content))
                 return dati
             except (httpx2.HTTPError, ValueError) as exc:

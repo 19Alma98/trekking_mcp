@@ -1,10 +1,3 @@
-"""Come un tool entra nel server: registrazione e contratto d'errore.
-
-Un solo modo di registrare un tool, cosi' che la traduzione degli errori non si
-possa dimenticare (§3.23). La geometria, che prima stava qui, e' in `geo.py`:
-questo modulo parla di MCP e di niente altro.
-"""
-
 from __future__ import annotations
 
 import functools

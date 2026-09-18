@@ -128,9 +128,6 @@ async def profilo(risorse: Risorse, punti: list[Coord], *, passo_m: float = PASS
     if not quotati:
         return ProfiloAltimetrico(punti=[], lunghezza_km=0.0, dislivello_positivo_m=0, dislivello_negativo_m=0)
 
-    # Dislivelli e quote estreme su **tutti** i punti quotati, non sul
-    # sottoinsieme restituito: sono gli aggregati che contano, e diradarli prima
-    # di sommarli taglierebbe via proprio le contropendenze.
     valori = [p.quota_m for p in quotati]
     salita, discesa = _dislivelli(valori)
     lunghezza = sum(distanza_km(a.lat, a.lon, b.lat, b.lon) for a, b in pairwise(punti))

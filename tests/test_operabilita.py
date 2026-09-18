@@ -199,16 +199,6 @@ async def test_nessun_completamento_per_riferimenti_sconosciuti(risorse_con_zone
 
 
 def test_lo_stato_sigillato_e_lo_stesso_fra_due_server():
-    """Perche' `Config.state_keys` esiste.
-
-    L'SDK, senza chiavi, sigilla il `requestState` con una chiave generata dal
-    processo. Un'elicitation e' un giro a due round-trip: se il secondo arriva a
-    un'altra replica, o dopo un riavvio, lo stato viene rifiutato e la chiamata
-    muore a meta'. Con le chiavi dichiarate le due parti si capiscono. Questo
-    test e' documentazione eseguibile di quel contratto.
-    """
-    # L'SDK pretende almeno 32 byte di segreto: una chiave corta viene rifiutata
-    # all'avvio, non silenziosamente accettata.
     chiavi = ["0" * 64]
     replica_a = RequestStateSecurity(keys=chiavi)
     replica_b = RequestStateSecurity(keys=chiavi)
@@ -229,6 +219,4 @@ def test_le_chiavi_di_stato_si_leggono_dall_ambiente(monkeypatch):
 
 
 def test_lo_user_agent_dichiara_la_versione():
-    # La usage policy di Overpass chiede di identificarsi: un UA che dice "0.1"
-    # per sempre non permette di capire quale build genera traffico.
     assert __version__ in Config().user_agent

@@ -127,8 +127,6 @@ def _segnali(
         grado = bollettino.grado_massimo
 
     if bollettino is not None and grado is None:
-        # Il bollettino c'e' ma nessuno dei `dangerRatings` si e' potuto leggere.
-        # Tacere qui equivarrebbe a dire "nessun pericolo segnalato".
         segnali.append(
             SegnaleAttenzione(
                 categoria="valanghe",
@@ -230,8 +228,6 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
             sentiero = trovato
 
         fonti = [ATTRIBUZIONE_OVERPASS, ATTRIBUZIONE_METEO]
-        # Ogni dato che non si e' riusciti a raccogliere diventa un segnale:
-        # un campo vuoto, da solo, si legge come "niente da segnalare".
         buchi: list[SegnaleAttenzione] = []
 
         if sentiero.centro is None and punti:
@@ -316,8 +312,6 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
         await ctx.report_progress(4, passi, "Leggo il bollettino valanghe")
         bollettino = None
         if zona_valanghe:
-            # Il provider si deduce dalla zona: una zona CH- chiesta ad AINEVA
-            # tornava "non trovata" con l'elenco delle zone italiane.
             provider = caaml.provider_per_zona(zona_valanghe)
             try:
                 bollettino = await caaml.leggi_bollettino(risorse, zona_id=zona_valanghe, provider=provider)

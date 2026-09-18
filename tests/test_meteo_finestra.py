@@ -1,10 +1,3 @@
-"""La finestra oraria del meteo.
-
-Open-Meteo restituisce la giornata a partire da mezzanotte. Queste prove
-fissano quali ore il server tiene, perche' "le prime 12 della serie" vuol dire
-rispondere con la notte e lasciare fuori il pomeriggio.
-"""
-
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
@@ -66,8 +59,6 @@ def test_l_indice_resta_allineato_alla_serie():
         adesso=datetime(2026, 9, 18, 12, 0, tzinfo=TZ),
     )
 
-    # Le altre serie orarie (temperatura, vento, ...) sono parallele a `time`:
-    # se l'indice non combacia, si attribuiscono i valori all'ora sbagliata.
     assert [i for i, _ in finestra] == [9, 10]
 
 
@@ -79,9 +70,6 @@ def test_una_finestra_oltre_la_fine_degrada_alle_ultime_ore():
         ora_inizio=None,
         adesso=datetime(2026, 9, 18, 12, 0, tzinfo=TZ),
     )
-
-    # Serie troncata a 00:00-01:00: nessuna ora soddisfa il vincolo, e una lista
-    # vuota sarebbe peggio del dato che c'e'.
     assert _ore(finestra) == [0, 1]
 
 
@@ -106,5 +94,4 @@ async def test_previsione_di_un_giorno_futuro_non_restituisce_la_notte(httpx2_mo
     )
 
     assert [p.istante.hour for p in esito] == [8, 9, 10, 11, 12, 13]
-    # La temperatura e' la serie parallela: 8.0 all'ora 8 prova che l'indice regge.
     assert esito[0].temperatura_c == 8.0

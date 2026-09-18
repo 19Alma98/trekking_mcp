@@ -1,11 +1,3 @@
-"""Il legame zona -> provider, in un posto solo.
-
-Il bug che queste prove chiudono: `zona_id` con provider `slf` si
-autocompletava sempre vuoto, perche' i perimetri svizzeri non erano fra i
-territori caricati, e `valuta_gita` chiedeva ogni zona ad AINEVA — anche una
-zona svizzera, che AINEVA non ha.
-"""
-
 import json
 
 import pytest
@@ -25,13 +17,6 @@ def test_ogni_provider_ha_un_prefisso_di_zona():
 
 
 def test_i_territori_di_default_coprono_tutti_i_provider():
-    """L'invariante che mancava.
-
-    Un provider e' utile solo se i perimetri delle sue zone vengono indicizzati:
-    i completamenti non scaricano nulla (§3.20) e `zona_valanghe_da_coordinate`
-    cerca solo fra le zone in indice. Aggiungere un provider senza aggiungere il
-    suo territorio lascia una feature morta che nessun test vedeva.
-    """
     territori = set(TERRITORI_DEFAULT)
     for nome, dati in caaml.PROVIDER.items():
         prefisso = dati["prefisso_zone"].rstrip("-")
@@ -65,9 +50,6 @@ async def test_una_zona_svizzera_va_chiesta_a_slf(httpx2_mock: respx.Router, ris
             ]
         },
     )
-    # Nessuna rotta registrata per AINEVA: se il codice ci andasse comunque, la
-    # richiesta non troverebbe risposta e il test fallirebbe. Piu' forte di un
-    # `assert not chiamato`.
     bollettino = await caaml.leggi_bollettino(risorse, zona_id="CH-7121")
 
     assert bollettino.fonte == "slf"
@@ -95,7 +77,6 @@ def test_i_territori_si_configurano():
 
 
 async def test_la_resource_delle_metriche_gira_sull_event_loop(risorse):
-    """`Metriche` e' mutata dall'event loop: leggerla da un worker thread e' una corsa."""
     mcp = crea_server(risorse=risorse)
     risorse.metriche.chiamata("overpass", 10.0)
 

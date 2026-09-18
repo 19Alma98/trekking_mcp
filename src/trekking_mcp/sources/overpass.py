@@ -47,13 +47,6 @@ def bbox(sud: float, ovest: float, nord: float, est: float) -> str:
     return f"{sud},{ovest},{nord},{est}"
 
 
-# --- Dai tag OSM ai modelli ---------------------------------------------------
-#
-# La traduzione sta qui e non in `models.py`: il modello e' il contratto verso il
-# client, e non deve sapere che dall'altra parte c'e' Overpass. Cambiare fonte
-# (un estratto Geofabrik in PostGIS, per esempio: vedi TODOS.md) vuol dire
-# scrivere un altro adapter, non toccare il contratto.
-
 
 def sentiero_da_relation(rel: OverpassElement) -> Sentiero:
     """Una relation `route=hiking` nel modello `Sentiero`."""
@@ -106,9 +99,6 @@ def ricovero_da_element(el: OverpassElement) -> Ricovero:
     else:
         tipo = TipoRicovero.RIPARO
 
-    # `or` non va bene qui: un nodo sull'equatore o sul meridiano di Greenwich ha
-    # lat/lon 0.0, che e' falsy, e cadrebbe su `center`, che per un nodo non
-    # esiste (KeyError). La presenza si chiede con `in`.
     if "lat" in el and "lon" in el:
         lat, lon = el["lat"], el["lon"]
     elif "center" in el:
@@ -287,21 +277,7 @@ async def leggi_sentiero(risorse: Risorse, osm_relation_id: int) -> Sentiero | N
 
 
 async def leggi_geometria(risorse: Risorse, osm_relation_id: int) -> tuple[Sentiero, list[Coord]] | None:
-    """Sentiero piu' la sua polilinea completa, in **una sola** query.
-
-    Prima erano due: un `out;` per sapere se la relation aveva membri way, e solo
-    in caso affermativo un `out tags geom;`. Il risparmio non esisteva. Una
-    relation senza way non ha geometria, quindi la sua risposta `out geom` e'
-    piccola comunque; e una relation con way — cioe' la quasi totalita' — pagava
-    sempre due round-trip verso un'istanza pubblica a rate limit, serializzati
-    dal semaforo. Una query sola e' migliore o uguale in ogni caso.
-
-    Passa dalla stessa cache in memoria delle altre query, con lo stesso TTL
-    (`ttl_overpass_s`, 24h): la geometria di un sentiero e' la cosa piu' stabile
-    che questo server tratti, quindi il TTL lungo e' quello giusto. Attenzione
-    al peso: una risposta `out geom` sta nell'ordine dei MB, e `CACHE_MAX_ENTRY`
-    conta le voci, non i byte.
-    """
+    """Sentiero piu' la sua polilinea completa, in una sola query."""
     dati = await esegui(risorse, query_geometria(risorse.config, osm_relation_id))
     relazioni = [el for el in dati.get("elements", []) if el.get("type") == "relation"]
     if not relazioni:

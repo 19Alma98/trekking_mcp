@@ -22,14 +22,7 @@ log = logging.getLogger(__name__)
 def testo_da_toponimo(nome: str) -> str:
     """La parola da passare a Overpass come filtro testuale.
 
-    Overpass cerca su `name|from|to|description` con una regex: un toponimo
-    intero ("Rifugio Gastaldi") non matcha una way taggata "Sentiero per il
-    Gastaldi", mentre l'ultima parola significativa si. I prefissi generici
-    (monte, rifugio, passo...) si buttano perche' compaiono in mezzo mondo e
-    allargherebbero il match invece di restringerlo.
-
-    L'insieme dei prefissi e' quello di `luoghi_simili`: sono lo stesso concetto
-    e finora erano due copie che potevano divergere.
+    Overpass cerca su `name|from|to|description` con una regex.
     """
     parti = nome.strip().split()
     if not parti:

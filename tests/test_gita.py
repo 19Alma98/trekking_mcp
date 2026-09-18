@@ -111,14 +111,6 @@ async def test_il_rifiuto_dell_elicitation_ferma_la_chiamata(httpx2_mock: respx.
 
 
 async def test_l_elicitation_funziona_con_chiavi_di_stato_condivise(httpx2_mock: respx.Router, risorse_con):
-    """Le chiavi condivise sono cio' che rende l'elicitation sopravvivibile su HTTP.
-
-    Con `state_keys` il `requestState` e' sigillato con una chiave dichiarata
-    invece che effimera, quindi due repliche possono continuare la stessa
-    interazione. Qui si verifica solo che passare la policy non rompa il giro:
-    la prova che due processi si capiscano sta in
-    `test_operabilita.py::test_lo_stato_sigillato_e_lo_stesso_fra_due_server`.
-    """
     httpx2_mock.post(url__startswith="https://overpass-api.de").respond(200, json=RELATION_SENZA_POSIZIONE)
     callback, chiamate = _risponde(difficolta_max="T")
     risorse = risorse_con(state_keys=("0" * 64,))
@@ -131,7 +123,6 @@ async def test_l_elicitation_funziona_con_chiavi_di_stato_condivise(httpx2_mock:
 
 
 async def test_una_zona_svizzera_non_viene_chiesta_ad_aineva(httpx2_mock: respx.Router):
-    """`valuta_gita` chiedeva ogni zona ad AINEVA, provider di default."""
     httpx2_mock.post(url__startswith="https://overpass-api.de").respond(200, json=RELATION_SENZA_POSIZIONE)
     slf = httpx2_mock.get(url__startswith="https://aws.slf.ch").respond(
         200,
@@ -160,12 +151,6 @@ async def test_una_zona_svizzera_non_viene_chiesta_ad_aineva(httpx2_mock: respx.
 
 
 def test_un_bollettino_senza_grado_leggibile_produce_un_segnale():
-    """Il caso che prima passava sotto silenzio.
-
-    `grado_massimo` tornava DEBOLE per un bollettino senza `dangerRatings`
-    interpretabili, quindi nessuna soglia scattava e `valuta_gita` restituiva
-    una lista di segnali vuota: indistinguibile da "pericolo basso".
-    """
     senza_gradi = Bollettino(
         id_bollettino="x",
         zona_id="IT-21-TEST",

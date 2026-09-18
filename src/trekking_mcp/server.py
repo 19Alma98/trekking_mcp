@@ -54,14 +54,6 @@ def crea_server(config: Config | None = None, *, risorse: Risorse | None = None)
     """
     if risorse is None:
         risorse = Risorse.crea(config)
-
-    # Le interazioni a piu' round-trip (elicitation) tornano al server con un
-    # `requestState` che il server stesso ha sigillato. Se non si passa una
-    # chiave, l'SDK ne genera una effimera per processo: corretto per stdio e
-    # per un worker solo, sbagliato appena ci sono due repliche o un riavvio in
-    # mezzo, perche' la replica B rifiuta lo stato emesso dalla replica A e
-    # l'elicitation muore a meta'. Con le chiavi in `Config` la sigla e'
-    # condivisa e ruotabile. Vedi DEVELOPMENT.md §3.26.
     stato = RequestStateSecurity(keys=list(risorse.config.state_keys)) if risorse.config.state_keys else None
 
     @asynccontextmanager

@@ -1,13 +1,3 @@
-"""Cache e coalescing del client HTTP.
-
-Due problemi distinti, entrambi invisibili a un test sequenziale:
-
-- la cache si popola *dopo* la risposta, quindi due chiamate identiche partite
-  insieme la mancavano entrambe e uscivano entrambe in rete;
-- il tetto della cache contava le voci, non i byte, e le risposte di questo
-  server vanno da qualche KB a qualche MB.
-"""
-
 import asyncio
 from dataclasses import dataclass
 
@@ -22,29 +12,12 @@ URL = "https://esempio.test/x"
 
 
 async def _lascia_girare(passi: int = 20) -> None:
-    """Cede il loop abbastanza volte perche' ogni task pronto arrivi al suo await.
-
-    Serve a rendere deterministica la sovrapposizione: senza, il secondo task
-    puo' non essere ancora partito quando il primo finisce, e il test misurerebbe
-    un caso diverso da quello che vuole misurare.
-    """
     for _ in range(passi):
         await asyncio.sleep(0)
 
 
 @dataclass
 class Rubinetto:
-    """Una rotta che segnala l'arrivo e non risponde finche' non le si dice.
-
-    Senza, una risposta immediata non lascia alcuna finestra di sovrapposizione:
-    la prima richiesta finisce prima che la seconda parta, e non c'e' niente da
-    accodare.
-
-    `uscite` conta le richieste **partite**, non quelle completate: e' la domanda
-    a cui questi test rispondono, e `respx.Route.call_count` conta le completate
-    — una richiesta cancellata a meta' non comparirebbe.
-    """
-
     arrivata: asyncio.Event
     prosegui: asyncio.Event
     uscite: list[httpx.Request]
@@ -127,9 +100,6 @@ async def test_la_cancellazione_del_capofila_non_cancella_chi_aspetta(httpx2_moc
     rub.prosegui.set()
     assert await secondo == {"ok": True}, "chi aspettava non deve ereditare la cancellazione del capofila"
     assert len(rub.uscite) == 2, "deve aver rifatto la richiesta per conto proprio"
-
-
-# --- il tetto in byte --------------------------------------------------------
 
 
 async def test_la_cache_sfratta_per_byte_non_solo_per_voci():

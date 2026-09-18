@@ -1,16 +1,3 @@
-"""Geometria: distanze, riquadri, point-in-polygon.
-
-Niente shapely e niente GEOS: point-in-polygon e haversine sono cinquanta righe
-di matematica scolastica, e una dipendenza binaria costa a chiunque provi a
-installare il progetto (§3.11).
-
-Questo modulo non importa nulla del resto del pacchetto tranne i tipi dei
-payload. E' il fondo della pila: `tools` e `sources` dipendono da lui, lui da
-nessuno. Prima `distanza_km` e `riquadro_intorno` stavano in `tools/comuni.py`,
-e tre adapter in `sources/` importavano *verso l'alto* dal layer dei tool —
-esattamente il contrario della dipendenza a senso unico dichiarata in §2.
-"""
-
 from __future__ import annotations
 
 import math

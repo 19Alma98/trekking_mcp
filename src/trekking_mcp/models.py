@@ -1,12 +1,3 @@
-"""Il contratto dati verso il client: i modelli Pydantic da cui nasce l'`outputSchema`.
-
-Questo modulo **non sa da dove arrivano i dati**. La traduzione dal formato di
-una fonte al modello sta nell'adapter di quella fonte (`sources/overpass.py`
-per i tag OSM): `models.py` importava `payloads.OverpassElement` e ospitava
-`Sentiero.da_relation`, il che legava il contratto pubblico alla forma di
-Overpass. Cambiare fonte voleva dire toccare i modelli.
-"""
-
 from __future__ import annotations
 
 from datetime import datetime
@@ -215,14 +206,7 @@ class Bollettino(BaseModel):
 
     @property
     def grado_massimo(self) -> GradoPericolo | None:
-        """Il grado piu' alto fra le valutazioni, o `None` se non ce n'e' nessuna.
-
-        Il default **non** puo' essere `DEBOLE`: un bollettino i cui
-        `dangerRatings` non si sono potuti interpretare non e' un bollettino che
-        dichiara pericolo debole. Restituire 1 in quel caso farebbe leggere
-        l'assenza di dato come rassicurazione — l'opposto della regola 5 di
-        DEVELOPMENT.md §6. `None` obbliga il chiamante a dire che non lo sa.
-        """
+        """Il grado piu' alto fra le valutazioni, o `None` se non ce n'e' nessuna."""
         return max((v.grado for v in self.valutazioni), default=None)
 
 

@@ -28,15 +28,7 @@ def _filtra(candidati: list[str], parziale: str) -> Completion:
 
 
 def zone_note(risorse: Risorse, provider: str | None = None) -> list[str]:
-    """ID di zona dall'indice EAWS gia' in memoria.
-
-    Il prefisso per provider arriva da `caaml.PROVIDER`: e' la stessa tabella che
-    decide a quale URL chiedere il bollettino, quindi non puo' divergere. Le zone
-    di un provider si autocompletano solo se i suoi perimetri sono fra i
-    `Config.eaws_territori` caricati — i completamenti non scaricano niente
-    (§3.20), quindi indicizzare un territorio in meno significa un provider che
-    non propone nulla.
-    """
+    """ID di zona dall'indice EAWS gia' in memoria."""
     dati = caaml.PROVIDER.get(provider or "")
     prefisso = dati["prefisso_zone"] if dati else None
     return [r.id_zona for r in risorse.eaws.regioni if prefisso is None or r.id_zona.startswith(prefisso)]
