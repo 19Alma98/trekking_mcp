@@ -1,0 +1,686 @@
+{
+  "bulletins": [
+    {
+      "publicationTime": "2026-04-12T15:00:00Z",
+      "validTime": {
+        "startTime": "2026-04-12T15:00:00Z",
+        "endTime": "2026-04-13T15:00:00Z"
+      },
+      "unscheduled": false,
+      "avalancheActivity": {
+        "highlights": "Wet snow represents the main danger. As a consequence of the rain natural wet avalanches are to be expected.",
+        "comment": "As a consequence of the rain, the likelihood of wet avalanches being released will increase in particular on steep shady slopes below approximately 2500 m. In these regions natural avalanches are to be expected, even large ones. Moist and wet avalanches can additionally in some places be released, even by a single winter sport participant, this also applies on steep west, north and east facing slopes below approximately 2800 m. <br/> <br/> Individual avalanche prone locations for dry avalanches are to be found on very steep shady slopes above approximately 2500 m. <br/> In addition the fresh wind slabs in high Alpine regions are capable of being triggered in isolated cases, in particular on near-ridge shady slopes. Wind slabs are mostly small."
+      },
+      "snowpackStructure": {
+        "comment": "The surface of the snowpack will cool hardly at all during the overcast night and will already be soft in the early morning. Up to 2500 m rain will fall. The rain will give rise to a loss of strength within the snowpack especially on steep shady slopes. <br/> <br/> Steep west, north and east facing slopes above approximately 2500 m: Isolated avalanche prone weak layers exist in the top section of the old snowpack. Faceted weak layers exist in the bottom section of the old snowpack. <br/> <br/> Above approximately 2500 m snow will fall. As a consequence of a strong wind, small wind slabs will form in high Alpine regions."
+      },
+      "tendency": [
+        {
+          "highlights": "Slight decrease in danger of wet avalanches as the snowfall level drops. Above approximately 2000 m snow will fall in some regions.",
+          "tendencyType": "steady",
+          "validTime": {
+            "startTime": "2026-04-13T15:00:00Z",
+            "endTime": "2026-04-14T15:00:00Z"
+          }
+        }
+      ],
+      "customData": {
+        "ALBINA": {
+          "mainDate": "2026-04-13",
+          "tendencyProgression": {
+            "dates": [
+              "2026-04-10",
+              "2026-04-11",
+              "2026-04-12"
+            ],
+            "dangerRatings": {
+              "IT-32-BZ-18-02": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-18-01": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-20": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-10": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-11": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-02-01": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-05-03": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-12": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-05-02": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-13": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-05-01": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-01-02": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-01-01": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-02-02": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "AT-07-25": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "AT-07-27": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-08-01": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-19": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-09": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-08-02": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "AT-07-19": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ]
+            }
+          }
+        },
+        "LWD_Tyrol": {
+          "dangerPatterns": [
+            "DP3",
+            "DP1"
+          ]
+        }
+      },
+      "avalancheProblems": [
+        {
+          "problemType": "wet_snow",
+          "elevation": {
+            "upperBound": "2800"
+          },
+          "validTimePeriod": "all_day",
+          "snowpackStability": "very_poor",
+          "frequency": "some",
+          "avalancheSize": 3,
+          "dangerRatingValue": "considerable",
+          "customData": {
+            "ALBINA": {
+              "avalancheType": "slab"
+            }
+          },
+          "aspects": [
+            "NE",
+            "W",
+            "NW",
+            "E",
+            "N"
+          ]
+        },
+        {
+          "problemType": "persistent_weak_layers",
+          "elevation": {
+            "lowerBound": "2500"
+          },
+          "validTimePeriod": "all_day",
+          "snowpackStability": "poor",
+          "frequency": "few",
+          "avalancheSize": 3,
+          "dangerRatingValue": "moderate",
+          "customData": {
+            "ALBINA": {
+              "avalancheType": "slab"
+            }
+          },
+          "aspects": [
+            "NE",
+            "W",
+            "NW",
+            "E",
+            "N"
+          ]
+        }
+      ],
+      "bulletinID": "2fa71a64-bd03-44af-95d6-356a944ace16",
+      "dangerRatings": [
+        {
+          "mainValue": "considerable",
+          "elevation": {
+            "upperBound": "2800"
+          },
+          "validTimePeriod": "all_day"
+        },
+        {
+          "mainValue": "moderate",
+          "elevation": {
+            "lowerBound": "2800"
+          },
+          "validTimePeriod": "all_day"
+        }
+      ],
+      "lang": "en",
+      "regions": [
+        {
+          "name": "Deferegger Alps East",
+          "regionID": "AT-07-27"
+        },
+        {
+          "name": "Glockturm Group",
+          "regionID": "AT-07-19"
+        },
+        {
+          "name": "Lasörling Group",
+          "regionID": "AT-07-25"
+        },
+        {
+          "name": "Gröden Dolomites",
+          "regionID": "IT-32-BZ-18-02"
+        },
+        {
+          "name": "Lüsner Mountains",
+          "regionID": "IT-32-BZ-18-01"
+        },
+        {
+          "name": "Sexten Dolomites",
+          "regionID": "IT-32-BZ-20"
+        },
+        {
+          "name": "Pfunderer Mountains East",
+          "regionID": "IT-32-BZ-10"
+        },
+        {
+          "name": "Durreck Range",
+          "regionID": "IT-32-BZ-11"
+        },
+        {
+          "name": "Langtaufers",
+          "regionID": "IT-32-BZ-02-01"
+        },
+        {
+          "name": "Upper Ahr Valley",
+          "regionID": "IT-32-BZ-05-03"
+        },
+        {
+          "name": "Rieserferner Mountains",
+          "regionID": "IT-32-BZ-12"
+        },
+        {
+          "name": "Zillertal Alps South",
+          "regionID": "IT-32-BZ-05-02"
+        },
+        {
+          "name": "Deferegger Alps West",
+          "regionID": "IT-32-BZ-13"
+        },
+        {
+          "name": "Pfitsch",
+          "regionID": "IT-32-BZ-05-01"
+        },
+        {
+          "name": "Sesvenna Group South",
+          "regionID": "IT-32-BZ-01-02"
+        },
+        {
+          "name": "Sesvenna Group North",
+          "regionID": "IT-32-BZ-01-01"
+        },
+        {
+          "name": "Planeil Mountains",
+          "regionID": "IT-32-BZ-02-02"
+        },
+        {
+          "name": "Hirzer Range",
+          "regionID": "IT-32-BZ-08-01"
+        },
+        {
+          "name": "Prags Dolomites",
+          "regionID": "IT-32-BZ-19"
+        },
+        {
+          "name": "Pfunderer Mountains West",
+          "regionID": "IT-32-BZ-09"
+        },
+        {
+          "name": "Mount Saint Jakob Range",
+          "regionID": "IT-32-BZ-08-02"
+        }
+      ]
+    },
+    {
+      "publicationTime": "2026-04-12T15:00:00Z",
+      "validTime": {
+        "startTime": "2026-04-12T15:00:00Z",
+        "endTime": "2026-04-13T15:00:00Z"
+      },
+      "unscheduled": false,
+      "highlights": "As a consequence of the rain natural wet avalanches are to be expected.",
+      "avalancheActivity": {
+        "highlights": "Wet snow represents the main danger. Wind slabs in high Alpine regions.",
+        "comment": "As a consequence of the rain, the likelihood of wet avalanches being released will increase in particular below approximately 2500 m, especially on steep west, north and east facing slopes. In these regions natural avalanches are to be expected, even large ones. Moist and wet avalanches can additionally in some places be released, even by a single winter sport participant, this also applies on steep west, north and east facing slopes below approximately 2800 m. <br/> <br/> Individual avalanche prone locations for dry avalanches are to be found on very steep shady slopes above approximately 2500 m. Such avalanche prone locations are difficult to recognise. Especially transitions from a shallow to a deep snowpack are unfavourable. In addition the fresh wind slabs in high Alpine regions are capable of being triggered in some cases, in particular on near-ridge shady slopes."
+      },
+      "snowpackStructure": {
+        "comment": "The surface of the snowpack will cool hardly at all during the overcast night and will already be soft in the early morning. Up to 2500 m and above rain will fall. The rain will give rise to a loss of strength within the snowpack especially on steep shady slopes. <br/> <br/> 10 to 20 cm of snow, and even more in some localities, will fall above approximately 2500 m. As a consequence of a strong wind, sometimes easily released wind slabs will form in high Alpine regions. <br/> <br/> Steep west, north and east facing slopes above approximately 2500 m: Isolated avalanche prone weak layers exist in the top section of the old snowpack. Faceted weak layers exist in the bottom section of the old snowpack."
+      },
+      "tendency": [
+        {
+          "highlights": "Slight decrease in danger of wet avalanches as the snowfall level drops. Above approximately 2000 m snow will fall in some regions.",
+          "tendencyType": "steady",
+          "validTime": {
+            "startTime": "2026-04-13T15:00:00Z",
+            "endTime": "2026-04-14T15:00:00Z"
+          }
+        }
+      ],
+      "customData": {
+        "ALBINA": {
+          "mainDate": "2026-04-13",
+          "tendencyProgression": {
+            "dates": [
+              "2026-04-10",
+              "2026-04-11",
+              "2026-04-12"
+            ],
+            "dangerRatings": {
+              "IT-32-BZ-07-01": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-07-02": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-04-02": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-04-01": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-14": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-03": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-15": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-BZ-06": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ]
+            }
+          }
+        },
+        "LWD_Tyrol": {
+          "dangerPatterns": [
+            "DP3",
+            "DP6"
+          ]
+        }
+      },
+      "avalancheProblems": [
+        {
+          "problemType": "wet_snow",
+          "elevation": {
+            "upperBound": "2800"
+          },
+          "validTimePeriod": "all_day",
+          "snowpackStability": "very_poor",
+          "frequency": "some",
+          "avalancheSize": 3,
+          "dangerRatingValue": "considerable",
+          "customData": {
+            "ALBINA": {
+              "avalancheType": "slab"
+            }
+          },
+          "aspects": [
+            "NE",
+            "W",
+            "NW",
+            "E",
+            "N"
+          ]
+        },
+        {
+          "problemType": "wind_slab",
+          "elevation": {
+            "lowerBound": "2800"
+          },
+          "validTimePeriod": "all_day",
+          "snowpackStability": "poor",
+          "frequency": "some",
+          "avalancheSize": 2,
+          "dangerRatingValue": "moderate",
+          "customData": {
+            "ALBINA": {
+              "avalancheType": "slab"
+            }
+          },
+          "aspects": [
+            "NE",
+            "NW",
+            "N"
+          ]
+        },
+        {
+          "problemType": "persistent_weak_layers",
+          "elevation": {
+            "lowerBound": "2500"
+          },
+          "validTimePeriod": "all_day",
+          "snowpackStability": "poor",
+          "frequency": "few",
+          "avalancheSize": 3,
+          "dangerRatingValue": "moderate",
+          "customData": {
+            "ALBINA": {
+              "avalancheType": "slab"
+            }
+          },
+          "aspects": [
+            "NE",
+            "W",
+            "NW",
+            "E",
+            "N"
+          ]
+        }
+      ],
+      "bulletinID": "dd246c9f-cb4a-4b2c-84d5-19e8dc145b1e",
+      "dangerRatings": [
+        {
+          "mainValue": "considerable",
+          "elevation": {
+            "upperBound": "2800"
+          },
+          "validTimePeriod": "all_day"
+        },
+        {
+          "mainValue": "moderate",
+          "elevation": {
+            "lowerBound": "2800"
+          },
+          "validTimePeriod": "all_day"
+        }
+      ],
+      "lang": "en",
+      "regions": [
+        {
+          "name": "Upper Passeier Valley",
+          "regionID": "IT-32-BZ-07-01"
+        },
+        {
+          "name": "Texel Mountains",
+          "regionID": "IT-32-BZ-07-02"
+        },
+        {
+          "name": "Ratschings",
+          "regionID": "IT-32-BZ-04-02"
+        },
+        {
+          "name": "Stubai Alps South",
+          "regionID": "IT-32-BZ-04-01"
+        },
+        {
+          "name": "Ortler Range",
+          "regionID": "IT-32-BZ-14"
+        },
+        {
+          "name": "Schnals Ridge",
+          "regionID": "IT-32-BZ-03"
+        },
+        {
+          "name": "Ulten Valley",
+          "regionID": "IT-32-BZ-15"
+        },
+        {
+          "name": "Saldurn-Mastaun Ridge",
+          "regionID": "IT-32-BZ-06"
+        }
+      ]
+    },
+    {
+      "publicationTime": "2026-04-12T15:00:00Z",
+      "validTime": {
+        "startTime": "2026-04-12T15:00:00Z",
+        "endTime": "2026-04-13T15:00:00Z"
+      },
+      "unscheduled": false,
+      "avalancheActivity": {
+        "highlights": "As a consequence of the rain, the likelihood of wet avalanches being released will increase.",
+        "comment": "As a consequence of the rain, the likelihood of wet avalanches being released will increase in particular below approximately 2200 m, especially on steep west, north and east facing slopes. In these regions natural avalanches are to be expected, even large ones in isolated cases. <br/> <br/> In addition the fresh wind slabs in high Alpine regions are capable of being triggered in some cases, in particular on near-ridge slopes. <br/> The avalanche prone locations for dry avalanches are to be found on very steep shady slopes above approximately 2200 m. Such avalanche prone locations are difficult to recognise. Especially transitions from a shallow to a deep snowpack are unfavourable."
+      },
+      "snowpackStructure": {
+        "comment": "Below approximately 1800 m only a little snow is lying. At higher altitudes there are 30 to 80 cm of snow, and even as much as 150 cm in some localities. The surface of the snowpack will cool hardly at all during the overcast night and will already be soft in the early morning. Up to 2200 m rain will fall. The rain will give rise to a loss of strength within the snowpack especially on steep shady slopes. <br/> <br/> 20 to 40 cm of snow, and even more in some localities, will fall above approximately 2200 m. As a consequence of a strong wind, sometimes easily released wind slabs will form in high Alpine regions. <br/> <br/> Steep west, north and east facing slopes above approximately 2400 m: Large-grained weak layers exist in the bottom section of the old snowpack."
+      },
+      "tendency": [
+        {
+          "highlights": "Slight decrease in danger of wet avalanches as the snowfall level drops.",
+          "tendencyType": "steady",
+          "validTime": {
+            "startTime": "2026-04-13T15:00:00Z",
+            "endTime": "2026-04-14T15:00:00Z"
+          }
+        }
+      ],
+      "customData": {
+        "ALBINA": {
+          "mainDate": "2026-04-13",
+          "tendencyProgression": {
+            "dates": [
+              "2026-04-10",
+              "2026-04-11",
+              "2026-04-12"
+            ],
+            "dangerRatings": {
+              "IT-32-TN-02": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-TN-01": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-TN-04": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-TN-05": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-TN-19": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ],
+              "IT-32-TN-20": [
+                "moderate",
+                "moderate",
+                "moderate"
+              ]
+            }
+          }
+        },
+        "LWD_Tyrol": {
+          "dangerPatterns": [
+            "DP3",
+            "DP6"
+          ]
+        }
+      },
+      "avalancheProblems": [
+        {
+          "problemType": "wet_snow",
+          "elevation": {
+            "upperBound": "2200"
+          },
+          "validTimePeriod": "all_day",
+          "snowpackStability": "very_poor",
+          "frequency": "some",
+          "avalancheSize": 2,
+          "dangerRatingValue": "considerable",
+          "customData": {
+            "ALBINA": {
+              "avalancheType": "loose"
+            }
+          },
+          "aspects": [
+            "SW",
+            "NE",
+            "S",
+            "W",
+            "NW",
+            "E",
+            "SE",
+            "N"
+          ]
+        },
+        {
+          "problemType": "new_snow",
+          "elevation": {
+            "lowerBound": "2200"
+          },
+          "validTimePeriod": "all_day",
+          "snowpackStability": "poor",
+          "frequency": "some",
+          "avalancheSize": 2,
+          "dangerRatingValue": "moderate",
+          "customData": {
+            "ALBINA": {
+              "avalancheType": "slab"
+            }
+          },
+          "aspects": [
+            "SW",
+            "NE",
+            "S",
+            "W",
+            "NW",
+            "E",
+            "SE",
+            "N"
+          ]
+        }
+      ],
+      "bulletinID": "ad27580e-20a8-4039-b880-cbee6f8a0692",
+      "dangerRatings": [
+        {
+          "mainValue": "considerable",
+          "elevation": {
+            "upperBound": "2200"
+          },
+          "validTimePeriod": "all_day"
+        },
+        {
+          "mainValue": "moderate",
+          "elevation": {
+            "lowerBound": "2200"
+          },
+          "validTimePeriod": "all_day"
+        }
+      ],
+      "lang": "en",
+      "regions": [
+        {
+          "name": "Southern Adamello",
+          "regionID": "IT-32-TN-02"
+        },
+        {
+          "name": "Adamello - Presanella",
+          "regionID": "IT-32-TN-01"
+        },
+        {
+          "name": "Northern Brenta - Peller",
+          "regionID": "IT-32-TN-04"
+        },
+        {
+          "name": "Southern Brenta",
+          "regionID": "IT-32-TN-05"
+        },
+        {
+          "name": "Sole, Pejo and Rabbi",
+          "regionID": "IT-32-TN-19"
+        },
+        {
+          "name": "Maddalene",
+          "regionID": "IT-32-TN-20"
+        }
+      ]
+    }
+  ]
+}

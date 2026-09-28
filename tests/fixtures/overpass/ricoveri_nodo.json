@@ -1,0 +1,250 @@
+{
+  "elements": [
+    {
+      "type": "node",
+      "id": 552421501,
+      "lat": 45.6760593,
+      "lon": 8.0646695,
+      "tags": {
+        "beds": "24",
+        "contact:phone": "+39 366 3976595",
+        "contact:website": "https://rifugiopianadelponte.wixsite.com",
+        "description:en": "Not lawfully accessible by car. Parking available at Casa del Pescatore.",
+        "ele": "1050",
+        "name": "Rifugio Piana del Ponte",
+        "operator": "Alessandra Baldo",
+        "tourism": "alpine_hut"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1502683557,
+      "lat": 45.6442657,
+      "lon": 7.929725,
+      "tags": {
+        "addr:city": "Fontainemore",
+        "addr:postcode": "11020",
+        "addr:street": "Località Barma",
+        "ele": "2060",
+        "fee": "yes",
+        "internet_access": "wlan",
+        "name": "Rifugio Barma",
+        "payment:cash": "yes",
+        "payment:contactless": "yes",
+        "payment:credit_cards": "yes",
+        "payment:debit_cards": "yes",
+        "tourism": "alpine_hut",
+        "website": "https://www.rifugiobarma.it/",
+        "wikidata": "Q110205794",
+        "wikipedia": "it:Rifugio Barma"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1870156385,
+      "lat": 45.6766422,
+      "lon": 7.9612252,
+      "tags": {
+        "beds": "12",
+        "cuisine": "local",
+        "ele": "1480",
+        "name": "Rifugio Madonna della Neve",
+        "opening_hours": "May-Oct",
+        "phone": "+39 015 6097000",
+        "tourism": "alpine_hut",
+        "wikimedia_commons": "File:Rifugio Madonna della Neve.jpg"
+      }
+    },
+    {
+      "type": "node",
+      "id": 2214726608,
+      "lat": 45.7262044,
+      "lon": 7.970305,
+      "tags": {
+        "amenity": "shelter",
+        "capacity": "12",
+        "contact:website": "http://www.caivarallo.it/rifugi_cai_varallo/punto_appoggio_alpe_toso.php",
+        "ele": "1649",
+        "name": "Punto Appoggio Alpe Toso",
+        "operator": "Club Alpino Italiano - Sezione di Varallo Sesia",
+        "shelter_type": "basic_hut"
+      }
+    },
+    {
+      "type": "node",
+      "id": 2214726610,
+      "lat": 45.7532043,
+      "lon": 7.9555084,
+      "tags": {
+        "amenity": "shelter",
+        "capacity": "12",
+        "contact:website": "http://www.caivarallo.it/rifugi_cai_varallo/punto_appoggio_alpe_salei.php",
+        "ele": "1707",
+        "name": "Punto di Appoggio Alpe Salei",
+        "operator": "Club Alpino Italiano - Sezione di Varallo Sesia",
+        "shelter_type": "basic_hut"
+      }
+    },
+    {
+      "type": "node",
+      "id": 5098180156,
+      "lat": 45.62243,
+      "lon": 7.9065137,
+      "tags": {
+        "capacity": "50",
+        "contact:phone": "+39 015 2562405",
+        "contact:website": "http://www.rifugiocoda.it",
+        "ele": "2280",
+        "name": "Rifugio Delfo e Agostino Coda",
+        "operator": "Club Alpino Italiano Sezione di Biella",
+        "shower": "yes",
+        "tourism": "alpine_hut",
+        "wikidata": "Q3935388",
+        "wikipedia": "it:Rifugio Agostino e Delfo Coda",
+        "winter_room": "yes"
+      }
+    },
+    {
+      "type": "node",
+      "id": 5293562908,
+      "lat": 45.6515563,
+      "lon": 8.0583528,
+      "tags": {
+        "name": "Capanna Volpi",
+        "tourism": "alpine_hut"
+      }
+    },
+    {
+      "type": "node",
+      "id": 5722775998,
+      "lat": 45.6444492,
+      "lon": 7.9456614,
+      "tags": {
+        "name": "Rifugio Capanna Renata",
+        "tourism": "alpine_hut"
+      }
+    },
+    {
+      "type": "node",
+      "id": 14080331191,
+      "lat": 45.5940207,
+      "lon": 7.9497617,
+      "tags": {
+        "access": "yes",
+        "opening_hours": "Apr-Oct: Sa-Su 10:00-16:00",
+        "reservation": "recommended",
+        "tourism": "wilderness_hut"
+      }
+    },
+    {
+      "type": "way",
+      "id": 64537436,
+      "center": {
+        "lat": 45.6340634,
+        "lon": 7.9505767
+      },
+      "tags": {
+        "amenity": "restaurant",
+        "building": "yes",
+        "building:levels": "2",
+        "capacity": "18",
+        "contact:email": "info@rifugio-rosazza.it",
+        "contact:mobile": "+39 339 4602133",
+        "contact:website": "https://www.rifugio-rosazza.it",
+        "cuisine": "regional",
+        "ele": "1830",
+        "height": "8",
+        "internet_access": "no",
+        "name": "Rifugio Rosazza",
+        "operator": "Claudia Comello",
+        "outdoor_seating": "yes",
+        "rooms": "6",
+        "takeaway": "yes",
+        "tourism": "alpine_hut"
+      }
+    },
+    {
+      "type": "way",
+      "id": 77684438,
+      "center": {
+        "lat": 45.5779409,
+        "lon": 7.9479236
+      },
+      "tags": {
+        "building": "yes",
+        "name": "Baita Bagneri - Cai Biella",
+        "operator": "Club Alpino Italiano - BIella",
+        "tourism": "alpine_hut",
+        "website": "https://caibiella.it"
+      }
+    },
+    {
+      "type": "way",
+      "id": 101687080,
+      "center": {
+        "lat": 45.5600063,
+        "lon": 7.9043566
+      },
+      "tags": {
+        "contact:phone": "+39 3483301032",
+        "name": "Rifugio Alpe Cavanna",
+        "operator": "Andrea Azzalin",
+        "tourism": "alpine_hut"
+      }
+    },
+    {
+      "type": "way",
+      "id": 142208367,
+      "center": {
+        "lat": 45.5850406,
+        "lon": 7.8941021
+      },
+      "tags": {
+        "building": "yes",
+        "capacity": "25",
+        "ele": "2312",
+        "email": "rifugiomombarone@gmail.com",
+        "name": "Rifugio Mombarone",
+        "operator": "Manuel Rodriguez;Pro Loco Graglia",
+        "phone": "+39 015 401960",
+        "tourism": "alpine_hut",
+        "wikidata": "Q3935568",
+        "wikipedia": "it:Rifugio Mombarone"
+      }
+    },
+    {
+      "type": "way",
+      "id": 152022713,
+      "center": {
+        "lat": 45.7191826,
+        "lon": 7.9358475
+      },
+      "tags": {
+        "building": "yes",
+        "ele": "2150",
+        "name": "Rifugio Alfredo Rivetti",
+        "note": "Gestore: Alessandro Zoia",
+        "operator": "CAI - Club Alpino Italiano sezione di Biella",
+        "tourism": "alpine_hut",
+        "website": "http://www.caibiella.it/wptemp/rifugi/",
+        "wikidata": "Q3935394",
+        "wikipedia": "it:Rifugio Alfredo Rivetti"
+      }
+    },
+    {
+      "type": "way",
+      "id": 172668489,
+      "center": {
+        "lat": 45.5776944,
+        "lon": 7.9173172
+      },
+      "tags": {
+        "building": "yes",
+        "ele": "1321",
+        "name": "Rifugio Alpe Pianetti",
+        "operator": "Associazione Nazionale Alpini Sezione di Biella Gruppo di Graglia",
+        "tourism": "alpine_hut"
+      }
+    }
+  ]
+}

@@ -1,11 +1,22 @@
-"""Configurazione pytest condivisa."""
+from __future__ import annotations
 
+import json
+import pathlib
 from dataclasses import replace
+from typing import Any
 
 import pytest
 
 from trekking_mcp.config import Config
 from trekking_mcp.risorse import Risorse
+
+FIXTURES = pathlib.Path(__file__).parent / "fixtures"
+
+
+def carica_fixture(*parti: str) -> dict[str, Any]:
+    """Carica un JSON sotto `tests/fixtures/` (es. `caaml`, `aineva_latest_slice.json`)."""
+    percorso = FIXTURES.joinpath(*parti)
+    return json.loads(percorso.read_text(encoding="utf-8"))
 
 
 @pytest.fixture(autouse=True)

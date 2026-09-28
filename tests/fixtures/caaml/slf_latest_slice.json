@@ -1,0 +1,545 @@
+{
+  "bulletins": [
+    {
+      "bulletinID": "279c357c-4dab-47b9-b0a7-f79ed0fdc5e5",
+      "lang": "it",
+      "validTime": {
+        "startTime": "2026-05-17T15:00:00Z",
+        "endTime": "2026-05-18T15:00:00Z"
+      },
+      "unscheduled": false,
+      "regions": [
+        {
+          "regionID": "CH-1246",
+          "name": "Gadmertal"
+        },
+        {
+          "regionID": "CH-2223",
+          "name": "nördliches Urseren"
+        },
+        {
+          "regionID": "CH-1245",
+          "name": "Guttannen"
+        },
+        {
+          "regionID": "CH-2211",
+          "name": "Schächental"
+        },
+        {
+          "regionID": "CH-2134",
+          "name": "Bisistal"
+        },
+        {
+          "regionID": "CH-4213",
+          "name": "Konkordia Gebiet"
+        },
+        {
+          "regionID": "CH-3113",
+          "name": "Glarus Süd-Sernftal"
+        },
+        {
+          "regionID": "CH-2122",
+          "name": "Engelberg"
+        },
+        {
+          "regionID": "CH-5124",
+          "name": "Flims"
+        },
+        {
+          "regionID": "CH-3224",
+          "name": "Sarganserland"
+        },
+        {
+          "regionID": "CH-2221",
+          "name": "Meiental"
+        },
+        {
+          "regionID": "CH-1247",
+          "name": "Grimselpass"
+        },
+        {
+          "regionID": "CH-1243",
+          "name": "Schreckhorn"
+        },
+        {
+          "regionID": "CH-3112",
+          "name": "Glarus Süd-Grosstal"
+        },
+        {
+          "regionID": "CH-2222",
+          "name": "Maderanertal"
+        },
+        {
+          "regionID": "CH-1227",
+          "name": "Engstligen"
+        },
+        {
+          "regionID": "CH-1232",
+          "name": "Blüemlisalp"
+        },
+        {
+          "regionID": "CH-5211",
+          "name": "nördliches Tujetsch"
+        },
+        {
+          "regionID": "CH-4243",
+          "name": "nördliches Obergoms"
+        },
+        {
+          "regionID": "CH-3114",
+          "name": "Glarus Mitte"
+        },
+        {
+          "regionID": "CH-4211",
+          "name": "Leukerbad - Lötschental"
+        },
+        {
+          "regionID": "CH-1234",
+          "name": "Jungfrau - Schilthorn"
+        },
+        {
+          "regionID": "CH-2212",
+          "name": "Uri Rot Stock"
+        }
+      ],
+      "dangerRatings": [
+        {
+          "mainValue": "moderate",
+          "validTimePeriod": "all_day",
+          "customData": {
+            "CH": {
+              "subdivision": "plus"
+            }
+          }
+        }
+      ],
+      "avalancheProblems": [
+        {
+          "problemType": "new_snow",
+          "comment": "La neve fresca e la neve ventata degli ultimi giorni sono in parte ancora instabili. Inoltre, isolate valanghe asciutte possono subire un distacco negli strati più profondi del manto nevoso soprattutto sui pendii molto ripidi esposti a nord ed est. Le valanghe possono raggiungere grandi dimensioni a livello isolato. Le escursioni sciistiche richiedono una prudente scelta dell'itinerario. <br/> Attualmente il servizio di previsione valanghe dispone di informazioni limitate dal territorio. Il pericolo di valanghe dovrebbe quindi essere valutato con particolare attenzione sul posto.",
+          "dangerRatingValue": "moderate",
+          "validTimePeriod": "all_day",
+          "elevation": {
+            "lowerBound": "2400"
+          },
+          "aspects": [
+            "N",
+            "NE",
+            "E",
+            "NW"
+          ],
+          "customData": {
+            "CH": {
+              "subdivision": "plus",
+              "coreZoneText": "Grado di pericolo \"moderato\" (2+) alle esposizioni da nord ovest a nord est sino a est al di sopra dei 2400m."
+            }
+          }
+        },
+        {
+          "problemType": "persistent_weak_layers",
+          "comment": "La neve fresca e la neve ventata degli ultimi giorni sono in parte ancora instabili. Inoltre, isolate valanghe asciutte possono subire un distacco negli strati più profondi del manto nevoso soprattutto sui pendii molto ripidi esposti a nord ed est. Le valanghe possono raggiungere grandi dimensioni a livello isolato. Le escursioni sciistiche richiedono una prudente scelta dell'itinerario. <br/> Attualmente il servizio di previsione valanghe dispone di informazioni limitate dal territorio. Il pericolo di valanghe dovrebbe quindi essere valutato con particolare attenzione sul posto.",
+          "dangerRatingValue": "moderate",
+          "validTimePeriod": "all_day",
+          "elevation": {
+            "lowerBound": "2400"
+          },
+          "aspects": [
+            "N",
+            "NE",
+            "E",
+            "NW"
+          ],
+          "customData": {
+            "CH": {
+              "subdivision": "plus",
+              "coreZoneText": "Grado di pericolo \"moderato\" (2+) alle esposizioni da nord ovest a nord est sino a est al di sopra dei 2400m."
+            }
+          }
+        },
+        {
+          "problemType": "wet_snow",
+          "comment": "Con il rialzo termico e l'irradiazione solare diurni, sono previste colate umide. Queste ultime sono di dimensioni piuttosto piccole. Attenzione al pericolo di trascinamento e di caduta.",
+          "dangerRatingValue": "low",
+          "validTimePeriod": "all_day"
+        }
+      ],
+      "customData": {
+        "CH": {
+          "aggregation": [
+            {
+              "category": "dry",
+              "validTimePeriod": "all_day",
+              "problemTypes": [
+                "new_snow",
+                "persistent_weak_layers"
+              ],
+              "title": "Valanghe asciutte"
+            },
+            {
+              "category": "wet",
+              "validTimePeriod": "all_day",
+              "problemTypes": [
+                "wet_snow"
+              ],
+              "title": "Valanghe di neve bagnata"
+            }
+          ]
+        }
+      },
+      "publicationTime": "2026-05-17T15:00:00Z",
+      "weatherForecast": {
+        "comment": "<h1>Previsioni meteo fino a lunedì</h1><p>La notte sarà parzialmente serena nelle regioni orientali, altrove nuvolosa. In mattinata ci saranno ancora alcune schiarite soprattutto nelle regioni orientali, mentre altrove il cielo sarà spesso nuvoloso con locali rovesci, in particolare sul versante nordalpino. Il limite delle nevicate si collocherà intorno ai 1800 m.</p><h2 contenteditable=\"false\">Neve fresca</h2><p>Localmente pochi centimetri a carattere di rovescio, soprattutto nelle regioni settentrionali</p><h2>Temperatura</h2><p>Sul mezzogiorno a 2000 m compresa tra +1 °C nelle regioni settentrionali e +4 °C in quelle meridionali</p><h2>Vento</h2><p>Spesso debole, nelle regioni occidentali in quota a tratti moderato, proveniente da sud ovest</p>"
+      },
+      "weatherReview": {
+        "comment": "<h1>Retrospettiva meteo fino a domenica</h1><p>Dopo una notte stellata, il cielo è stato piuttosto soleggiato con alcune nubi cumuliformi</p><h2>Neve fresca</h2><p>-</p><h2 contenteditable=\"false\">Temperatura</h2><p>Sul mezzogiorno a 2000 m compresa tra -1 °C nelle regioni settentrionali e +4 °C in quelle meridionali</p><h2>Vento</h2><p>Durante la notte sulla cresta principale delle Alpi ancora spesso moderato, durante il giorno per lo più debole, proveniente da nord</p>"
+      },
+      "snowpackStructure": {
+        "comment": "<h1>Manto nevoso</h1><p>Soprattutto sui pendii ombreggiati situati in alta montagna, in alcuni punti la neve fresca e quella ventata degli ultimi giorni sono ancora instabili. Specialmente sui pendii esposti a nord e a est situati in quota, nel punto di passaggio verso il sottostante manto di neve vecchia sono ancora presenti in alcuni casi strati fragili a grani grossi.</p>"
+      },
+      "tendency": [
+        {
+          "comment": "<h1>Tendenza fino a mercoledì</h1><p>La notte fra lunedì e martedì sarà parzialmente nuvolosa nelle regioni orientali, dove al di sopra dei 1800 m cadrà ancora un po’ di neve. In mattinata ci saranno ancora nubi residue nelle regioni orientali, mentre altrove il tempo sarà inizialmente piuttosto soleggiato, poi la nuvolosità aumenterà a partire da ovest. Durante il pomeriggio nelle regioni occidentali saranno possibili rovesci, nevosi al di sopra dei 2200 m. La notte fra martedì e mercoledì sarà stellata nelle regioni meridionali, altrove spesso nuvolosa. Nella Svizzera centrale e orientale, al di sopra dei 2200 m circa cadranno fino ai 10 cm di neve. Nel corso della giornata il tempo nelle regioni orientali sarà nuvoloso con rovesci, in quelle occidentali variabile e in quelle meridionali piuttosto soleggiato. In entrambi i giorni il vento proveniente da ovest sarà per lo più debole martedì e a tratti moderato mercoledì. Martedì la soglia dello zero termico si collocherà attorno ai 2500 m, per poi salire mercoledì pomeriggio verso i 2800 m.</p><p>Il pericolo di valanghe asciutte diminuirà. Distacchi di valanghe asciutte potranno verificarsi soprattutto ancora sui pendii molto ripidi esposti a nord e a est d’alta montagna. Il pericolo di valanghe bagnate aumenterà leggermente nel corso di entrambe le giornate. Le escursioni dovranno terminare per tempo.</p>"
+        }
+      ]
+    },
+    {
+      "bulletinID": "cecc65ca-a1bf-44d8-8497-f203bba84a69",
+      "lang": "it",
+      "validTime": {
+        "startTime": "2026-05-17T15:00:00Z",
+        "endTime": "2026-05-18T15:00:00Z"
+      },
+      "unscheduled": false,
+      "regions": [
+        {
+          "regionID": "CH-7221",
+          "name": "oberes Puschlav"
+        },
+        {
+          "regionID": "CH-7222",
+          "name": "unteres Puschlav"
+        },
+        {
+          "regionID": "CH-7111",
+          "name": "Corvatsch"
+        },
+        {
+          "regionID": "CH-7211",
+          "name": "Bergell"
+        },
+        {
+          "regionID": "CH-7112",
+          "name": "Bernina"
+        },
+        {
+          "regionID": "CH-4112",
+          "name": "Génépi"
+        },
+        {
+          "regionID": "CH-4113",
+          "name": "Val d'Entremont-Val Ferret"
+        }
+      ],
+      "dangerRatings": [
+        {
+          "mainValue": "moderate",
+          "validTimePeriod": "all_day",
+          "customData": {
+            "CH": {
+              "subdivision": "plus"
+            }
+          }
+        }
+      ],
+      "avalancheProblems": [
+        {
+          "problemType": "wind_slab",
+          "comment": "Gli accumuli di neve ventata degli ultimi giorni sono in parte ancora instabili. Inoltre, isolate valanghe asciutte possono subire un distacco negli strati più profondi del manto nevoso soprattutto sui pendii molto ripidi esposti a nord ed est. Le valanghe possono raggiungere grandi dimensioni a livello isolato. Le escursioni sciistiche richiedono una prudente scelta dell'itinerario. <br/> Attualmente il servizio di previsione valanghe dispone di informazioni limitate dal territorio. Il pericolo di valanghe dovrebbe quindi essere valutato con particolare attenzione sul posto.",
+          "dangerRatingValue": "moderate",
+          "validTimePeriod": "all_day",
+          "elevation": {
+            "lowerBound": "2600"
+          },
+          "aspects": [
+            "N",
+            "NE",
+            "E",
+            "NW"
+          ],
+          "customData": {
+            "CH": {
+              "subdivision": "plus",
+              "coreZoneText": "Grado di pericolo \"moderato\" (2+) alle esposizioni da nord ovest a nord est sino a est al di sopra dei 2600m."
+            }
+          }
+        },
+        {
+          "problemType": "persistent_weak_layers",
+          "comment": "Gli accumuli di neve ventata degli ultimi giorni sono in parte ancora instabili. Inoltre, isolate valanghe asciutte possono subire un distacco negli strati più profondi del manto nevoso soprattutto sui pendii molto ripidi esposti a nord ed est. Le valanghe possono raggiungere grandi dimensioni a livello isolato. Le escursioni sciistiche richiedono una prudente scelta dell'itinerario. <br/> Attualmente il servizio di previsione valanghe dispone di informazioni limitate dal territorio. Il pericolo di valanghe dovrebbe quindi essere valutato con particolare attenzione sul posto.",
+          "dangerRatingValue": "moderate",
+          "validTimePeriod": "all_day",
+          "elevation": {
+            "lowerBound": "2600"
+          },
+          "aspects": [
+            "N",
+            "NE",
+            "E",
+            "NW"
+          ],
+          "customData": {
+            "CH": {
+              "subdivision": "plus",
+              "coreZoneText": "Grado di pericolo \"moderato\" (2+) alle esposizioni da nord ovest a nord est sino a est al di sopra dei 2600m."
+            }
+          }
+        }
+      ],
+      "customData": {
+        "CH": {
+          "aggregation": [
+            {
+              "category": "dry",
+              "validTimePeriod": "all_day",
+              "problemTypes": [
+                "wind_slab",
+                "persistent_weak_layers"
+              ]
+            }
+          ]
+        }
+      },
+      "publicationTime": "2026-05-17T15:00:00Z",
+      "weatherForecast": {
+        "comment": "<h1>Previsioni meteo fino a lunedì</h1><p>La notte sarà parzialmente serena nelle regioni orientali, altrove nuvolosa. In mattinata ci saranno ancora alcune schiarite soprattutto nelle regioni orientali, mentre altrove il cielo sarà spesso nuvoloso con locali rovesci, in particolare sul versante nordalpino. Il limite delle nevicate si collocherà intorno ai 1800 m.</p><h2 contenteditable=\"false\">Neve fresca</h2><p>Localmente pochi centimetri a carattere di rovescio, soprattutto nelle regioni settentrionali</p><h2>Temperatura</h2><p>Sul mezzogiorno a 2000 m compresa tra +1 °C nelle regioni settentrionali e +4 °C in quelle meridionali</p><h2>Vento</h2><p>Spesso debole, nelle regioni occidentali in quota a tratti moderato, proveniente da sud ovest</p>"
+      },
+      "weatherReview": {
+        "comment": "<h1>Retrospettiva meteo fino a domenica</h1><p>Dopo una notte stellata, il cielo è stato piuttosto soleggiato con alcune nubi cumuliformi</p><h2>Neve fresca</h2><p>-</p><h2 contenteditable=\"false\">Temperatura</h2><p>Sul mezzogiorno a 2000 m compresa tra -1 °C nelle regioni settentrionali e +4 °C in quelle meridionali</p><h2>Vento</h2><p>Durante la notte sulla cresta principale delle Alpi ancora spesso moderato, durante il giorno per lo più debole, proveniente da nord</p>"
+      },
+      "snowpackStructure": {
+        "comment": "<h1>Manto nevoso</h1><p>Soprattutto sui pendii ombreggiati situati in alta montagna, in alcuni punti la neve fresca e quella ventata degli ultimi giorni sono ancora instabili. Specialmente sui pendii esposti a nord e a est situati in quota, nel punto di passaggio verso il sottostante manto di neve vecchia sono ancora presenti in alcuni casi strati fragili a grani grossi.</p>"
+      },
+      "tendency": [
+        {
+          "comment": "<h1>Tendenza fino a mercoledì</h1><p>La notte fra lunedì e martedì sarà parzialmente nuvolosa nelle regioni orientali, dove al di sopra dei 1800 m cadrà ancora un po’ di neve. In mattinata ci saranno ancora nubi residue nelle regioni orientali, mentre altrove il tempo sarà inizialmente piuttosto soleggiato, poi la nuvolosità aumenterà a partire da ovest. Durante il pomeriggio nelle regioni occidentali saranno possibili rovesci, nevosi al di sopra dei 2200 m. La notte fra martedì e mercoledì sarà stellata nelle regioni meridionali, altrove spesso nuvolosa. Nella Svizzera centrale e orientale, al di sopra dei 2200 m circa cadranno fino ai 10 cm di neve. Nel corso della giornata il tempo nelle regioni orientali sarà nuvoloso con rovesci, in quelle occidentali variabile e in quelle meridionali piuttosto soleggiato. In entrambi i giorni il vento proveniente da ovest sarà per lo più debole martedì e a tratti moderato mercoledì. Martedì la soglia dello zero termico si collocherà attorno ai 2500 m, per poi salire mercoledì pomeriggio verso i 2800 m.</p><p>Il pericolo di valanghe asciutte diminuirà. Distacchi di valanghe asciutte potranno verificarsi soprattutto ancora sui pendii molto ripidi esposti a nord e a est d’alta montagna. Il pericolo di valanghe bagnate aumenterà leggermente nel corso di entrambe le giornate. Le escursioni dovranno terminare per tempo.</p>"
+        }
+      ]
+    },
+    {
+      "bulletinID": "04e4a7ea-229d-454c-9e59-76967701811e",
+      "lang": "it",
+      "validTime": {
+        "startTime": "2026-05-17T15:00:00Z",
+        "endTime": "2026-05-18T15:00:00Z"
+      },
+      "unscheduled": false,
+      "regions": [
+        {
+          "regionID": "CH-1311",
+          "name": "Vouvry"
+        },
+        {
+          "regionID": "CH-1312",
+          "name": "Monthey-Val d'Illiez"
+        },
+        {
+          "regionID": "CH-1225",
+          "name": "Iffigen"
+        },
+        {
+          "regionID": "CH-4114",
+          "name": "Conthey-Fully"
+        },
+        {
+          "regionID": "CH-1222",
+          "name": "Gstaad"
+        },
+        {
+          "regionID": "CH-1114",
+          "name": "Bex-Villars"
+        },
+        {
+          "regionID": "CH-1224",
+          "name": "Lenk"
+        },
+        {
+          "regionID": "CH-4111",
+          "name": "Emosson"
+        },
+        {
+          "regionID": "CH-2111",
+          "name": "Pilatus"
+        },
+        {
+          "regionID": "CH-2121",
+          "name": "Glaubenberg"
+        },
+        {
+          "regionID": "CH-2133",
+          "name": "Stoos"
+        },
+        {
+          "regionID": "CH-2124",
+          "name": "Gersau"
+        },
+        {
+          "regionID": "CH-1111",
+          "name": "Waadtländer Voralpen"
+        },
+        {
+          "regionID": "CH-1223",
+          "name": "Wildhorn"
+        },
+        {
+          "regionID": "CH-1228",
+          "name": "Obersimmental"
+        },
+        {
+          "regionID": "CH-3223",
+          "name": "Flumserberg"
+        },
+        {
+          "regionID": "CH-1241",
+          "name": "Brienz-Interlaken"
+        },
+        {
+          "regionID": "CH-1226",
+          "name": "Adelboden"
+        },
+        {
+          "regionID": "CH-1242",
+          "name": "Grindelwald"
+        },
+        {
+          "regionID": "CH-1113",
+          "name": "Aigle-Leysin"
+        },
+        {
+          "regionID": "CH-1112",
+          "name": "Pays d'Enhaut"
+        },
+        {
+          "regionID": "CH-1233",
+          "name": "Lauterbrunnen"
+        },
+        {
+          "regionID": "CH-3311",
+          "name": "Liechtenstein"
+        },
+        {
+          "regionID": "CH-1213",
+          "name": "Hohgant"
+        },
+        {
+          "regionID": "CH-3111",
+          "name": "Glarus Nord"
+        },
+        {
+          "regionID": "CH-2132",
+          "name": "Ybrig"
+        },
+        {
+          "regionID": "CH-1231",
+          "name": "Kandersteg"
+        },
+        {
+          "regionID": "CH-3222",
+          "name": "Alpstein - Alvier"
+        },
+        {
+          "regionID": "CH-2123",
+          "name": "Melchtal"
+        },
+        {
+          "regionID": "CH-1221",
+          "name": "Niedersimmental"
+        },
+        {
+          "regionID": "CH-1121",
+          "name": "Jaun"
+        },
+        {
+          "regionID": "CH-1244",
+          "name": "Hasliberg - Rosenlaui"
+        }
+      ],
+      "dangerRatings": [
+        {
+          "mainValue": "moderate",
+          "validTimePeriod": "all_day",
+          "customData": {
+            "CH": {
+              "subdivision": "neutral"
+            }
+          }
+        }
+      ],
+      "avalancheProblems": [
+        {
+          "problemType": "no_distinct_avalanche_problem",
+          "comment": "In alcuni punti, le valanghe asciutte possono subire un distacco negli strati superficiali del manto nevoso. I punti pericolosi si trovano soprattutto sui pendii molto ripidi esposti a nord ed est. Le valanghe possono raggiungere dimensioni medie. Si raccomanda una prudente scelta dell'itinerario. <br/> Attualmente il servizio di previsione valanghe dispone di informazioni limitate dal territorio. Il pericolo di valanghe dovrebbe quindi essere valutato con particolare attenzione sul posto.",
+          "dangerRatingValue": "moderate",
+          "validTimePeriod": "all_day",
+          "elevation": {
+            "lowerBound": "2200"
+          },
+          "aspects": [
+            "N",
+            "NE",
+            "E",
+            "NW"
+          ],
+          "customData": {
+            "CH": {
+              "subdivision": "neutral",
+              "coreZoneText": "Grado di pericolo \"moderato\" (2=) alle esposizioni da nord ovest a nord est sino a est al di sopra dei 2200m."
+            }
+          }
+        },
+        {
+          "problemType": "wet_snow",
+          "comment": "Con il rialzo termico e l'irradiazione solare diurni, sono previste colate umide. Queste ultime sono di dimensioni piuttosto piccole. Attenzione al pericolo di trascinamento e di caduta.",
+          "dangerRatingValue": "low",
+          "validTimePeriod": "all_day"
+        }
+      ],
+      "customData": {
+        "CH": {
+          "aggregation": [
+            {
+              "category": "dry",
+              "validTimePeriod": "all_day",
+              "problemTypes": [
+                "no_distinct_avalanche_problem"
+              ],
+              "title": "Valanghe asciutte"
+            },
+            {
+              "category": "wet",
+              "validTimePeriod": "all_day",
+              "problemTypes": [
+                "wet_snow"
+              ],
+              "title": "Valanghe di neve bagnata"
+            }
+          ]
+        }
+      },
+      "publicationTime": "2026-05-17T15:00:00Z",
+      "weatherForecast": {
+        "comment": "<h1>Previsioni meteo fino a lunedì</h1><p>La notte sarà parzialmente serena nelle regioni orientali, altrove nuvolosa. In mattinata ci saranno ancora alcune schiarite soprattutto nelle regioni orientali, mentre altrove il cielo sarà spesso nuvoloso con locali rovesci, in particolare sul versante nordalpino. Il limite delle nevicate si collocherà intorno ai 1800 m.</p><h2 contenteditable=\"false\">Neve fresca</h2><p>Localmente pochi centimetri a carattere di rovescio, soprattutto nelle regioni settentrionali</p><h2>Temperatura</h2><p>Sul mezzogiorno a 2000 m compresa tra +1 °C nelle regioni settentrionali e +4 °C in quelle meridionali</p><h2>Vento</h2><p>Spesso debole, nelle regioni occidentali in quota a tratti moderato, proveniente da sud ovest</p>"
+      },
+      "weatherReview": {
+        "comment": "<h1>Retrospettiva meteo fino a domenica</h1><p>Dopo una notte stellata, il cielo è stato piuttosto soleggiato con alcune nubi cumuliformi</p><h2>Neve fresca</h2><p>-</p><h2 contenteditable=\"false\">Temperatura</h2><p>Sul mezzogiorno a 2000 m compresa tra -1 °C nelle regioni settentrionali e +4 °C in quelle meridionali</p><h2>Vento</h2><p>Durante la notte sulla cresta principale delle Alpi ancora spesso moderato, durante il giorno per lo più debole, proveniente da nord</p>"
+      },
+      "snowpackStructure": {
+        "comment": "<h1>Manto nevoso</h1><p>Soprattutto sui pendii ombreggiati situati in alta montagna, in alcuni punti la neve fresca e quella ventata degli ultimi giorni sono ancora instabili. Specialmente sui pendii esposti a nord e a est situati in quota, nel punto di passaggio verso il sottostante manto di neve vecchia sono ancora presenti in alcuni casi strati fragili a grani grossi.</p>"
+      },
+      "tendency": [
+        {
+          "comment": "<h1>Tendenza fino a mercoledì</h1><p>La notte fra lunedì e martedì sarà parzialmente nuvolosa nelle regioni orientali, dove al di sopra dei 1800 m cadrà ancora un po’ di neve. In mattinata ci saranno ancora nubi residue nelle regioni orientali, mentre altrove il tempo sarà inizialmente piuttosto soleggiato, poi la nuvolosità aumenterà a partire da ovest. Durante il pomeriggio nelle regioni occidentali saranno possibili rovesci, nevosi al di sopra dei 2200 m. La notte fra martedì e mercoledì sarà stellata nelle regioni meridionali, altrove spesso nuvolosa. Nella Svizzera centrale e orientale, al di sopra dei 2200 m circa cadranno fino ai 10 cm di neve. Nel corso della giornata il tempo nelle regioni orientali sarà nuvoloso con rovesci, in quelle occidentali variabile e in quelle meridionali piuttosto soleggiato. In entrambi i giorni il vento proveniente da ovest sarà per lo più debole martedì e a tratti moderato mercoledì. Martedì la soglia dello zero termico si collocherà attorno ai 2500 m, per poi salire mercoledì pomeriggio verso i 2800 m.</p><p>Il pericolo di valanghe asciutte diminuirà. Distacchi di valanghe asciutte potranno verificarsi soprattutto ancora sui pendii molto ripidi esposti a nord e a est d’alta montagna. Il pericolo di valanghe bagnate aumenterà leggermente nel corso di entrambe le giornate. Le escursioni dovranno terminare per tempo.</p>"
+        }
+      ]
+    }
+  ]
+}

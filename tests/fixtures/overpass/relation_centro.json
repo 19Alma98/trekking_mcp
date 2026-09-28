@@ -1,0 +1,36 @@
+{
+  "elements": [
+    {
+      "type": "relation",
+      "id": 6207363,
+      "center": {
+        "lat": 45.5708421,
+        "lon": 7.836457
+      },
+      "tags": {
+        "ascent": "1089",
+        "cai_scale": "E",
+        "descent": "12",
+        "distance": "5.7",
+        "duration:backward": "01:00",
+        "duration:forward": "03:00",
+        "from": "Torre Daniele",
+        "network": "lwn",
+        "note:project_page": "https://wiki.openstreetmap.org/wiki/Piemonte/Sentieri",
+        "osmc:symbol": "red:red:white_stripe:854:black",
+        "ref": "854",
+        "ref:REI": "ETON8540",
+        "reg_ref": "ETON8540000",
+        "roundtrip": "no",
+        "route": "hiking",
+        "rwn:name": "Rete Patrimonio Escursionistico Piemonte (RPE)",
+        "source": "survey:CAI",
+        "survey:date": "2012-06-01",
+        "symbol": "854 on white red flag",
+        "symbol:it": "854 su segnavia bianco e rosso",
+        "to": "Trovinasse",
+        "type": "route"
+      }
+    }
+  ]
+}

@@ -770,12 +770,11 @@ Tre famiglie:
   del capofila, e il tetto in byte della cache (§3.30, §3.31). Richiede una rotta
   che risponde a comando: con una risposta immediata non c'e' nessuna finestra di
   sovrapposizione da misurare.
+- `test_fixture_reali.py` — parsing su JSON CAAML/Overpass catturati in
+  `tests/fixtures/` (slice offline; ri-cattura con `scripts/cattura_fixture.py`).
 
 I test di contratto sono quelli che valgono di piu' nel tempo: proteggono
 l'interfaccia verso i client MCP, che e' la cosa che si rompe silenziosamente.
-
-Cosa **non** e' coperto e andrebbe aggiunto: test su risposte CAAML reali
-salvate come fixture (vedi roadmap).
 
 ---
 
@@ -844,30 +843,7 @@ aggiunto alla fine.
 
 ## 7. Roadmap
 
-### Fase 1 — completamento (fatto)
-- [x] Tre primitivi: tool, resource (incluse template), prompt
-- [x] Structured output da modelli Pydantic
-- [x] Elicitation via resolver DI
-- [x] Doppio transport da un solo `crea_server()`
-- [x] Cache TTL, retry con backoff, errori tipizzati
-- [x] Client MCP minimale
-- [x] Test di contratto in CI
-- [x] Completamento degli argomenti (`completion/complete`)
-- [x] Test end-to-end del giro di elicitation, con client in-process
-
-### Fase 2 — utilita' reale (fatto)
-- [x] **Lookup zona valanghe da coordinate.** I poligoni delle micro-regioni
-      EAWS sono pubblicati come GeoJSON. Togliere all'utente l'onere di
-      conoscere l'ID e' il singolo miglioramento con piu' impatto.
-- [x] **Dislivello reale.** Query Overpass `out geom` piu' un modello di
-      elevazione, con caching aggressivo: il dislivello conta piu' della
-      lunghezza per capire l'impegno di una gita.
-- [ ] **Fixture da risposte reali.** Salvare risposte CAAML e Overpass vere
-      (anonimizzate) come fixture, per testare il parsing contro la realta' e
-      non contro quello che credo sia la realta'.
-- [x] Ricerca per toponimo via Nominatim, con rispetto della usage policy.
-
-### Fase 3 — deploy
+### Fase — deploy
 - [x] Metriche: latenza per fonte, hit rate della cache, rate limit incontrati
 - [x] Validazione di `Host`/`Origin` sul transport HTTP, obbligatoria fuori da
       localhost
