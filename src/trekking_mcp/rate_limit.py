@@ -90,8 +90,7 @@ def metodo_da_limitare(method: str, params: dict[str, Any] | None) -> bool:
 def _risultato_tool_limitato(attesa_s: float) -> dict[str, Any]:
     secondi = max(1, int(attesa_s + 0.999))
     messaggio = (
-        f"Troppe richieste da questo indirizzo. Riprova tra circa {secondi} secondi "
-        f"(limite per IP sul transport HTTP)."
+        f"Troppe richieste da questo indirizzo. Riprova tra circa {secondi} secondi (limite per IP sul transport HTTP)."
     )
     esito = CallToolResult(content=[TextContent(type="text", text=messaggio)], is_error=True)
     return esito.model_dump(by_alias=True, mode="json", exclude_none=True)
