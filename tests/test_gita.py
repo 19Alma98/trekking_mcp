@@ -6,7 +6,7 @@ from mcp import Client
 from mcp.client.session import ClientRequestContext
 from mcp.types import ElicitRequestParams, ElicitResult
 
-from trekking_mcp.models import Bollettino, DifficoltaCAI
+from trekking_mcp.models import Bollettino, DifficoltaCAI, ProfiloAltimetrico
 from trekking_mcp.server import crea_server
 from trekking_mcp.tools.gita import ProfiloUscita, _segnali
 
@@ -168,3 +168,51 @@ def test_un_bollettino_senza_grado_leggibile_produce_un_segnale():
     assert valanghe, "un bollettino illeggibile deve dirlo"
     assert "non riporta un grado" in valanghe[0].messaggio
     assert valanghe[0].severita == "attenzione"
+
+
+def test_lunghezza_km_assente_produce_un_segnale_dati():
+    profilo = ProfiloUscita(difficolta_max="E", attrezzatura_artva=True, persone=2)
+
+    segnali = _segnali(DifficoltaCAI.E, profilo, None, [], lunghezza_km=None)
+
+    dati = [s for s in segnali if s.categoria == "dati" and "lunghezza" in s.messaggio.lower()]
+    assert dati, "lunghezza OSM assente deve diventare un segnale"
+    assert dati[0].severita == "info"
+
+
+def test_con_profilo_altimetrico_non_segnala_lunghezza_assente():
+    profilo = ProfiloUscita(difficolta_max="E", attrezzatura_artva=True, persone=2)
+    profilo_alt = ProfiloAltimetrico(
+        lunghezza_km=8.2,
+        dislivello_positivo_m=600,
+        dislivello_negativo_m=580,
+    )
+
+    segnali = _segnali(
+        DifficoltaCAI.E,
+        profilo,
+        None,
+        [],
+        profilo_alt,
+        lunghezza_km=None,
+    )
+
+    assert not any(s.categoria == "dati" and "lunghezza" in s.messaggio.lower() for s in segnali)
+
+
+def test_difficolta_sconosciuta_cita_la_visibilita_se_c_e():
+    profilo = ProfiloUscita(difficolta_max="E", attrezzatura_artva=True, persone=2)
+
+    segnali = _segnali(
+        DifficoltaCAI.SCONOSCIUTA,
+        profilo,
+        None,
+        [],
+        lunghezza_km=5.0,
+        visibilita="bad",
+    )
+
+    difficolta = [s for s in segnali if s.categoria == "difficolta"]
+    assert difficolta
+    assert "visibilit" in difficolta[0].messaggio.lower()
+    assert "bad" in difficolta[0].messaggio

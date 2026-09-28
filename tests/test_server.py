@@ -97,9 +97,41 @@ async def test_le_istruzioni_preferiscono_sentieri_verso_localita(mcp):
     assert "sentieri_verso_localita" in mcp.instructions
 
 
+async def test_le_istruzioni_sconsigliano_il_fan_out_overpass(mcp):
+    testo = (mcp.instructions or "").lower()
+    assert "overpass" in testo
+    assert "parallelo" in testo or "una alla volta" in testo
+
+
+async def test_le_istruzioni_spiegano_i_campi_osm_incompleti(mcp):
+    testo = (mcp.instructions or "").lower()
+    assert "sconosciuta" in testo
+    assert "lunghezza_km" in testo or "lunghezza" in testo
+
+
 async def test_le_istruzioni_indirizzano_ai_tool_di_lookup(mcp):
     assert "zona_valanghe_da_coordinate" in mcp.instructions
     assert "cerca_localita" in mcp.instructions
+
+
+async def test_cerca_sentieri_description_sconsiglia_il_parallelo_overpass(mcp):
+    tool = next(t for t in await mcp.list_tools() if t.name == "cerca_sentieri")
+    testo = (tool.description or "").lower()
+    assert "overpass" in testo
+    assert "parallelo" in testo
+
+
+async def test_cerca_sentieri_description_spiega_osm_incompleto(mcp):
+    tool = next(t for t in await mcp.list_tools() if t.name == "cerca_sentieri")
+    testo = (tool.description or "").lower()
+    assert "sconosciuta" in testo
+    assert "lunghezza" in testo
+
+
+async def test_prepara_gita_preferisce_sentieri_verso_localita(mcp):
+    risultato = await mcp.get_prompt("prepara_gita", {"sentiero": "103", "data": "2026-02-01"})
+    testo = " ".join(str(m.content) for m in risultato.messages)
+    assert "sentieri_verso_localita" in testo
 
 
 async def test_dettaglio_sentiero_description_sconsiglia_ridondanza(mcp):

@@ -42,8 +42,14 @@ Regole d'uso:
   (con coordinate di A in vicino_a_*), poi eventualmente `valuta_gita` o
   `profilo_altimetrico` sul ref scelto. Evita catene lunghe di cerca + dettaglio
   + profili in esplorazione.
+- Tool Overpass (`cerca_sentieri`, `dettaglio_sentiero`, `cerca_ricoveri`,
+  `profilo_altimetrico`, `sentieri_verso_localita`, `valuta_gita`; anche
+  `cerca_localita` se lat/lon sono impostati): chiamali uno alla volta, non in
+  parallelo — le query si accodano e la latenza si somma. Preferisci i compositi.
+  Puoi parallelizzare solo fonti non-OSM (meteo, zona valanghe, bollettino).
 - La copertura OSM non e' uniforme: l'assenza di un sentiero non significa che
-  non esista, e una difficolta' mancante non significa che sia facile.
+  non esista; difficolta' `sconosciuta` e `lunghezza_km` null non significano
+  facile o corto (tag assenti, non valori rassicuranti).
 """
 
 

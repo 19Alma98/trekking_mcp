@@ -47,8 +47,9 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
             "Converte un toponimo in coordinate: nomi di rifugi, cime, valichi, paesi e "
             "frazioni. Punto di partenza naturale quando l'utente nomina un posto invece "
             "di fornire coordinate. Con lat/lon opzionali filtra per raggio (default 30 km) "
-            "e, se serve, chiede disambiguazione tra nomi simili; senza contesto usa "
-            "Nominatim come prima."
+            "e, se serve, chiede disambiguazione tra nomi simili (in quel caso puo' usare "
+            "anche Overpass: non chiamarla in parallelo con altri tool OSM); senza "
+            "contesto usa Nominatim come prima."
         ),
     )
     async def cerca_localita(
@@ -103,7 +104,8 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
             "Calcola lunghezza reale e dislivello positivo e negativo di un sentiero, "
             "campionando la quota lungo il tracciato. Usalo solo dopo una ricerca o un "
             "dettaglio sentiero quando serve il dislivello; non in esplorazione. "
-            "Piu' lento perche' scarica la geometria completa."
+            "Piu' lento perche' scarica la geometria completa. "
+            "Query Overpass: non chiamare in parallelo con altri tool OSM."
         ),
     )
     async def profilo_altimetrico(

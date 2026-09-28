@@ -80,6 +80,9 @@ def _segnali(
     bollettino: Bollettino | None,
     previsioni: list[MeteoQuota],
     profilo_alt: ProfiloAltimetrico | None = None,
+    *,
+    lunghezza_km: float | None = None,
+    visibilita: str | None = None,
 ) -> list[SegnaleAttenzione]:
     """Genera segnali di attenzione da regole esplicite e verificabili.
 
@@ -92,11 +95,16 @@ def _segnali(
     grado: GradoPericolo | None = None
 
     if difficolta == DifficoltaCAI.SCONOSCIUTA:
+        messaggio = (
+            "Difficolta' non mappata in OSM: verificare su una guida o carta prima di partire."
+        )
+        if visibilita:
+            messaggio += f" Visibilita' traccia OSM (`trail_visibility`): {visibilita}."
         segnali.append(
             SegnaleAttenzione(
                 categoria="difficolta",
                 severita="info",
-                messaggio="Difficolta' non mappata in OSM: verificare su una guida o carta prima di partire.",
+                messaggio=messaggio,
             )
         )
     elif difficolta in ordine and ordine.index(difficolta) > ordine.index(DifficoltaCAI(profilo.difficolta_max)):
@@ -107,6 +115,19 @@ def _segnali(
                 messaggio=(
                     f"Il sentiero e' classificato {difficolta.value}, "
                     f"sopra il livello dichiarato ({profilo.difficolta_max})."
+                ),
+            )
+        )
+
+    if lunghezza_km is None and profilo_alt is None:
+        segnali.append(
+            SegnaleAttenzione(
+                categoria="dati",
+                severita="info",
+                messaggio=(
+                    "Lunghezza non presente nei tag OSM: non dedurre che il percorso sia "
+                    "corto. Se servono km reali, usa profilo_altimetrico o "
+                    "valuta_gita(con_profilo=true)."
                 ),
             )
         )
@@ -185,7 +206,8 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
             "Dato un sentiero e una data, raccoglie in un colpo solo: dati del sentiero, "
             "rifugi e bivacchi vicini, bollettino valanghe della zona e meteo di quota. "
             "Restituisce fatti normalizzati e segnali di attenzione, NON un verdetto "
-            "vai/non-vai: la decisione resta a chi va in montagna."
+            "vai/non-vai: la decisione resta a chi va in montagna. "
+            "Query Overpass: non chiamare in parallelo con altri tool OSM."
         ),
     )
     async def valuta_gita(
@@ -330,7 +352,15 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
                 data=giorno,
             )
 
-        segnali = _segnali(sentiero.difficolta_cai, profilo, bollettino, previsioni, sentiero.profilo)
+        segnali = _segnali(
+            sentiero.difficolta_cai,
+            profilo,
+            bollettino,
+            previsioni,
+            sentiero.profilo,
+            lunghezza_km=sentiero.lunghezza_km,
+            visibilita=sentiero.visibilita,
+        )
         segnali.extend(buchi)
         if zona_valanghe and bollettino is None:
             segnali.append(

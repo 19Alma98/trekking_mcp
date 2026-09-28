@@ -6,7 +6,9 @@ from trekking_mcp.models import (
     Bollettino,
     DifficoltaCAI,
     GradoPericolo,
+    Ricovero,
     SacScale,
+    Sentiero,
     TipoRicovero,
 )
 from trekking_mcp.sources.overpass import ricovero_da_element, sentiero_da_relation
@@ -46,6 +48,24 @@ def test_relation_minima():
     assert s.ref is None
     assert s.difficolta_cai is DifficoltaCAI.SCONOSCIUTA
     assert s.centro is None
+
+
+def test_lo_schema_di_sentiero_spiega_i_campi_osm_incompleti():
+    props = Sentiero.model_json_schema()["properties"]
+    assert "sconosciuta" in props["difficolta_cai"]["description"].lower()
+    assert "facile" in props["difficolta_cai"]["description"].lower()
+    assert "null" in props["lunghezza_km"]["description"].lower() or "assente" in props["lunghezza_km"][
+        "description"
+    ].lower()
+    assert "non mappato" in props["sac_scale"]["description"].lower() or "assente" in props["sac_scale"][
+        "description"
+    ].lower()
+
+
+def test_lo_schema_di_ricovero_spiega_i_contatti_opzionali():
+    props = Ricovero.model_json_schema()["properties"]
+    for campo in ("posti_letto", "telefono", "sito_web"):
+        assert "osm" in props[campo]["description"].lower() or "mappatura" in props[campo]["description"].lower()
 
 
 def test_sac_scale_ignoto_non_rompe():

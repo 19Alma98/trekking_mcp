@@ -22,8 +22,10 @@ def registra(mcp: MCPServer) -> None:
 {zona}
 
 Procedi in quest'ordine:
-1. Individua il sentiero con `cerca_sentieri` e conferma di aver preso quello giusto
-   (numero, punto di partenza e arrivo). Se ci sono piu' candidati, chiedi conferma.
+1. Individua il sentiero: preferisci `sentieri_verso_localita` se parti da un
+   toponimo; usa `cerca_sentieri` solo se hai gia' le coordinate. Conferma di
+   aver preso quello giusto (numero, punto di partenza e arrivo). Se ci sono
+   piu' candidati, chiedi conferma. Non chiamare tool Overpass in parallelo.
 2. Leggi la resource `scala://difficolta-escursionistica` prima di commentare la
    difficolta', per non confondere la scala CAI con il tag OSM.
 3. Usa `valuta_gita` per raccogliere ricoveri, bollettino e meteo.

@@ -53,10 +53,25 @@ class Sentiero(BaseModel):
     a: str | None = Field(default=None, description="Punto di arrivo (tag `to`)")
     operatore: str | None = Field(default=None, description="Es. 'CAI Torino'")
     rete: str | None = Field(default=None, description="Tag `network`: lwn/rwn/nwn/iwn")
-    sac_scale: SacScale | None = None
-    difficolta_cai: DifficoltaCAI = DifficoltaCAI.SCONOSCIUTA
+    sac_scale: SacScale | None = Field(
+        default=None,
+        description="Tag OSM sac_scale; null = non mappato (assente o fuori standard)",
+    )
+    difficolta_cai: DifficoltaCAI = Field(
+        default=DifficoltaCAI.SCONOSCIUTA,
+        description=(
+            "Scala CAI derivata da sac_scale. `sconosciuta` = tag OSM assente o non mappato; "
+            "non implica che il sentiero sia facile"
+        ),
+    )
     visibilita: str | None = Field(default=None, description="Tag `trail_visibility`")
-    lunghezza_km: float | None = None
+    lunghezza_km: float | None = Field(
+        default=None,
+        description=(
+            "Da tag OSM `distance`; null = tag assente, non lunghezza 0. "
+            "Per km reali usa profilo_altimetrico o valuta_gita(con_profilo=true)"
+        ),
+    )
     centro: Coord | None = Field(default=None, description="Centroide approssimato")
     distanza_km: float | None = Field(
         default=None,
@@ -134,9 +149,18 @@ class Ricovero(BaseModel):
     tipo: TipoRicovero
     quota_m: int | None = None
     coord: Coord
-    posti_letto: int | None = None
-    telefono: str | None = None
-    sito_web: str | None = None
+    posti_letto: int | None = Field(
+        default=None,
+        description="Posti letto da OSM; null se la mappatura non li riporta",
+    )
+    telefono: str | None = Field(
+        default=None,
+        description="Telefono da OSM; null se assente nella mappatura",
+    )
+    sito_web: str | None = Field(
+        default=None,
+        description="Sito web da OSM; null se assente nella mappatura",
+    )
     osm_url: str
 
 

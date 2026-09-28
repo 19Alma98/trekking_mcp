@@ -104,7 +104,10 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
             "o attorno a un punto. Default raggio 5 km (alzabile fino a 50). "
             "Usa `testo` per filtrare name/from/to/description (es. 'Mucrone'). "
             "Il numero del sentiero va in `ref` (es. '103'). "
-            "Fonte: relation OSM route=hiking."
+            "Fonte: relation OSM route=hiking. "
+            "`difficolta_cai=sconosciuta` e `lunghezza_km` null sono normali (tag assenti): "
+            "non interpretarli come facile o corto. "
+            "Query Overpass: non chiamare in parallelo con altri tool OSM."
         ),
     )
     async def cerca_sentieri(
@@ -149,7 +152,10 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
         description=(
             "Restituisce i dati di un sentiero dato l'ID della relation OSM. "
             "Necessario solo se non hai gia' i campi da cerca_sentieri: non richiama "
-            "dati diversi dalla search sui tag."
+            "dati diversi dalla search sui tag. "
+            "`difficolta_cai=sconosciuta` e `lunghezza_km` null sono normali (tag assenti): "
+            "non interpretarli come facile o corto. "
+            "Query Overpass: non chiamare in parallelo con altri tool OSM."
         ),
     )
     async def dettaglio_sentiero(
@@ -163,7 +169,8 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
         title="Cerca rifugi e bivacchi",
         description=(
             "Cerca rifugi gestiti, bivacchi e ripari entro un raggio da un punto. "
-            "I dati su posti letto e contatti dipendono dalla mappatura OSM e possono mancare."
+            "I dati su posti letto e contatti dipendono dalla mappatura OSM e possono mancare. "
+            "Query Overpass: non chiamare in parallelo con altri tool OSM."
         ),
     )
     async def cerca_ricoveri(
@@ -182,7 +189,10 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
             "geocoding + ricerca sentieri (e rifugi) in una sola chiamata. "
             "Con vicino_a_lat/lon usa raggio_geocode_km (default 30) per il geocoding; "
             "raggio_km (default 5) vale solo per sentieri e ricoveri. "
-            "Preferisci questo a una catena di cerca_localita + cerca_sentieri."
+            "Preferisci questo a una catena di cerca_localita + cerca_sentieri. "
+            "`difficolta_cai=sconosciuta` e `lunghezza_km` null sono normali (tag assenti): "
+            "non interpretarli come facile o corto. "
+            "Query Overpass: non chiamare in parallelo con altri tool OSM."
         ),
     )
     async def sentieri_verso_localita(

@@ -710,6 +710,20 @@ HTTP resta anonimo; `RateLimitInbound` applica un token bucket per
 (nessun `ctx.request`) non si applica. I contatori vanno in
 `metriche.rate_limit_inbound`, esposti da `metriche://fonti`.
 
+### 3.36 Anti fan-out Overpass: guidance, non rifiuto
+
+Il semaforo (`OVERPASS_CONCURRENCY=1`) serializza gia' le query: un agente che
+lancia tre tool OSM in parallelo non saturera' Overpass, ma **accodera'** le
+chiamate e sommara' la latenza. La difesa aggiuntiva e' intenzionalmente solo
+testo: `instructions`, descrizioni dei tool Overpass e il prompt `prepara_gita`
+dicono di chiamarli uno alla volta e di preferire i compositi. Non si rifiuta
+una chiamata perche' un'altra e' in volo — sarebbe fragile fra client e poco
+leggibile. Parallelizzare meteo / zona valanghe / bollettino resta lecito.
+
+I campi OSM incompleti (`difficolta_cai=sconosciuta`, `lunghezza_km` null) sono
+documentati nello `outputSchema` e, in `valuta_gita`, diventano `SegnaleAttenzione`
+quando l'assenza si presterebbe a un'interpretazione rassicurante.
+
 ---
 
 ## 4. Testing

@@ -17,18 +17,6 @@ Report dettagliato: canvas `report-mcp-sessione-torino` nel progetto Cursor.
 
 ---
 
-## P2 — operabilità e uso agentico
-
-- [ ] **Guidance agent: evitare fan-out parallelo su tool Overpass**
-  - Le instructions del server aiutano; in sessione Cursor ha comunque chiamato 3 tool Overpass insieme
-  - Serializzazione server-side già presente (semaforo); resta il pezzo instructions
-
-- [ ] **UX dati OSM incompleti**
-  - `difficolta_cai=sconosciuta` e `lunghezza_km` spesso null non sono bug di codice
-  - Messaging chiaro + eventuali fallback (non solo campi vuoti)
-
----
-
 ## Futuro — dati OSM senza Overpass a runtime
 
 - [ ] **Estratto OSM (Geofabrik) → PostGIS (o SQLite+SpatiaLite)**
