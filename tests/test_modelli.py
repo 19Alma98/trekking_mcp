@@ -54,12 +54,14 @@ def test_lo_schema_di_sentiero_spiega_i_campi_osm_incompleti():
     props = Sentiero.model_json_schema()["properties"]
     assert "sconosciuta" in props["difficolta_cai"]["description"].lower()
     assert "facile" in props["difficolta_cai"]["description"].lower()
-    assert "null" in props["lunghezza_km"]["description"].lower() or "assente" in props["lunghezza_km"][
-        "description"
-    ].lower()
-    assert "non mappato" in props["sac_scale"]["description"].lower() or "assente" in props["sac_scale"][
-        "description"
-    ].lower()
+    assert (
+        "null" in props["lunghezza_km"]["description"].lower()
+        or "assente" in props["lunghezza_km"]["description"].lower()
+    )
+    assert (
+        "non mappato" in props["sac_scale"]["description"].lower()
+        or "assente" in props["sac_scale"]["description"].lower()
+    )
 
 
 def test_lo_schema_di_ricovero_spiega_i_contatti_opzionali():

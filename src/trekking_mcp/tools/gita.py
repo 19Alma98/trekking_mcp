@@ -95,9 +95,7 @@ def _segnali(
     grado: GradoPericolo | None = None
 
     if difficolta == DifficoltaCAI.SCONOSCIUTA:
-        messaggio = (
-            "Difficolta' non mappata in OSM: verificare su una guida o carta prima di partire."
-        )
+        messaggio = "Difficolta' non mappata in OSM: verificare su una guida o carta prima di partire."
         if visibilita:
             messaggio += f" Visibilita' traccia OSM (`trail_visibility`): {visibilita}."
         segnali.append(
