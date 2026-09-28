@@ -6,6 +6,8 @@ from contextlib import asynccontextmanager
 
 from mcp.server.mcpserver import MCPServer, RequestStateSecurity
 from mcp_types import Icon
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from trekking_mcp import __version__, completamenti, prompts, resources
 from trekking_mcp.cache import CACHE_HINTS, FreschezzaPerResource
@@ -101,5 +103,9 @@ def crea_server(config: Config | None = None, *, risorse: Risorse | None = None)
     resources.registra(mcp, risorse)
     prompts.registra(mcp)
     completamenti.registra(mcp, risorse)
+
+    @mcp.custom_route("/health", methods=["GET"])  # type: ignore[untyped-decorator]
+    async def health(_request: Request) -> JSONResponse:
+        return JSONResponse({"status": "ok", "version": __version__})
 
     return mcp

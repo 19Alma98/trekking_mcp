@@ -1,6 +1,10 @@
 # trekking-mcp
 
+[![CI](https://github.com/19Alma98/trekking_mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/19Alma98/trekking_mcp/actions/workflows/ci.yml)
+
 *[English](README.en.md)*
+
+![Demo: ispezione del server MCP](docs/demo.gif)
 
 Server [Model Context Protocol](https://modelcontextprotocol.io) (revisione
 della spec `2026-07-28`, SDK Python `mcp` 2.x) per l'escursionismo sulle Alpi e sugli Appennini italiani: sentieri numerati, rifugi e bivacchi, bollettini valanghe e meteo di quota, esposti a un assistente AI come tool, resource e prompt.
@@ -76,6 +80,19 @@ Su HTTP l'accesso resta **aperto** (nessuna API key obbligatoria): un tetto per
 IP (`HTTP_RATE_LIMIT_RPM` / `HTTP_RATE_LIMIT_BURST`) limita `tools/call` e la
 lettura dei bollettini. Su stdio il limite non si applica. Vedi
 [DEVELOPMENT.md](DEVELOPMENT.md) §3.35.
+
+## Docker
+
+```bash
+docker build -t trekking-mcp .
+docker run --rm -p 8000:8000 trekking-mcp
+# health: curl -s localhost:8000/health
+# MCP:   http://localhost:8000/mcp
+```
+
+L'immagine ascolta su `0.0.0.0:8000` con `--allow-host` per `localhost` e
+`127.0.0.1`. Per un dominio pubblico passa gli argomenti dopo l'immagine, ad es.
+`docker run --rm -p 8000:8000 trekking-mcp trekking-mcp --transport http --host 0.0.0.0 --port 8000 --allow-host 'trekking.example.org:*'`.
 
 ## Tool disponibili
 

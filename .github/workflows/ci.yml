@@ -48,3 +48,29 @@ jobs:
         env:
           HTTP_PROXY: http://127.0.0.1:9
           HTTPS_PROXY: http://127.0.0.1:9
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build immagine
+        run: docker build -t trekking-mcp:ci .
+
+      - name: Avvia e verifica /health
+        run: |
+          docker run -d --name tm -p 8000:8000 trekking-mcp:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health; then
+              echo
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "health non ha risposto entro 30s" >&2
+          docker logs tm >&2 || true
+          exit 1
+
+      - name: Ferma il container
+        if: always()
+        run: docker rm -f tm

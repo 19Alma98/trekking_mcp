@@ -1,6 +1,10 @@
 # trekking-mcp
 
+[![CI](https://github.com/19Alma98/trekking_mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/19Alma98/trekking_mcp/actions/workflows/ci.yml)
+
 *[Italiano](README.md)*
+
+![Demo: inspecting the MCP server](docs/demo.gif)
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server (spec revision
 `2026-07-28`, Python `mcp` SDK 2.x) for hiking in the Italian Alps and Apennines:
@@ -92,6 +96,19 @@ HTTP access stays **open** (no required API key): a per-IP cap
 (`HTTP_RATE_LIMIT_RPM` / `HTTP_RATE_LIMIT_BURST`) limits `tools/call` and
 bulletin reads. It does not apply on stdio. See [DEVELOPMENT.md](DEVELOPMENT.md)
 §3.35.
+
+## Docker
+
+```bash
+docker build -t trekking-mcp .
+docker run --rm -p 8000:8000 trekking-mcp
+# health: curl -s localhost:8000/health
+# MCP:   http://localhost:8000/mcp
+```
+
+The image listens on `0.0.0.0:8000` with `--allow-host` for `localhost` and
+`127.0.0.1`. For a public hostname, pass arguments after the image, e.g.
+`docker run --rm -p 8000:8000 trekking-mcp trekking-mcp --transport http --host 0.0.0.0 --port 8000 --allow-host 'trekking.example.org:*'`.
 
 ## Tools
 

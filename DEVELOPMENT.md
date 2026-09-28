@@ -393,6 +393,10 @@ metrica.
 `hit_rate` e' `None`, non `0.0`, per le fonti che non usano la cache: zero
 direbbe "cache inefficace", che e' un'altra cosa da "cache non prevista".
 
+`GET /health` (via `custom_route`) e' un'altra cosa: solo liveness per
+orchestratori HTTP (Docker `HEALTHCHECK`, probe K8s). Non misura le fonti e non
+sostituisce `metriche://fonti`. Su stdio l'endpoint non esiste, ed e' corretto.
+
 ### 3.19.1 L'indice EAWS si carica sotto lock
 
 `IndiceRegioni` e' pigro: il primo `cerca` scarica gli otto territori. Il
@@ -844,14 +848,7 @@ aggiunto alla fine.
 ## 7. Roadmap
 
 ### Fase — deploy
-- [x] Metriche: latenza per fonte, hit rate della cache, rate limit incontrati
-- [x] Validazione di `Host`/`Origin` sul transport HTTP, obbligatoria fuori da
-      localhost
-- [x] Rate-limit inbound per IP su HTTP (§3.35): rilascio aperto senza client_id
-- [x] Warning se bind pubblico con `OVERPASS_URL` ancora su overpass-api.de;
-      docs su mirror dedicato via env (self-host Overpass resta ops fuori repo)
 - [ ] OAuth / API key opzionali sul transport HTTP (quando serviranno client noti)
-- [ ] Immagine Docker e healthcheck
 - ~~Cache su Redis~~ — **non si fa**, per scelta: vedi §5.1
 - ~~Mirror Overpass nel codice~~ — **non si fa** oltre a `OVERPASS_URL` + warning;
       vedi §3.35
@@ -874,16 +871,3 @@ scraping di siti che non espongono dati aperti.
 - Commit convenzionali (`feat:`, `fix:`, `docs:`, `test:`).
 
 ---
-
-## 9. Da fare prima di pubblicare
-
-- [x] URL del repo in `pyproject.toml`, `README.md` e `config.py`
-      (l'User-Agent contiene l'URL del repo: e' richiesto dalla usage policy di
-      Overpass, non e' decorativo)
-- [x] Mettere il proprio nome in `authors`
-- [x] Aggiungere il file `LICENSE` (MIT, coerente con `pyproject.toml`)
-- [ ] Registrare una GIF o un asciinema di 20 secondi con un client che usa il
-      server, e metterla in cima al README: vale piu' di tre paragrafi
-- [ ] Verificare che la CI sia verde e aggiungere il badge
-- [x] Controllare la revisione corrente della spec MCP e dichiararla nel README
-      (2026-07-28, `LATEST_PROTOCOL_VERSION` dell'SDK 2.2)
