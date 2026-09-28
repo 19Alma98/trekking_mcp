@@ -8,7 +8,7 @@ SRC = Path(__file__).resolve().parent.parent / "src" / "trekking_mcp"
 LIVELLI = [
     {"payloads", "errors", "config", "constants", "geo", "metriche"},  # fondamenta: nessuna dipendenza interna
     {"models"},  # il contratto dati verso il client
-    {"cache", "sources"},  # gli adapter delle fonti
+    {"cache", "rate_limit", "sources"},  # gli adapter delle fonti + middleware di protocollo
     {"tools", "resources", "prompts", "completamenti", "risorse"},  # la superficie MCP
     {"server", "__main__"},  # il montaggio
 ]

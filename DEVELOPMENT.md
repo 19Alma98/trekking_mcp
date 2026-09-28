@@ -56,6 +56,7 @@ src/trekking_mcp/
 │
 │  livello 2 — gli adapter delle fonti
 ├── cache.py             # ttlMs/cacheScope: la freschezza dichiarata al client
+├── rate_limit.py        # tetto inbound per IP sul transport HTTP (aperto al rilascio)
 ├── sources/             # un adapter per fonte esterna
 │   ├── http.py          # client condiviso: retry, backoff, cache TTL, coalescing
 │   ├── overpass.py      # OpenStreetMap: query QL, escaping, tag -> modelli
@@ -364,8 +365,9 @@ browser della vittima un server che crede di essere privato.
 all'avvio e' l'unico momento in cui qualcuno legge il messaggio; un warning nel
 log verrebbe ignorato.
 
-Non sostituisce l'autenticazione, che resta in roadmap: `Host`/`Origin` dicono
-da dove arriva la richiesta, non chi la manda.
+Non sostituisce l'autenticazione. `Host`/`Origin` dicono da dove arriva la
+richiesta, non chi la manda. Al primo rilascio l'accesso resta aperto e il
+tetto e' per IP (§3.35); OAuth/API key arrivano quando serviranno client noti.
 
 ### 3.19 Le metriche come resource, non come endpoint
 
@@ -701,6 +703,13 @@ Una query sola e' migliore o uguale in ogni caso. E' il tipo di ottimizzazione c
 sembra prudente e costa il doppio: vale come promemoria a non fidarsi di un
 pre-controllo senza misurare cosa evita davvero.
 
+### 3.35 Accesso HTTP aperto, con tetto per IP
+
+HTTP resta anonimo; `RateLimitInbound` applica un token bucket per
+`anon:{ip}` su `tools/call` e su `resources/read` di `bollettino://`. Su stdio
+(nessun `ctx.request`) non si applica. I contatori vanno in
+`metriche.rate_limit_inbound`, esposti da `metriche://fonti`.
+
 ---
 
 ## 4. Testing
@@ -721,7 +730,8 @@ Tre famiglie:
   che nessun tool si registri scavalcando `extended_tool()`.
 - `test_elicitation.py` — cosa arriva davvero al client quando il server fa una
   domanda: gli enum nello schema, e i due elenchi agganciati alla loro fonte.
-- `test_freschezza.py` — `ttlMs`/`cacheScope`, riletti da un Client vero.
+- `test_rate_limit_inbound.py` — token bucket, middleware per IP, Client senza
+  peer non limitato, warning Overpass pubblico su bind esposto.
 - `test_fase2.py` — geometria su poligoni costruiti a mano (dove il risultato
   atteso e' calcolabile a mente: su un poligono reale da 4000 vertici non si sa
   dire se una risposta e' giusta), lookup delle zone, campionamento, dislivelli,
@@ -761,7 +771,8 @@ salvate come fixture (vedi roadmap).
 |---|---|---|
 | Cache in memoria, per-processo | Su HTTP multi-worker ogni replica ha la sua cache | **Scelta, non dimenticanza**: vedi §5.1 |
 | Rate limiter Nominatim per-processo | Con piu' repliche il budget di 1 req/s viene superato | Stesso motivo e stesso limite di sopra: un processo solo |
-| Nessuna autenticazione sul transport HTTP | Il server non sa **chi** lo chiama | `Host`/`Origin` validati (§3.18), che e' un'altra cosa; OAuth in roadmap |
+| Nessuna autenticazione sul transport HTTP | Il server non sa **chi** lo chiama | Di proposito: tetto per IP (§3.35); OAuth/API key in roadmap |
+| Rate-limit inbound per-processo | Multi-replica non condivide i bucket | Stesso vincolo della cache (§5.1): un processo solo |
 | Elicitation e piu' repliche | Senza `TREKKING_MCP_STATE_KEYS` lo stato di un giro a due round-trip vale solo dentro un processo | Chiavi condivise e ruotabili, piu' un warning all'avvio (§3.26) |
 | Cache in memoria non condivisa fra repliche | Ogni processo riscalda la sua | Tetto in voci **e** in byte (§3.31), coalescing per non duplicare le richieste in volo (§3.30) |
 | Metriche per-processo, azzerate al riavvio | Nessuna serie storica | Bastano a dire quale fonte sta frenando adesso; l'export sta dietro `istantanea()` |
@@ -846,10 +857,14 @@ aggiunto alla fine.
 - [x] Metriche: latenza per fonte, hit rate della cache, rate limit incontrati
 - [x] Validazione di `Host`/`Origin` sul transport HTTP, obbligatoria fuori da
       localhost
-- [ ] OAuth sul transport HTTP (supportato dall'SDK via `token_verifier`)
+- [x] Rate-limit inbound per IP su HTTP (§3.35): rilascio aperto senza client_id
+- [x] Warning se bind pubblico con `OVERPASS_URL` ancora su overpass-api.de;
+      docs su mirror dedicato via env (self-host Overpass resta ops fuori repo)
+- [ ] OAuth / API key opzionali sul transport HTTP (quando serviranno client noti)
 - [ ] Immagine Docker e healthcheck
-- [ ] Mirror Overpass dedicato: `overpass-api.de` non e' un backend di produzione
 - ~~Cache su Redis~~ — **non si fa**, per scelta: vedi §5.1
+- ~~Mirror Overpass nel codice~~ — **non si fa** oltre a `OVERPASS_URL` + warning;
+      vedi §3.35
 
 ### Esplicitamente fuori scope
 Routing e tracce GPX, dati storici, previsione autonoma del pericolo valanghe,

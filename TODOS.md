@@ -9,13 +9,11 @@ Report dettagliato: canvas `report-mcp-sessione-torino` nel progetto Cursor.
 
 ## P1 — affidabilità e latenza percepita
 
-- [ ] **Mirror Overpass self-hosted o istanza dedicata**
-  - `overpass-api.de` non è un backend di produzione
-
-- [ ] **OAuth + rate limit per client sul transport HTTP**
-  - Parziale: `Host`/`Origin` sono validati e il bind pubblico senza
-    `--allow-host` viene rifiutato (`DEVELOPMENT.md` §3.18)
-  - Resta da fare l'autenticazione vera: sapere *chi* chiama, non solo da dove
+- [ ] **OAuth o API key per client noti (opzionale)**
+  - Fatto: rate-limit inbound per IP, accesso HTTP aperto di default
+    (`DEVELOPMENT.md` §3.35)
+  - Resta: sapere *chi* chiama e quote differenziate, senza chiudere
+    l'anonimo finche' non serve
 
 ---
 
@@ -48,3 +46,4 @@ Report dettagliato: canvas `report-mcp-sessione-torino` nel progetto Cursor.
 - Con raggio piccolo, `cerca_sentieri` restituisce ref OSM utili
 - Backpressure Overpass (semaforo + Retry-After + jitter)
 - Completamento degli ID di zona valanghe, ristretto dal provider già scelto
+- Rate-limit inbound per IP su HTTP (rilascio aperto senza client_id)

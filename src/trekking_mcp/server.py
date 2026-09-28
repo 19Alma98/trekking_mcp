@@ -11,6 +11,7 @@ from trekking_mcp import __version__, completamenti, prompts, resources
 from trekking_mcp.cache import CACHE_HINTS, FreschezzaPerResource
 from trekking_mcp.config import Config
 from trekking_mcp.constants import SITO
+from trekking_mcp.rate_limit import RateLimitInbound
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.tools import condizioni, gita, luoghi, sentieri
 
@@ -81,7 +82,10 @@ def crea_server(config: Config | None = None, *, risorse: Risorse | None = None)
         # Vedi cache.py.
         cache_hints=CACHE_HINTS,
         request_state_security=stato,
-        middleware=[FreschezzaPerResource(risorse.config)],
+        middleware=[
+            RateLimitInbound(risorse.config, risorse.metriche),
+            FreschezzaPerResource(risorse.config),
+        ],
     )
 
     sentieri.registra(mcp, risorse)

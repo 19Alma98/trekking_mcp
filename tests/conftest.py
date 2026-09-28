@@ -11,7 +11,14 @@ from trekking_mcp.risorse import Risorse
 @pytest.fixture(autouse=True)
 def _ambiente_pulito(monkeypatch):
     """Evita che le variabili d'ambiente della macchina alterino i test."""
-    for chiave in ("OVERPASS_URL", "AINEVA_CAAML_URL", "SLF_CAAML_URL", "METEO_URL"):
+    for chiave in (
+        "OVERPASS_URL",
+        "AINEVA_CAAML_URL",
+        "SLF_CAAML_URL",
+        "METEO_URL",
+        "HTTP_RATE_LIMIT_RPM",
+        "HTTP_RATE_LIMIT_BURST",
+    ):
         monkeypatch.delenv(chiave, raising=False)
 
 

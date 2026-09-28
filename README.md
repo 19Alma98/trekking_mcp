@@ -62,11 +62,20 @@ trekking-mcp --transport http --host 0.0.0.0 \
 # con piu' repliche: le chiavi che sigillano il requestState vanno condivise,
 # altrimenti un'elicitation iniziata su una replica muore sull'altra
 export TREKKING_MCP_STATE_KEYS="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+
+# produzione: non usare overpass-api.de; alza la concorrenza solo sul tuo mirror
+export OVERPASS_URL="https://overpass.example.org/api/interpreter"
+# export OVERPASS_CONCURRENCY=4
 ```
 
 Il secondo comando senza `--allow-host` viene **rifiutato**: l'SDK attiva la
 protezione da DNS rebinding solo quando il bind e' su localhost, cioe' proprio
 quando non serve. Vedi [DEVELOPMENT.md](DEVELOPMENT.md) §3.18.
+
+Su HTTP l'accesso resta **aperto** (nessuna API key obbligatoria): un tetto per
+IP (`HTTP_RATE_LIMIT_RPM` / `HTTP_RATE_LIMIT_BURST`) limita `tools/call` e la
+lettura dei bollettini. Su stdio il limite non si applica. Vedi
+[DEVELOPMENT.md](DEVELOPMENT.md) §3.35.
 
 ## Tool disponibili
 

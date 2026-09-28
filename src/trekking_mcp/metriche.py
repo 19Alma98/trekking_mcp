@@ -48,6 +48,10 @@ class SintesiFonte(BaseModel):
 
 class SintesiMetriche(BaseModel):
     fonti: dict[str, SintesiFonte]
+    rate_limit_inbound: int = Field(
+        default=0,
+        description="Richieste MCP rifiutate dal tetto per IP sul transport HTTP",
+    )
     nota: str = Field(
         default=(
             "Contatori in memoria del singolo processo, azzerati a ogni riavvio. Con piu' repliche ognuna ha i propri."
@@ -93,11 +97,15 @@ class Metriche:
 
     def __init__(self) -> None:
         self._fonti: dict[str, _StatFonte] = {}
+        self._rate_limit_inbound: int = 0
 
     def _stat(self, fonte: str) -> _StatFonte:
         if fonte not in self._fonti:
             self._fonti[fonte] = _StatFonte()
         return self._fonti[fonte]
+
+    def rate_limit_inbound(self) -> None:
+        self._rate_limit_inbound += 1
 
     def cache_hit(self, fonte: str) -> None:
         self._stat(fonte).cache_hit += 1
@@ -127,7 +135,10 @@ class Metriche:
             stat.server_error += 1
 
     def istantanea(self) -> SintesiMetriche:
-        return SintesiMetriche(fonti={nome: stat.sintesi() for nome, stat in sorted(self._fonti.items())})
+        return SintesiMetriche(
+            fonti={nome: stat.sintesi() for nome, stat in sorted(self._fonti.items())},
+            rate_limit_inbound=self._rate_limit_inbound,
+        )
 
     def riga_di_log(self) -> str:
         """Una riga leggibile per il log di spegnimento."""
@@ -139,7 +150,11 @@ class Metriche:
                 f"p50 {s.latenza.p50_ms}ms, p95 {s.latenza.p95_ms}ms, "
                 f"cache {s.cache_hit}/{s.cache_hit + s.cache_miss}"
             )
-        return " | ".join(pezzi) if pezzi else "nessuna chiamata a fonti esterne"
+        corpo = " | ".join(pezzi) if pezzi else "nessuna chiamata a fonti esterne"
+        if self._rate_limit_inbound:
+            corpo = f"{corpo} | inbound-limit: {self._rate_limit_inbound}"
+        return corpo
 
     def azzera(self) -> None:
         self._fonti.clear()
+        self._rate_limit_inbound = 0

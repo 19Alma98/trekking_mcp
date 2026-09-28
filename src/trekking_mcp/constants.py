@@ -26,6 +26,11 @@ LINGUA_DEFAULT: Literal["it"] = "it"
 
 HOST_LOCALI = frozenset({"127.0.0.1", "localhost", "::1"})
 
+OVERPASS_URL_DEFAULT = "https://overpass-api.de/api/interpreter"
+
+HTTP_RATE_LIMIT_RPM_DEFAULT = 30
+HTTP_RATE_LIMIT_BURST_DEFAULT = 10
+
 ATTRIBUZIONE_OVERPASS = "Dati sentieri e ricoveri: (c) contributori OpenStreetMap, ODbL"
 ATTRIBUZIONE_NOMINATIM = "Geocoding: Nominatim / (c) contributori OpenStreetMap, ODbL"
 ATTRIBUZIONE_METEO = "Dati meteo: Open-Meteo.com, CC BY 4.0"

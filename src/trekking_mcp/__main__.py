@@ -17,8 +17,22 @@ import sys
 from mcp.server.transport_security import TransportSecuritySettings
 
 from trekking_mcp.config import Config
-from trekking_mcp.constants import HOST_LOCALI
+from trekking_mcp.constants import HOST_LOCALI, OVERPASS_URL_DEFAULT
 from trekking_mcp.server import crea_server
+
+
+def avvisa_overpass_pubblico(host: str, overpass_url: str, logger: logging.Logger) -> None:
+    """In produzione Overpass pubblico non regge: avvisa, non blocca."""
+    if host in HOST_LOCALI:
+        return
+    if overpass_url.rstrip("/") != OVERPASS_URL_DEFAULT.rstrip("/"):
+        return
+    logger.warning(
+        "bind su %s con OVERPASS_URL ancora su overpass-api.de: l'istanza pubblica "
+        "non e' un backend di produzione. Imposta OVERPASS_URL su un mirror dedicato "
+        "prima di esporre il server.",
+        host,
+    )
 
 
 def impostazioni_sicurezza(
@@ -90,14 +104,15 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(str(exc))
 
     config = Config()
+    log = logging.getLogger(__name__)
     if not config.state_keys:
-        log = logging.getLogger(__name__)
         log.warning(
             "TREKKING_MCP_STATE_KEYS non impostata: il requestState e' sigillato con una chiave "
             "effimera di questo processo. Le elicitation (valuta_gita, disambiguazione del "
             "geocoding) non sopravvivono a un riavvio ne' a una seconda replica%s.",
             " — e --stateless serve proprio a questo" if args.stateless else "",
         )
+    avvisa_overpass_pubblico(args.host, config.overpass_url, log)
 
     crea_server(config).run(
         transport="streamable-http",

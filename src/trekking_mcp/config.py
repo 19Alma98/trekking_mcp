@@ -4,7 +4,13 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from trekking_mcp.constants import TERRITORI_DEFAULT, UA_DEFAULT
+from trekking_mcp.constants import (
+    HTTP_RATE_LIMIT_BURST_DEFAULT,
+    HTTP_RATE_LIMIT_RPM_DEFAULT,
+    OVERPASS_URL_DEFAULT,
+    TERRITORI_DEFAULT,
+    UA_DEFAULT,
+)
 
 
 def _elenco_env(nome: str, default: tuple[str, ...]) -> tuple[str, ...]:
@@ -19,9 +25,7 @@ def _elenco_env(nome: str, default: tuple[str, ...]) -> tuple[str, ...]:
 class Config:
     """Configurazione del server, letta dall'ambiente al momento dell'istanza."""
 
-    overpass_url: str = field(
-        default_factory=lambda: os.getenv("OVERPASS_URL", "https://overpass-api.de/api/interpreter")
-    )
+    overpass_url: str = field(default_factory=lambda: os.getenv("OVERPASS_URL", OVERPASS_URL_DEFAULT))
     aineva_url: str = field(default_factory=lambda: os.getenv("AINEVA_CAAML_URL", "https://bollettini.aineva.it"))
     slf_url: str = field(default_factory=lambda: os.getenv("SLF_CAAML_URL", "https://aws.slf.ch/api/bulletin/caaml"))
     meteo_url: str = field(default_factory=lambda: os.getenv("METEO_URL", "https://api.open-meteo.com/v1/forecast"))
@@ -58,3 +62,10 @@ class Config:
     eaws_territori: tuple[str, ...] = field(default_factory=lambda: _elenco_env("EAWS_TERRITORI", TERRITORI_DEFAULT))
 
     state_keys: tuple[str, ...] = field(default_factory=lambda: _elenco_env("TREKKING_MCP_STATE_KEYS", ()))
+
+    http_rate_limit_rpm: int = field(
+        default_factory=lambda: int(os.getenv("HTTP_RATE_LIMIT_RPM", str(HTTP_RATE_LIMIT_RPM_DEFAULT)))
+    )
+    http_rate_limit_burst: int = field(
+        default_factory=lambda: int(os.getenv("HTTP_RATE_LIMIT_BURST", str(HTTP_RATE_LIMIT_BURST_DEFAULT)))
+    )
