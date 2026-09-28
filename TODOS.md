@@ -1,9 +1,6 @@
 # TODO — integrazione MCP online
 
-Esiti dalla sessione reale «trekking da Torino» (2026-09-17).
 Obiettivo: server performante e funzionante per uso multi-utente / transport HTTP.
-
-Report dettagliato: canvas `report-mcp-sessione-torino` nel progetto Cursor.
 
 ---
 
