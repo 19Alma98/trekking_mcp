@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Formatta i file Python prima del commit, cosi' la CI non fallisce su ruff format.
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+if ! command -v uv >/dev/null 2>&1; then
+  echo "pre-commit: uv non trovato nel PATH" >&2
+  exit 1
+fi
+
+mapfile -t staged_py < <(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.py$' || true)
+if ((${#staged_py[@]} == 0)); then
+  exit 0
+fi
+
+uv run ruff format -- "${staged_py[@]}"
+git add -- "${staged_py[@]}"
