@@ -27,6 +27,7 @@ def _ambiente_pulito(monkeypatch):
         "AINEVA_CAAML_URL",
         "SLF_CAAML_URL",
         "METEO_URL",
+        "TTL_NOMINATIM",
         "HTTP_RATE_LIMIT_RPM",
         "HTTP_RATE_LIMIT_BURST",
     ):

@@ -424,3 +424,34 @@ async def test_esegui_sentieri_verso_rifiuta_lon_senza_lat(risorse):
             vicino_a_lon=8.05,
             includi_ricoveri=False,
         )
+
+
+async def test_esegui_sentieri_verso_senza_ctx_e_parametri_non_validi(risorse):
+    from trekking_mcp.tools.sentieri import esegui_sentieri_verso_localita
+
+    with pytest.raises(ParametriNonValidi, match="ctx"):
+        await esegui_sentieri_verso_localita(
+            risorse,
+            nome="Mucone",
+            vicino_a_lat=45.57,
+            vicino_a_lon=8.05,
+            includi_ricoveri=False,
+        )
+
+
+async def test_nominatim_usa_ttl_nominatim_non_overpass(httpx2_mock: respx.Router, monkeypatch, risorse_con):
+    risorse = risorse_con(ttl_nominatim_s=1234, ttl_overpass_s=99999)
+    monkeypatch.setattr(risorse.nominatim, "attendi", _no_attendi)
+    catturati: list[int | None] = []
+    _orig = risorse.http.json
+
+    async def _spy(*args, **kwargs):
+        catturati.append(kwargs.get("ttl_s"))
+        kwargs["ttl_s"] = None
+        return await _orig(*args, **kwargs)
+
+    monkeypatch.setattr(risorse.http, "json", _spy)
+    httpx2_mock.get(url__startswith="https://nominatim.openstreetmap.org").respond(200, json=[])
+    await nominatim.cerca(risorse, "Xyzzy", limite=1)
+    assert catturati
+    assert all(ttl == 1234 for ttl in catturati)

@@ -8,7 +8,7 @@ from mcp.server.mcpserver.context import Context
 from pydantic import Field
 
 from trekking_mcp.constants import PREFISSI_TOPONIMO
-from trekking_mcp.errors import NonTrovato, esigi_coppia_coord
+from trekking_mcp.errors import NonTrovato, ParametriNonValidi, esigi_coppia_coord
 from trekking_mcp.geo import distanza_km, riquadro_intorno
 from trekking_mcp.models import DifficoltaCAI, Ricovero, SentieriVersoLocalita, Sentiero
 from trekking_mcp.risorse import Risorse
@@ -47,7 +47,7 @@ async def esegui_sentieri_verso_localita(
     esigi_coppia_coord(vicino_a_lat, vicino_a_lon, nome_lat="vicino_a_lat", nome_lon="vicino_a_lon")
     if vicino_a_lat is not None and vicino_a_lon is not None:
         if ctx is None:
-            raise TypeError("ctx e' obbligatorio quando vicino_a_lat/lon sono impostati")
+            raise ParametriNonValidi("ctx e' obbligatorio quando vicino_a_lat/lon sono impostati")
         candidati = await risolvi_localita(
             risorse,
             ctx,

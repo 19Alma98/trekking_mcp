@@ -45,6 +45,7 @@ class Config:
     max_retry: int = field(default_factory=lambda: int(os.getenv("HTTP_MAX_RETRY", "3")))
 
     ttl_overpass_s: int = field(default_factory=lambda: int(os.getenv("TTL_OVERPASS", str(24 * 3600))))
+    ttl_nominatim_s: int = field(default_factory=lambda: int(os.getenv("TTL_NOMINATIM", str(3600))))
     ttl_bollettino_s: int = field(default_factory=lambda: int(os.getenv("TTL_BOLLETTINO", str(30 * 60))))
     ttl_meteo_s: int = field(default_factory=lambda: int(os.getenv("TTL_METEO", str(15 * 60))))
     ttl_regioni_s: int = field(default_factory=lambda: int(os.getenv("TTL_REGIONI", str(30 * 24 * 3600))))

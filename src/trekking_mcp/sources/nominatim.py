@@ -79,7 +79,7 @@ async def cerca(
             "GET",
             risorse.config.nominatim_url,
             fonte="nominatim",
-            ttl_s=risorse.config.ttl_overpass_s,
+            ttl_s=risorse.config.ttl_nominatim_s,
             params={
                 "q": nome,
                 "format": "jsonv2",

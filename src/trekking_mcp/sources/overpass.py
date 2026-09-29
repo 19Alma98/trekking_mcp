@@ -61,7 +61,8 @@ def intestazione(config: Config) -> str:
     perche' era duplicata in `luoghi_simili` — due copie della stessa stringa che
     potevano divergere sul valore che conta.
     """
-    return f"[out:json][timeout:{int(config.timeout_s) - OVERPASS_MARGINE_TIMEOUT_S}];"
+    secondi = max(1, int(config.timeout_s) - OVERPASS_MARGINE_TIMEOUT_S)
+    return f"[out:json][timeout:{secondi}];"
 
 
 def bbox(sud: float, ovest: float, nord: float, est: float) -> str:

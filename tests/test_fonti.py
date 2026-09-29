@@ -43,6 +43,18 @@ def test_query_sentieri_filtra_su_ref_non_su_name(config):
     assert "45.0,7.0,45.5,7.5" in ql
 
 
+def test_intestazione_overpass_non_va_a_timeout_zero_o_negativo():
+    from dataclasses import replace
+
+    from trekking_mcp.config import Config
+
+    config = replace(Config(), timeout_s=3.0)
+    assert overpass.intestazione(config) == "[out:json][timeout:1];"
+
+    config_ok = replace(Config(), timeout_s=30.0)
+    assert overpass.intestazione(config_ok) == "[out:json][timeout:25];"
+
+
 def test_query_escapa_gli_apici(config):
     ql = overpass.query_sentieri(config, sud=45.0, ovest=7.0, nord=45.5, est=7.5, ref='10"];out;//')
 
