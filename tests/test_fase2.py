@@ -186,6 +186,18 @@ async def test_profilo_completo(httpx2_mock: respx.Router, risorse):
     assert profilo.lunghezza_km > 0
 
 
+async def test_profilo_senza_quote_e_fonte_non_disponibile(monkeypatch, risorse):
+    from trekking_mcp.errors import FonteNonDisponibile
+
+    async def _niente(_risorse, _punti):
+        return [None, None, None]
+
+    monkeypatch.setattr(elevation, "quote", _niente)
+    punti = [Coord(lat=45.0, lon=7.0), Coord(lat=45.05, lon=7.0), Coord(lat=45.1, lon=7.0)]
+    with pytest.raises(FonteNonDisponibile, match="open-meteo-elevation"):
+        await elevation.profilo(risorse, punti, passo_m=1000)
+
+
 def test_ricucitura_inverte_il_tratto_al_contrario():
     elemento = {
         "members": [

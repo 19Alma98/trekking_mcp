@@ -41,3 +41,15 @@ class NonTrovato(ErroreSentieri):
 
 class ParametriNonValidi(ErroreSentieri):
     """Combinazione di argomenti incoerente, oltre a quanto cattura lo schema."""
+
+
+def esigi_coppia_coord(
+    lat: float | None,
+    lon: float | None,
+    *,
+    nome_lat: str = "lat",
+    nome_lon: str = "lon",
+) -> None:
+    """Rifiuta lat/lon parziali: entrambi impostati o entrambi omessi."""
+    if (lat is None) ^ (lon is None):
+        raise ParametriNonValidi(f"{nome_lat} e {nome_lon} vanno impostati insieme, oppure entrambi omessi.")

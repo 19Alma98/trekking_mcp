@@ -6,7 +6,7 @@ import respx
 from mcp.server.elicitation import AcceptedElicitation, CancelledElicitation, DeclinedElicitation
 from pydantic import BaseModel, ValidationError
 
-from trekking_mcp.errors import FonteNonDisponibile, NonTrovato
+from trekking_mcp.errors import FonteNonDisponibile, NonTrovato, ParametriNonValidi, esigi_coppia_coord
 from trekking_mcp.models import Coord, Localita
 from trekking_mcp.sources import luoghi_simili, nominatim, overpass
 from trekking_mcp.sources.luoghi_simili import (
@@ -388,3 +388,39 @@ async def test_esegui_sentieri_verso_usa_risolvi_con_contesto(monkeypatch, risor
         includi_ricoveri=False,
     )
     assert out.localita.nome == "Monte Mucrone"
+
+
+def test_esigi_coppia_coord_rifiuta_lat_senza_lon():
+    with pytest.raises(ParametriNonValidi, match="insieme"):
+        esigi_coppia_coord(45.5, None)
+
+
+def test_esigi_coppia_coord_accetta_entrambi_o_nessuno():
+    esigi_coppia_coord(None, None)
+    esigi_coppia_coord(45.5, 7.5)
+
+
+async def test_cerca_localita_rifiuta_lat_senza_lon(risorse):
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    from trekking_mcp.server import crea_server
+
+    mcp = crea_server(risorse=risorse)
+    with pytest.raises(ToolError, match="insieme"):
+        await mcp.call_tool(
+            "cerca_localita",
+            {"nome": "Mucone", "lat": 45.57},
+            context=FakeCtx(),  # type: ignore[arg-type]
+        )
+
+
+async def test_esegui_sentieri_verso_rifiuta_lon_senza_lat(risorse):
+    from trekking_mcp.tools.sentieri import esegui_sentieri_verso_localita
+
+    with pytest.raises(ParametriNonValidi, match="insieme"):
+        await esegui_sentieri_verso_localita(
+            risorse,
+            nome="Mucone",
+            vicino_a_lon=8.05,
+            includi_ricoveri=False,
+        )

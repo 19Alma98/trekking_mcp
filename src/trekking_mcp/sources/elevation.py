@@ -10,6 +10,7 @@ from trekking_mcp.constants import (
     PASSO_M_DEFAULT,
     PUNTI_PER_RICHIESTA,
 )
+from trekking_mcp.errors import FonteNonDisponibile
 from trekking_mcp.geo import distanza_km
 from trekking_mcp.models import Coord, ProfiloAltimetrico, PuntoQuotato
 
@@ -126,7 +127,10 @@ async def profilo(risorse: Risorse, punti: list[Coord], *, passo_m: float = PASS
     ]
 
     if not quotati:
-        return ProfiloAltimetrico(punti=[], lunghezza_km=0.0, dislivello_positivo_m=0, dislivello_negativo_m=0)
+        raise FonteNonDisponibile(
+            fonte="open-meteo-elevation",
+            dettaglio="nessuna quota restituita per i punti campionati",
+        )
 
     valori = [p.quota_m for p in quotati]
     salita, discesa = _dislivelli(valori)

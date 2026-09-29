@@ -7,7 +7,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.context import Context
 from pydantic import Field
 
-from trekking_mcp.errors import NonTrovato
+from trekking_mcp.errors import NonTrovato, esigi_coppia_coord
 from trekking_mcp.models import Coord, Localita, ProfiloAltimetrico, ZonaValanghe
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import eaws, elevation, nominatim, overpass
@@ -87,6 +87,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
             ),
         ] = 30,
     ) -> list[Localita]:
+        esigi_coppia_coord(lat, lon)
         if lat is not None and lon is not None:
             from trekking_mcp.tools.geocode_risolvi import risolvi_localita
 

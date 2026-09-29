@@ -99,6 +99,7 @@ def test_ricoveri_da_nodi_reali():
     assert elementi
     for el in elementi:
         r = overpass.ricovero_da_element(el)
+        assert r is not None
         assert math.isfinite(r.coord.lat) and math.isfinite(r.coord.lon)
 
 

@@ -83,6 +83,39 @@ async def test_una_zona_inesistente_suggerisce_quelle_valide(monkeypatch, risors
     assert "IT-21-AO-01" in testo
 
 
+async def test_dettaglio_sentiero_assente_e_non_trovato(monkeypatch, risorse):
+
+    async def _assente(*args: object, **kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr("trekking_mcp.tools.sentieri.overpass.leggi_sentiero", _assente)
+
+    async with Client(crea_server(risorse=risorse)) as client:
+        esito = await client.call_tool("dettaglio_sentiero", {"osm_relation_id": 999001})
+
+    assert esito.is_error
+    testo = "".join(c.text for c in esito.content if getattr(c, "text", None))
+    assert "Nessun risultato" in testo
+    assert "999001" in testo
+
+
+async def test_resource_bollettino_usa_messaggio_utente(monkeypatch, risorse):
+
+    async def _mancante(*args: object, **kwargs: object) -> None:
+        raise NonTrovato("zona valanghe", "IT-99", alternative=["IT-21-AO-01"])
+
+    monkeypatch.setattr("trekking_mcp.resources.caaml.leggi_bollettino", _mancante)
+
+    async with Client(crea_server(risorse=risorse)) as client:
+        with pytest.raises(Exception) as sollevato:
+            await client.read_resource("bollettino://aineva/IT-99")
+
+    testo = str(sollevato.value)
+    assert "IT-21-AO-01" in testo
+    assert "Valori validi" in testo
+    assert "Nessun risultato" in testo
+
+
 def _moduli_tool() -> list[pathlib.Path]:
     return [f for f in TOOL_DIR.glob("*.py") if f.name not in {"__init__.py", "registrazione.py"}]
 

@@ -8,7 +8,7 @@ from mcp.server.mcpserver.context import Context
 from pydantic import Field
 
 from trekking_mcp.constants import PREFISSI_TOPONIMO
-from trekking_mcp.errors import NonTrovato
+from trekking_mcp.errors import NonTrovato, esigi_coppia_coord
 from trekking_mcp.geo import distanza_km, riquadro_intorno
 from trekking_mcp.models import DifficoltaCAI, Ricovero, SentieriVersoLocalita, Sentiero
 from trekking_mcp.risorse import Risorse
@@ -44,6 +44,7 @@ async def esegui_sentieri_verso_localita(
     limite: int = 15,
     includi_ricoveri: bool = True,
 ) -> SentieriVersoLocalita:
+    esigi_coppia_coord(vicino_a_lat, vicino_a_lon, nome_lat="vicino_a_lat", nome_lon="vicino_a_lon")
     if vicino_a_lat is not None and vicino_a_lon is not None:
         if ctx is None:
             raise TypeError("ctx e' obbligatorio quando vicino_a_lat/lon sono impostati")
@@ -160,8 +161,11 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
     )
     async def dettaglio_sentiero(
         osm_relation_id: Annotated[int, Field(description="ID della relation OSM", gt=0)],
-    ) -> Sentiero | None:
-        return await overpass.leggi_sentiero(risorse, osm_relation_id)
+    ) -> Sentiero:
+        esito = await overpass.leggi_sentiero(risorse, osm_relation_id)
+        if esito is None:
+            raise NonTrovato("sentiero", str(osm_relation_id))
+        return esito
 
     @extended_tool(
         mcp,

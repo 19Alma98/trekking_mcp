@@ -5,6 +5,7 @@ from importlib import resources as pkg_resources
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceError
 
+from trekking_mcp.errors import ErroreSentieri
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import caaml
 
@@ -62,6 +63,8 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
         """
         try:
             b = await caaml.leggi_bollettino(risorse, zona_id=zona_id, provider=provider)
+        except ErroreSentieri as exc:
+            raise ResourceError(exc.messaggio_utente()) from exc
         except Exception as exc:
             raise ResourceError(str(exc)) from exc
         return b.model_dump_json(indent=2)

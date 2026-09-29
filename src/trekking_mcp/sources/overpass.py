@@ -23,6 +23,28 @@ if TYPE_CHECKING:
     from trekking_mcp.risorse import Risorse
 
 
+_DISTANCE_TAG = re.compile(
+    r"^([\d]+(?:[.,][\d]+)?)\s*(km|m|mi|miles?)?$",
+    re.IGNORECASE,
+)
+
+
+def _lunghezza_km_da_tag(raw: str | None) -> float | None:
+    """Parse del tag OSM `distance` in km. Numero nudo = km; non parsabile → None."""
+    if raw is None:
+        return None
+    m = _DISTANCE_TAG.match(raw.strip())
+    if not m:
+        return None
+    valore = float(m.group(1).replace(",", "."))
+    unita = (m.group(2) or "km").lower()
+    if unita == "m":
+        return valore / 1000.0
+    if unita.startswith("mi"):
+        return valore * 1.609344
+    return valore
+
+
 def escape(valore: str) -> str:
     """Neutralizza i caratteri che romperebbero la sintassi QL.
 
@@ -63,12 +85,7 @@ def sentiero_da_relation(rel: OverpassElement) -> Sentiero:
     if c := rel.get("center"):
         centro = Coord(lat=c["lat"], lon=c["lon"])
 
-    lunghezza = None
-    if raw := tags.get("distance"):
-        try:
-            lunghezza = float(raw.replace("km", "").strip())
-        except ValueError:
-            lunghezza = None
+    lunghezza = _lunghezza_km_da_tag(tags.get("distance"))
 
     return Sentiero(
         osm_relation_id=rel["id"],
@@ -87,8 +104,12 @@ def sentiero_da_relation(rel: OverpassElement) -> Sentiero:
     )
 
 
-def ricovero_da_element(el: OverpassElement) -> Ricovero:
-    """Un nodo o una way di rifugio, bivacco o riparo nel modello `Ricovero`."""
+def ricovero_da_element(el: OverpassElement) -> Ricovero | None:
+    """Un nodo o una way di rifugio, bivacco o riparo nel modello `Ricovero`.
+
+    Restituisce `None` se l'elemento ha tag ma non ha coordinate utilizzabili:
+    Overpass a volte restituisce way senza `center` se la query non lo chiede.
+    """
     tags: dict[str, str] = el.get("tags", {})
 
     if tags.get("tourism") == "alpine_hut":
@@ -103,7 +124,7 @@ def ricovero_da_element(el: OverpassElement) -> Ricovero:
     elif "center" in el:
         lat, lon = el["center"]["lat"], el["center"]["lon"]
     else:
-        raise ValueError(f"elemento Overpass {el.get('id')} senza coordinate")
+        return None
 
     def _int(chiave: str) -> int | None:
         try:
@@ -266,7 +287,7 @@ async def cerca_sentieri(
 
 async def cerca_ricoveri(risorse: Risorse, *, lat: float, lon: float, raggio_m: int) -> list[Ricovero]:
     dati = await esegui(risorse, query_ricoveri(risorse.config, lat=lat, lon=lon, raggio_m=raggio_m))
-    return [ricovero_da_element(el) for el in dati.get("elements", []) if el.get("tags")]
+    return [r for el in dati.get("elements", []) if el.get("tags") and (r := ricovero_da_element(el)) is not None]
 
 
 async def leggi_sentiero(risorse: Risorse, osm_relation_id: int) -> Sentiero | None:

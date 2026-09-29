@@ -133,9 +133,49 @@ def test_un_ricovero_sull_equatore_non_esplode():
     assert (ricovero.coord.lat, ricovero.coord.lon) == (0.0, 0.0)
 
 
-def test_un_elemento_senza_coordinate_e_un_errore_esplicito():
-    with pytest.raises(ValueError, match="senza coordinate"):
-        ricovero_da_element({"id": 8, "type": "node", "tags": {"tourism": "alpine_hut"}})
+def test_un_elemento_senza_coordinate_viene_saltato():
+    assert ricovero_da_element({"id": 8, "type": "node", "tags": {"tourism": "alpine_hut"}}) is None
+
+
+async def test_cerca_ricoveri_salta_elementi_senza_coordinate(httpx2_mock, risorse):
+    from trekking_mcp.sources import overpass
+
+    httpx2_mock.post(url__startswith="https://overpass-api.de").respond(
+        200,
+        json={
+            "elements": [
+                {"type": "node", "id": 1, "tags": {"tourism": "alpine_hut", "name": "SenzaCoord"}},
+                {
+                    "type": "node",
+                    "id": 2,
+                    "lat": 45.3,
+                    "lon": 7.1,
+                    "tags": {"tourism": "alpine_hut", "name": "Gastaldi"},
+                },
+            ]
+        },
+    )
+    esito = await overpass.cerca_ricoveri(risorse, lat=45.3, lon=7.1, raggio_m=5000)
+    assert len(esito) == 1
+    assert esito[0].nome == "Gastaldi"
+
+
+@pytest.mark.parametrize(
+    ("raw", "atteso"),
+    [
+        ("8500 m", 8.5),
+        ("5.3 mi", pytest.approx(5.3 * 1.609344)),
+        ("12", 12.0),
+        ("8,5 km", 8.5),
+        ("foo", None),
+    ],
+)
+def test_distance_tag_con_unita(raw: str, atteso: float | None):
+    s = sentiero_da_relation({"type": "relation", "id": 1, "tags": {"route": "hiking", "distance": raw}})
+    if atteso is None:
+        assert s.lunghezza_km is None
+    else:
+        assert s.lunghezza_km == atteso
 
 
 def test_un_bollettino_senza_gradi_leggibili_non_dichiara_pericolo_debole():
