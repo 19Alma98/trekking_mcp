@@ -12,6 +12,7 @@ from mcp.shared.exceptions import MCPError
 from mcp.types import INVALID_REQUEST, CallToolResult, TextContent
 
 from trekking_mcp.config import Config
+from trekking_mcp.constants import HTTP_RATE_LIMIT_MAX_KEYS_DEFAULT
 from trekking_mcp.metriche import Metriche
 
 log = logging.getLogger(__name__)
@@ -55,7 +56,8 @@ class RegistroBucket:
 
     capacita: float
     rpm: float
-    _bucket: dict[str, TokenBucket] = field(default_factory=dict)
+    max_keys: int = HTTP_RATE_LIMIT_MAX_KEYS_DEFAULT
+    _bucket: OrderedDict[str, TokenBucket] = field(default_factory=OrderedDict)
     _orologio: Callable[[], float] = field(default=time.monotonic, repr=False)
 
     def __len__(self) -> int:
