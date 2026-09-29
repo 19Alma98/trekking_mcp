@@ -12,7 +12,7 @@
 
 Server [MCP](https://modelcontextprotocol.io) per l'escursionismo sul territorio italiano: sentieri numerati, rifugi e bivacchi, bollettini valanghe e meteo di quota, da usare con un assistente AI.
 
-> **Avvertenza.** I bollettini valanghe sono documenti ufficiali di sicurezza. Questo progetto li riporta, non li interpreta e non valuta il rischio. Non sostituisce il bollettino integrale, la formazione specifica, ne' il giudizio sul terreno. Usalo per preparare una gita, mai per decidere se farla.
+> **Avvertenza.** I bollettini valanghe sono documenti ufficiali di sicurezza. Quando li riporta, non li interpreta e non valuta il rischio. Non sostituisce il bollettino integrale, la formazione specifica, ne' il giudizio sul terreno. Usalo per preparare una gita, mai per decidere se farla.
 
 ## Cosa puoi fare
 

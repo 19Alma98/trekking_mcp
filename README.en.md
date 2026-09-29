@@ -10,7 +10,7 @@
 
 [MCP](https://modelcontextprotocol.io) server for hiking in Italy: numbered trails, mountain huts and bivouacs, avalanche bulletins and elevation weather, for use with an AI assistant.
 
-> **Safety notice.** Avalanche bulletins are official safety documents. This project reports them; it does not interpret them and does not assess risk. It is not a substitute for the full bulletin, for proper training, or for judgement on the ground. Use it to prepare a trip, never to decide whether to go.
+> **Safety notice.** Avalanche bulletins are official safety documents. When it reports them, it does not interpret them and does not assess risk. It is not a substitute for the full bulletin, for proper training, or for judgement on the ground. Use it to prepare a trip, never to decide whether to go.
 
 Code, docstrings and comments are in Italian on purpose (domain terms). This file and [DEVELOPMENT.md](DEVELOPMENT.md) are the way in if you don't read Italian; a short glossary is at the bottom.
 
