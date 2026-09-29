@@ -15,7 +15,7 @@ from trekking_mcp.constants import (
     ATTRIBUZIONE_METEO,
     ATTRIBUZIONE_OVERPASS,
 )
-from trekking_mcp.errors import ErroreSentieri, NonTrovato
+from trekking_mcp.errors import ErroreSentieri, FonteNonDisponibile, NonTrovato
 from trekking_mcp.geo import distanza_km
 from trekking_mcp.models import (
     Bollettino,
@@ -31,6 +31,7 @@ from trekking_mcp.models import (
 )
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import caaml, eaws, elevation, meteo, overpass
+from trekking_mcp.valanghe_rilevanza import rilevanza_valanghe
 from trekking_mcp.tools.registrazione import extended_tool
 
 log = logging.getLogger(__name__)
@@ -202,7 +203,8 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
         title="Raccogli le condizioni per una gita",
         description=(
             "Dato un sentiero e una data, raccoglie in un colpo solo: dati del sentiero, "
-            "rifugi e bivacchi vicini, bollettino valanghe della zona e meteo di quota. "
+            "rifugi e bivacchi vicini, meteo di quota e, quando rilevante, bollettino "
+            "valanghe della zona (in estate o con includi_valanghe=false puo' essere omesso). "
             "Restituisce fatti normalizzati e segnali di attenzione, NON un verdetto "
             "vai/non-vai: la decisione resta a chi va in montagna. "
             "Query Overpass: non chiamare in parallelo con altri tool OSM."
@@ -216,6 +218,15 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
         zona_valanghe: Annotated[
             str | None,
             Field(description="Zona del bollettino. Se assente viene dedotta dalle coordinate del sentiero."),
+        ] = None,
+        includi_valanghe: Annotated[
+            bool | None,
+            Field(
+                description=(
+                    "Se true forza zona+bollettino; se false li salta; se omesso decide il server "
+                    "(salta in estate giu-set, o se il punto e' fuori copertura EAWS)."
+                )
+            ),
         ] = None,
         con_profilo: Annotated[
             bool,
@@ -304,13 +315,47 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
         ricoveri = []
         centro = sentiero.centro
         if centro is not None:
-            ricoveri = await overpass.cerca_ricoveri(risorse, lat=centro.lat, lon=centro.lon, raggio_m=5000)
-            ricoveri.sort(key=lambda r: distanza_km(centro.lat, centro.lon, r.coord.lat, r.coord.lon))
-            ricoveri = ricoveri[:10]
+            try:
+                ricoveri = await overpass.cerca_ricoveri(risorse, lat=centro.lat, lon=centro.lon, raggio_m=5000)
+                ricoveri.sort(key=lambda r: distanza_km(centro.lat, centro.lon, r.coord.lat, r.coord.lon))
+                ricoveri = ricoveri[:10]
+            except FonteNonDisponibile as exc:
+                log.warning("ricoveri non disponibili: %s", exc)
+                ricoveri = []
+                buchi.append(
+                    SegnaleAttenzione(
+                        categoria="dati",
+                        severita="attenzione",
+                        messaggio=(
+                            "Rifugi/bivacchi non recuperati: Overpass non raggiungibile. "
+                            "I campi vuoti non significano assenza di ricoveri."
+                        ),
+                    )
+                )
+
+        decisione = rilevanza_valanghe(giorno=date.fromisoformat(giorno), includi_valanghe=includi_valanghe)
+        if zona_valanghe is not None:
+            vuole_valanghe = True
+        else:
+            vuole_valanghe = decisione.includi
 
         await ctx.report_progress(3, passi, "Individuo la zona valanghe")
         zona: ZonaValanghe | None = None
-        if zona_valanghe is not None:
+        bollettino = None
+        if not vuole_valanghe:
+            buchi.append(
+                SegnaleAttenzione(
+                    categoria="valanghe",
+                    severita="info",
+                    messaggio=(
+                        "Bollettino valanghe non richiesto per la data (stagione estiva). "
+                        "Passa includi_valanghe=true per forzarlo."
+                        if decisione.motivo == "stagione"
+                        else "Bollettino valanghe escluso dal chiamante (includi_valanghe=false)."
+                    ),
+                )
+            )
+        elif zona_valanghe is not None:
             regione = await eaws.zona_da_id(risorse.eaws, zona_valanghe)
             zona = ZonaValanghe(
                 id_zona=zona_valanghe,
@@ -339,8 +384,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
                 )
 
         await ctx.report_progress(4, passi, "Leggo il bollettino valanghe")
-        bollettino = None
-        if zona_valanghe:
+        if vuole_valanghe and zona_valanghe:
             try:
                 provider = caaml.provider_per_zona(zona_valanghe)
                 bollettino = await caaml.leggi_bollettino(risorse, zona_id=zona_valanghe, provider=provider)
@@ -369,7 +413,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
             visibilita=sentiero.visibilita,
         )
         segnali.extend(buchi)
-        if zona_valanghe and bollettino is None:
+        if vuole_valanghe and zona_valanghe and bollettino is None:
             segnali.append(
                 SegnaleAttenzione(
                     categoria="valanghe",

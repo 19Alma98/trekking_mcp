@@ -34,6 +34,19 @@ def _ql_delle_chiamate(rotta: respx.Route) -> list[str]:
     return query
 
 
+RELATION_CON_CENTRO = {
+    "elements": [
+        {
+            "type": "relation",
+            "id": 42,
+            "tags": {"ref": "D23A", "name": "prova"},
+            "center": {"lat": 45.6356, "lon": 7.9363},
+            "members": [],
+        }
+    ]
+}
+
+
 RELATION_SENZA_POSIZIONE = {
     "elements": [
         {
@@ -223,6 +236,103 @@ def test_con_profilo_altimetrico_non_segnala_lunghezza_assente():
     )
 
     assert not any(s.categoria == "dati" and "lunghezza" in s.messaggio.lower() for s in segnali)
+
+
+async def test_valuta_gita_estate_salta_valanghe_senza_chiamare_caaml(httpx2_mock: respx.Router, monkeypatch):
+    import httpx
+
+    httpx2_mock.post(url__startswith="https://overpass-api.de").mock(
+        side_effect=[
+            httpx.Response(200, json=RELATION_CON_CENTRO),
+            httpx.Response(200, json={"elements": []}),
+        ]
+    )
+    httpx2_mock.get(url__startswith="https://api.open-meteo.com/v1/forecast").respond(
+        200,
+        json={
+            "hourly": {
+                "time": ["2026-07-15T08:00"],
+                "temperature_2m": [18.0],
+                "precipitation": [0.0],
+                "snowfall": [0.0],
+                "cloud_cover": [10],
+                "wind_speed_10m": [5.0],
+                "wind_gusts_10m": [10.0],
+                "wind_direction_10m": [180],
+                "freezing_level_height": [4000],
+            }
+        },
+    )
+    callback, _ = _risponde()
+
+    async with Client(crea_server(), elicitation_callback=callback) as client:
+        esito = await client.call_tool(
+            "valuta_gita",
+            {"osm_relation_id": 42, "data": "2026-07-15"},
+        )
+
+    assert not esito.is_error
+    body = esito.structured_content
+    assert body["bollettino"] is None
+    assert body["zona_valanghe"] is None
+    assert any(s["categoria"] == "valanghe" and "estiva" in s["messaggio"].lower() for s in body["segnali"])
+    chiamate_valanghe = [
+        str(c.request.url)
+        for c in httpx2_mock.calls
+        if "aineva" in str(c.request.url)
+        or "regions.avalanches.org" in str(c.request.url)
+        or "slf.ch" in str(c.request.url)
+    ]
+    assert chiamate_valanghe == []
+
+
+async def test_valuta_gita_ricoveri_overpass_giu_non_affonda(httpx2_mock: respx.Router, monkeypatch):
+    from trekking_mcp.errors import FonteNonDisponibile
+    from trekking_mcp.models import Coord, DifficoltaCAI, Sentiero
+
+    async def _sentiero(risorse, osm_id):
+        return Sentiero(
+            osm_relation_id=osm_id,
+            ref="D23A",
+            nome=None,
+            da=None,
+            a=None,
+            operatore=None,
+            rete=None,
+            sac_scale=None,
+            difficolta_cai=DifficoltaCAI.SCONOSCIUTA,
+            visibilita=None,
+            lunghezza_km=None,
+            centro=Coord(lat=45.63, lon=7.93),
+            osm_url=f"https://www.openstreetmap.org/relation/{osm_id}",
+        )
+
+    async def _boom(*args, **kwargs):
+        raise FonteNonDisponibile("overpass", "HTTP 504")
+
+    async def _meteo_vuoto(*args, **kwargs):
+        return []
+
+    monkeypatch.setattr("trekking_mcp.tools.gita.overpass.leggi_sentiero", _sentiero)
+    monkeypatch.setattr("trekking_mcp.tools.gita.overpass.cerca_ricoveri", _boom)
+    monkeypatch.setattr("trekking_mcp.tools.gita.meteo.previsione", _meteo_vuoto)
+    callback, _ = _risponde()
+
+    async with Client(crea_server(), elicitation_callback=callback) as client:
+        esito = await client.call_tool(
+            "valuta_gita",
+            {"osm_relation_id": 42, "data": "2026-07-15"},
+        )
+
+    assert not esito.is_error
+    body = esito.structured_content
+    assert body["ricoveri_vicini"] == []
+    dati = [s for s in body["segnali"] if s["categoria"] == "dati"]
+    assert any(
+        ("rifugi" in s["messaggio"].lower() or "ricoveri" in s["messaggio"].lower())
+        and ("overpass" in s["messaggio"].lower() or "non" in s["messaggio"].lower())
+        for s in dati
+    )
 
 
 def test_difficolta_sconosciuta_cita_la_visibilita_se_c_e():
