@@ -1,0 +1,89 @@
+name: Publish
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Installa uv
+        run: python -m pip install --upgrade uv
+
+      - name: Verifica allineamento versioni tag / pyproject / server.json
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
+            echo "Tag non semver dopo la v: '$VERSION'" >&2
+            exit 1
+          fi
+          PY_VERSION="$(python -c 'import tomllib, pathlib; print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])')"
+          SERVER_VERSION="$(python -c 'import json, pathlib; print(json.loads(pathlib.Path("server.json").read_text())["version"])')"
+          PKG_VERSION="$(python -c 'import json, pathlib; print(json.loads(pathlib.Path("server.json").read_text())["packages"][0]["version"])')"
+          echo "tag=$VERSION pyproject=$PY_VERSION server=$SERVER_VERSION package=$PKG_VERSION"
+          if [[ "$VERSION" != "$PY_VERSION" || "$VERSION" != "$SERVER_VERSION" || "$VERSION" != "$PKG_VERSION" ]]; then
+            echo "Versioni disallineate: il tag e i file devono coincidere." >&2
+            exit 1
+          fi
+
+      - name: Installa le dipendenze dal lock
+        run: uv sync --frozen --extra dev --python 3.13
+
+      - name: Test
+        run: uv run pytest -v
+
+      - name: Build e smoke wheel
+        run: |
+          set -euo pipefail
+          uv build
+          SMOKE="$(mktemp -d)"
+          python -m venv "$SMOKE"
+          "$SMOKE/bin/pip" install --upgrade pip
+          "$SMOKE/bin/pip" install dist/*.whl
+          "$SMOKE/bin/trekking-mcp" --help
+          "$SMOKE/bin/python" - <<'PY'
+          from importlib.resources import files
+          for nome in ("scala_pericolo.md", "scala_difficolta.md"):
+              testo = (files("trekking_mcp.data") / nome).read_text(encoding="utf-8")
+              assert len(testo) > 50, nome
+              print(nome, "ok", len(testo))
+          PY
+
+      - name: Pubblica su PyPI
+        run: uv publish
+
+  registry:
+    needs: [pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installa mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Valida server.json
+        run: ./mcp-publisher validate
+
+      - name: Login OIDC al MCP Registry
+        run: ./mcp-publisher login github-oidc
+
+      - name: Pubblica sul MCP Registry
+        run: ./mcp-publisher publish
