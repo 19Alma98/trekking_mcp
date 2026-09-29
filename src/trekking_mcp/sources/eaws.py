@@ -152,6 +152,13 @@ async def zona_da_coordinate(indice: IndiceRegioni, lat: float, lon: float) -> M
     if trovate:
         return trovate[0]
 
+    if not indice.regioni:
+        raise NonTrovato(
+            "zona valanghe per le coordinate",
+            f"{lat:.4f},{lon:.4f}",
+            alternative=[],
+        )
+
     raise NonTrovato(
         "zona valanghe per le coordinate",
         f"{lat:.4f},{lon:.4f}",
@@ -187,4 +194,14 @@ def _vicine(indice: IndiceRegioni, lat: float, lon: float, quante: int = 5) -> l
         dy = max(sud - lat, 0.0, lat - nord)
         return dx * dx + dy * dy
 
-    return [r.id_zona for r in sorted(indice.regioni, key=distanza)[:quante]]
+    visti: set[str] = set()
+    ordinati = sorted(indice.regioni, key=distanza)
+    out: list[str] = []
+    for r in ordinati:
+        if r.id_zona in visti:
+            continue
+        visti.add(r.id_zona)
+        out.append(r.id_zona)
+        if len(out) >= quante:
+            break
+    return out

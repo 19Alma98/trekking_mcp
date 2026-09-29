@@ -124,6 +124,30 @@ async def test_punto_fuori_suggerisce_le_zone_vicine(httpx2_mock: respx.Router, 
     assert "IT-21-TO-0" in messaggio
 
 
+async def test_vicine_non_ripete_lo_stesso_id(httpx2_mock: respx.Router, risorse_con, tmp_path):
+    from trekking_mcp.errors import NonTrovato
+
+    risorse = risorse_con(cache_dir=str(tmp_path), eaws_territori=("CH",))
+    riquadro = (7.0, 45.0, 8.0, 46.0)
+    for _ in range(3):
+        risorse.eaws._regioni.append(
+            eaws.MicroRegione(
+                id_zona="CH-7121",
+                nome="dup",
+                riquadro=riquadro,
+                poligoni=[],
+            )
+        )
+    risorse.eaws._territori_caricati.add("CH")
+
+    with pytest.raises(NonTrovato) as exc:
+        await eaws.zona_da_coordinate(risorse.eaws, 41.9, 12.5)
+
+    alts = exc.value.alternative
+    assert alts.count("CH-7121") == 1
+    assert "CH-7121" in exc.value.messaggio_utente()
+
+
 async def test_la_cache_su_disco_evita_il_riscarico(httpx2_mock: respx.Router, risorse):
     rotta = httpx2_mock.get(url__startswith="https://regions.avalanches.org").respond(200, json=GEOJSON_ZONE)
     await eaws.zona_da_coordinate(risorse.eaws, 45.25, 7.25)
