@@ -115,7 +115,15 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
         lon: Annotated[float, Field(description="Longitudine del centro ricerca", ge=-180, le=180)],
         raggio_km: Annotated[float, Field(description="Raggio di ricerca in km (default 5, max 50)", gt=0, le=50)] = 5,
         ref: Annotated[str | None, Field(description="Numero esatto del sentiero, es. '103'")] = None,
-        operatore: Annotated[str | None, Field(description="Filtro sull'ente, es. 'CAI' (matcha anche C.A.I.)")] = None,
+        operatore: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Filtro sull'ente (tag OSM operator), es. 'CAI'. "
+                    "Molti sentieri CAI non hanno il tag: se 0 risultati, ritenta senza operatore."
+                )
+            ),
+        ] = None,
         testo: Annotated[
             str | None,
             Field(description="Filtro testuale su name/from/to/description, es. 'Mucrone'"),

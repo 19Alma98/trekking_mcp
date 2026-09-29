@@ -117,6 +117,12 @@ async def test_le_istruzioni_sconsigliano_il_fan_out_overpass(mcp):
     assert "parallelo" in testo or "una alla volta" in testo
 
 
+async def test_istruzioni_sconsigliano_filtro_operatore_cai(mcp):
+    testo = (mcp.instructions or "").casefold()
+    assert "operatore" in testo or "operator" in testo
+    assert "cai" in testo
+
+
 async def test_le_istruzioni_spiegano_i_campi_osm_incompleti(mcp):
     testo = (mcp.instructions or "").lower()
     assert "sconosciuta" in testo

@@ -52,6 +52,9 @@ Regole d'uso:
 - La copertura OSM non e' uniforme: l'assenza di un sentiero non significa che
   non esista; difficolta' `sconosciuta` e `lunghezza_km` null non significano
   facile o corto (tag assenti, non valori rassicuranti).
+- Non filtrare con operatore=CAI di default: su OSM molti sentieri CAI non hanno
+  il tag operator; un filtro vuoto non significa che non esistano. Usalo solo se
+  l'utente chiede esplicitamente un ente.
 """
 
 
