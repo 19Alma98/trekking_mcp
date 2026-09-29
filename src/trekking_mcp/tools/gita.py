@@ -31,8 +31,8 @@ from trekking_mcp.models import (
 )
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import caaml, eaws, elevation, meteo, overpass
-from trekking_mcp.valanghe_rilevanza import rilevanza_valanghe
 from trekking_mcp.tools.registrazione import extended_tool
+from trekking_mcp.valanghe_rilevanza import rilevanza_valanghe
 
 log = logging.getLogger(__name__)
 
@@ -337,10 +337,7 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
                 )
 
         decisione = rilevanza_valanghe(giorno=date.fromisoformat(giorno), includi_valanghe=includi_valanghe)
-        if zona_valanghe is not None:
-            vuole_valanghe = True
-        else:
-            vuole_valanghe = decisione.includi
+        vuole_valanghe = True if zona_valanghe is not None else decisione.includi
 
         await ctx.report_progress(3, passi, "Individuo la zona valanghe")
         zona: ZonaValanghe | None = None
