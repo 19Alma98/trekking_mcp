@@ -22,7 +22,7 @@ def test_server_json_esiste_e_versioni_allineate() -> None:
     py = _pyproject()
     server = _server()
     versione = py["project"]["version"]
-    assert versione == "1.0.0"
+    assert versione == "1.1.0"
     assert server["version"] == versione
     assert server["packages"][0]["version"] == versione
 
