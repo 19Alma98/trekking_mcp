@@ -119,9 +119,8 @@ async def test_due_follower_dopo_cancel_condividono_una_sola_ripresa(httpx2_mock
     esiti = await asyncio.gather(primo, secondo)
 
     assert esiti == [{"ok": True}, {"ok": True}]
-    assert len(rub.uscite) == 2, (
-        f"1 richiesta del capofila + 1 ripresa condivisa; ottenute {len(rub.uscite)}"
-    )
+    assert len(rub.uscite) == 2, f"1 richiesta del capofila + 1 ripresa condivisa; ottenute {len(rub.uscite)}"
+
 
 async def test_la_cache_sfratta_per_byte_non_solo_per_voci():
     cache = CacheTTL(max_entry=100, max_byte=1000)
