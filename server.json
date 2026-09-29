@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.19Alma98/trekking-mcp",
+  "title": "Sentieri e condizioni di montagna",
+  "description": "Italian Alpine trails, huts, avalanche bulletins and elevation weather",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/19Alma98/trekking_mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/19Alma98/trekking_mcp",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "trekking-mcp",
+      "version": "1.0.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 [project]
 name = "trekking-mcp"
-version = "0.1.0"
+version = "1.0.0"
 description = "Server MCP per sentieri, rifugi e condizioni di montagna sulle Alpi italiane"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -8,10 +8,15 @@ license = { text = "MIT" }
 authors = [{ name = "Alessandro Magliola" }]
 keywords = ["mcp", "model-context-protocol", "hiking", "openstreetmap", "caaml", "avalanche"]
 classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: GIS",
+    "Typing :: Typed",
 ]
 
 dependencies = [
@@ -33,6 +38,7 @@ dev = [
 trekking-mcp = "trekking_mcp.__main__:main"
 
 [project.urls]
+Homepage = "https://github.com/19Alma98/trekking_mcp"
 Repository = "https://github.com/19Alma98/trekking_mcp"
 Issues = "https://github.com/19Alma98/trekking_mcp/issues"
 
