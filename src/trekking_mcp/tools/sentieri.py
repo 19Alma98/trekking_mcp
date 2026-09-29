@@ -203,6 +203,8 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
             "Preferisci questo a una catena di cerca_localita + cerca_sentieri. "
             "`difficolta_cai=sconosciuta` e `lunghezza_km` null sono normali (tag assenti): "
             "non interpretarli come facile o corto. "
+            "Se Overpass fallisce dopo il geocoding, restituisce la localita' con sentieri "
+            "vuoti e avvisi (non e' un errore di toponimo). "
             "Query Overpass: non chiamare in parallelo con altri tool OSM."
         ),
     )

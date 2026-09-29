@@ -134,6 +134,12 @@ async def test_le_istruzioni_indirizzano_ai_tool_di_lookup(mcp):
     assert "cerca_localita" in mcp.instructions
 
 
+async def test_istruzioni_valanghe_non_sempre(mcp):
+    testo = (mcp.instructions or "").casefold()
+    assert "includi_valanghe" in testo or "stagione" in testo
+    assert "avvisi" in testo or "degrad" in testo or "overpass_url" in testo
+
+
 async def test_cerca_sentieri_description_sconsiglia_il_parallelo_overpass(mcp):
     tool = next(t for t in await mcp.list_tools() if t.name == "cerca_sentieri")
     testo = (tool.description or "").lower()

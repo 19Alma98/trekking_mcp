@@ -55,6 +55,12 @@ Regole d'uso:
 - Non filtrare con operatore=CAI di default: su OSM molti sentieri CAI non hanno
   il tag operator; un filtro vuoto non significa che non esistano. Usalo solo se
   l'utente chiede esplicitamente un ente.
+- `valuta_gita` non richiede sempre il bollettino valanghe: in estate (giu-set) o
+  fuori copertura EAWS lo salta, salvo includi_valanghe=true o zona_valanghe
+  esplicita. Non inventare zone.
+- Se `sentieri_verso_localita` restituisce avvisi e sentieri vuoti, la localita'
+  e' comunque valida: ripeti piu' tardi o usa OVERPASS_URL su un mirror dedicato
+  (config operatore), senza catene parallele Overpass.
 """
 
 
