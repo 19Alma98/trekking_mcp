@@ -223,8 +223,11 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
             bool | None,
             Field(
                 description=(
-                    "Se true forza zona+bollettino; se false li salta; se omesso decide il server "
-                    "(salta in estate giu-set, o se il punto e' fuori copertura EAWS)."
+                    "Se true forza zona e bollettino anche in estate; se false li esclude salvo "
+                    "zona_valanghe esplicita (id passato: tenta sempre il bollettino). Se omesso "
+                    "il server salta giu-set per stagione estiva, altrimenti tenta lookup EAWS e "
+                    "bollettino. Fuori copertura EAWS non e' uno skip: la lookup viene eseguita e, "
+                    "se fallisce, compare un segnale valanghe di severita' attenzione."
                 )
             ),
         ] = None,
