@@ -310,7 +310,16 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
 
         await ctx.report_progress(3, passi, "Individuo la zona valanghe")
         zona: ZonaValanghe | None = None
-        if zona_valanghe is None and sentiero.centro:
+        if zona_valanghe is not None:
+            regione = await eaws.zona_da_id(risorse.eaws, zona_valanghe)
+            zona = ZonaValanghe(
+                id_zona=zona_valanghe,
+                nome=regione.nome if regione else None,
+                coord_richiesta=None,
+            )
+            if regione is not None:
+                fonti.append(ATTRIBUZIONE_EAWS)
+        elif sentiero.centro:
             try:
                 regione = await eaws.zona_da_coordinate(risorse.eaws, sentiero.centro.lat, sentiero.centro.lon)
                 zona_valanghe = regione.id_zona

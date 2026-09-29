@@ -117,11 +117,17 @@ class ProfiloAltimetrico(BaseModel):
 
 
 class ZonaValanghe(BaseModel):
-    """Micro-regione EAWS identificata a partire da un punto."""
+    """Micro-regione EAWS: da un punto, o da un id gia' noto."""
 
     id_zona: str
     nome: str | None = None
-    coord_richiesta: Coord
+    coord_richiesta: Coord | None = Field(
+        default=None,
+        description=(
+            "Punto da cui la zona e' stata dedotta. Assente se l'id e' stato "
+            "passato direttamente (niente coordinata da inventare)."
+        ),
+    )
     fonte: str = "EAWS Regions"
 
 

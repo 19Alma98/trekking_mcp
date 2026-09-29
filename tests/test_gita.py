@@ -122,8 +122,27 @@ async def test_l_elicitation_funziona_con_chiavi_di_stato_condivise(httpx2_mock:
     assert chiamate, "il resolver non ha chiesto niente al client"
 
 
-async def test_una_zona_svizzera_non_viene_chiesta_ad_aineva(httpx2_mock: respx.Router):
+GEOJSON_CH_7121 = {
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "properties": {"id": "CH-7121", "name": "Bernina"},
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[9.8, 46.3], [10.1, 46.3], [10.1, 46.5], [9.8, 46.5], [9.8, 46.3]]],
+            },
+        }
+    ],
+}
+
+
+async def test_una_zona_svizzera_non_viene_chiesta_ad_aineva(httpx2_mock: respx.Router, risorse_con, tmp_path):
+    # Cache e territori isolati: altrimenti un indice EAWS gia' su disco salta
+    # la GET e respx segna la rotta come non chiamata.
+    risorse = risorse_con(cache_dir=str(tmp_path), eaws_territori=("CH",))
     httpx2_mock.post(url__startswith="https://overpass-api.de").respond(200, json=RELATION_SENZA_POSIZIONE)
+    httpx2_mock.get(url__startswith="https://regions.avalanches.org").respond(200, json=GEOJSON_CH_7121)
     slf = httpx2_mock.get(url__startswith="https://aws.slf.ch").respond(
         200,
         json={
@@ -138,7 +157,7 @@ async def test_una_zona_svizzera_non_viene_chiesta_ad_aineva(httpx2_mock: respx.
     )
     callback, _ = _risponde()
 
-    async with Client(crea_server(), elicitation_callback=callback) as client:
+    async with Client(crea_server(risorse=risorse), elicitation_callback=callback) as client:
         esito = await client.call_tool(
             "valuta_gita", {"osm_relation_id": 42, "zona_valanghe": "CH-7121", "quota_riferimento_m": 2500}
         )
@@ -148,6 +167,12 @@ async def test_una_zona_svizzera_non_viene_chiesta_ad_aineva(httpx2_mock: respx.
     dati = esito.structured_content or {}
     assert dati["bollettino"]["fonte"] == "slf"
     assert any("WSL-SLF" in fonte for fonte in dati["fonti"]), "l'attribuzione deve essere quella del provider usato"
+    zona = dati["zona_valanghe"]
+    assert zona is not None, "zona passata come argomento deve comparire nel risultato"
+    assert zona["id_zona"] == "CH-7121"
+    assert zona["nome"] == "Bernina"
+    assert zona["coord_richiesta"] is None, "senza punto di origine la coord non si inventa"
+    assert any("EAWS" in fonte for fonte in dati["fonti"])
 
 
 def test_un_bollettino_senza_grado_leggibile_produce_un_segnale():

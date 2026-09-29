@@ -159,6 +159,20 @@ async def zona_da_coordinate(indice: IndiceRegioni, lat: float, lon: float) -> M
     )
 
 
+async def zona_da_id(indice: IndiceRegioni, id_zona: str) -> MicroRegione | None:
+    """Micro-regione per id, o None se l'indice non la conosce.
+
+    Non alza `NonTrovato`: chi passa un id a mano puo' comunque voler leggere
+    il bollettino anche se i perimetri EAWS non sono (ancora) caricati.
+    """
+    if not indice.caricato:
+        await indice.carica()
+    for regione in indice.regioni:
+        if regione.id_zona == id_zona:
+            return regione
+    return None
+
+
 def _vicine(indice: IndiceRegioni, lat: float, lon: float, quante: int = 5) -> list[str]:
     """Zone il cui riquadro e' piu' vicino al punto.
 

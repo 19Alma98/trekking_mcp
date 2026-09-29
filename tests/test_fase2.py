@@ -97,6 +97,15 @@ async def test_lookup_zona_da_coordinate(httpx2_mock: respx.Router, risorse):
     assert zona.nome == "Valli di Lanzo"
 
 
+async def test_lookup_zona_da_id(httpx2_mock: respx.Router, risorse):
+    httpx2_mock.get(url__startswith="https://regions.avalanches.org").respond(200, json=GEOJSON_ZONE)
+    zona = await eaws.zona_da_id(risorse.eaws, "IT-21-TO-05")
+
+    assert zona is not None
+    assert zona.nome == "Valli di Lanzo"
+    assert await eaws.zona_da_id(risorse.eaws, "CH-inesistente") is None
+
+
 async def test_zone_confinanti_non_si_confondono(httpx2_mock: respx.Router, risorse):
     httpx2_mock.get(url__startswith="https://regions.avalanches.org").respond(200, json=GEOJSON_ZONE)
     ovest = await eaws.zona_da_coordinate(risorse.eaws, 45.25, 6.75)
