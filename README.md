@@ -1,6 +1,10 @@
 # trekking-mcp
 
 [![CI](https://github.com/19Alma98/trekking_mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/19Alma98/trekking_mcp/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/trekking-mcp.svg)](https://pypi.org/project/trekking-mcp/)
+[![MCP Registry](https://img.shields.io/badge/MCP-Registry-black)](https://registry.modelcontextprotocol.io/)
+
+<!-- mcp-name: io.github.19Alma98/trekking-mcp -->
 
 *[English](README.en.md)*
 
@@ -33,12 +37,18 @@ Non e' un wrapper 1:1 su una API. Copre i tre primitivi del protocollo e un paio
 ## Installazione
 
 ```bash
+uvx trekking-mcp
+```
+
+Nessuna API key richiesta: tutte le fonti di default sono aperte.
+
+Per contribuire o sviluppare dal clone:
+
+```bash
 git clone https://github.com/19Alma98/trekking_mcp
 cd trekking_mcp
 uv sync            # oppure: pip install -e ".[dev]"
 ```
-
-Nessuna API key richiesta: tutte le fonti di default sono aperte.
 
 ## Uso con Claude Desktop / Claude Code
 
@@ -46,8 +56,8 @@ Nessuna API key richiesta: tutte le fonti di default sono aperte.
 {
   "mcpServers": {
     "trekking": {
-      "command": "uv",
-      "args": ["--directory", "/percorso/assoluto/trekking_mcp", "run", "trekking-mcp"]
+      "command": "uvx",
+      "args": ["trekking-mcp"]
     }
   }
 }

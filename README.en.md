@@ -1,6 +1,8 @@
 # trekking-mcp
 
 [![CI](https://github.com/19Alma98/trekking_mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/19Alma98/trekking_mcp/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/trekking-mcp.svg)](https://pypi.org/project/trekking-mcp/)
+[![MCP Registry](https://img.shields.io/badge/MCP-Registry-black)](https://registry.modelcontextprotocol.io/)
 
 *[Italiano](README.md)*
 
@@ -49,12 +51,18 @@ a few mechanisms you rarely see implemented:
 ## Install
 
 ```bash
+uvx trekking-mcp
+```
+
+No API keys: every default source is open data.
+
+For development from a clone:
+
+```bash
 git clone https://github.com/19Alma98/trekking_mcp
 cd trekking_mcp
 uv sync            # or: pip install -e ".[dev]"
 ```
-
-No API keys: every default source is open data.
 
 ## Use with Claude Desktop / Claude Code
 
@@ -62,8 +70,8 @@ No API keys: every default source is open data.
 {
   "mcpServers": {
     "trekking": {
-      "command": "uv",
-      "args": ["--directory", "/absolute/path/to/trekking_mcp", "run", "trekking-mcp"]
+      "command": "uvx",
+      "args": ["trekking-mcp"]
     }
   }
 }

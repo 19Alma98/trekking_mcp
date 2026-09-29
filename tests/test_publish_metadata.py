@@ -59,3 +59,11 @@ def test_wheel_include_i_markdown_in_data(tmp_path: Path) -> None:
         names = zf.namelist()
     assert any(n.endswith("trekking_mcp/data/scala_pericolo.md") for n in names)
     assert any(n.endswith("trekking_mcp/data/scala_difficolta.md") for n in names)
+
+
+MARKER = f"<!-- mcp-name: {MCP_NAME} -->"
+
+
+def test_readme_contiene_marker_mcp_name() -> None:
+    testo = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert MARKER in testo
