@@ -27,7 +27,7 @@ ICONA = Icon(
     sizes=["any"],
 )
 
-ISTRUZIONI = """Server per l'escursionismo sulle Alpi e sugli Appennini italiani.
+ISTRUZIONI = """Server per l'escursionismo sul territorio italiano.
 
 Fonti: sentieri e ricoveri da OpenStreetMap (relation route=hiking, numerazione
 CAI mappata dalla community), bollettini valanghe in CAAML v6 da AINEVA e SLF,

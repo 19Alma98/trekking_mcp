@@ -1,7 +1,7 @@
 [project]
 name = "trekking-mcp"
 version = "1.0.0"
-description = "Server MCP per sentieri, rifugi e condizioni di montagna sulle Alpi italiane"
+description = "Server MCP per sentieri, rifugi e condizioni di montagna sul territorio italiano"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

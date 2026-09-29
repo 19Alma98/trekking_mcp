@@ -10,47 +10,30 @@
 
 ![Demo: ispezione del server MCP](docs/demo.gif)
 
-Server [Model Context Protocol](https://modelcontextprotocol.io) (revisione
-della spec `2026-07-28`, SDK Python `mcp` 2.x) per l'escursionismo sulle Alpi e sugli Appennini italiani: sentieri numerati, rifugi e bivacchi, bollettini valanghe e meteo di quota, esposti a un assistente AI come tool, resource e prompt.
+Server [MCP](https://modelcontextprotocol.io) per l'escursionismo sul territorio italiano: sentieri numerati, rifugi e bivacchi, bollettini valanghe e meteo di quota, da usare con un assistente AI.
 
-> **Avvertenza.** I bollettini valanghe sono documenti ufficiali di sicurezza. Questo progetto li rilegge e li normalizza, non li interpreta e non produce valutazioni del rischio. Non sostituisce il bollettino integrale, la formazione specifica, ne' il giudizio sul terreno. Usalo per preparare una gita, mai per decidere se farla.
+> **Avvertenza.** I bollettini valanghe sono documenti ufficiali di sicurezza. Questo progetto li riporta, non li interpreta e non valuta il rischio. Non sostituisce il bollettino integrale, la formazione specifica, ne' il giudizio sul terreno. Usalo per preparare una gita, mai per decidere se farla.
 
-## Cosa mostra questo repo
+## Cosa puoi fare
 
-Non e' un wrapper 1:1 su una API. Copre i tre primitivi del protocollo e un paio di meccanismi che si vedono raramente:
+Chiedere all'assistente, ad esempio:
 
-| | |
-|---|---|
-| **Tools** | 10 tool, due dei quali compongono piu' fonti in un unico risultato |
-| **Resources** | Documenti di riferimento statici + una resource template con URI parametrico |
-| **Prompts** | Workflow riutilizzabili che fissano il metodo, non solo il tono |
-| **Elicitation** | Il server chiede dati all'utente *a meta' chiamata*, via dependency injection, con le scelte come `enum` nello schema |
-| **Completions** | Autocompletamento degli ID di zona valanghe, con il provider gia' scelto a restringere |
-| **Structured output** | Ogni tool ha un `outputSchema` derivato dai modelli Pydantic |
-| **Dual transport** | stdio e Streamable HTTP dallo stesso `crea_server()` |
-| **Osservabilita'** | Latenza p50/p95, 429 e hit rate per fonte, esposti come resource |
-| **Cache hints** | Ogni risposta dichiara per quanto vale (`ttlMs`/`cacheScope`), resource per resource |
-| **Coalescing** | Due chiamate identiche in volo diventano una richiesta sola: un agente chiama i tool in parallelo |
-| **Client incluso** | Un client MCP minimale, per dimostrare di conoscere entrambi i lati |
-| **Geometria** | Point-in-polygon e profili altimetrici in Python puro, senza dipendenze binarie |
+- dove sono i sentieri vicino a un paese o a una cima
+- dettagli e profilo altimetrico di un percorso
+- rifugi e bivacchi nella zona
+- meteo in quota e bollettino valanghe per la data della gita
 
-## Installazione
+## Come usarlo
+
+Serve [uv](https://docs.astral.sh/uv/). Nessuna API key.
 
 ```bash
 uvx trekking-mcp
 ```
 
-Nessuna API key richiesta: tutte le fonti di default sono aperte.
+### Cursor / Claude Code
 
-Per contribuire o sviluppare dal clone:
-
-```bash
-git clone https://github.com/19Alma98/trekking_mcp
-cd trekking_mcp
-uv sync            # oppure: pip install -e ".[dev]"
-```
-
-## Uso con Claude Desktop / Claude Code
+Aggiungi questo blocco alla configurazione MCP:
 
 ```json
 {
@@ -63,119 +46,31 @@ uv sync            # oppure: pip install -e ".[dev]"
 }
 ```
 
-In alternativa, come server remoto:
+Poi chiedi qualcosa come: *«Che sentieri ci sono verso il Monte Rosso partendo da Oropa?»*
 
-```bash
-trekking-mcp --transport http --port 8000            # solo 127.0.0.1
+## Tool
 
-# esposto ad altre macchine: va dichiarato chi puo' chiamare
-trekking-mcp --transport http --host 0.0.0.0 \
-  --allow-host trekking.example.org:* \
-  --allow-origin https://app.example.org
-
-# con piu' repliche: le chiavi che sigillano il requestState vanno condivise,
-# altrimenti un'elicitation iniziata su una replica muore sull'altra
-export TREKKING_MCP_STATE_KEYS="$(python -c 'import secrets; print(secrets.token_hex(32))')"
-
-# produzione: non usare overpass-api.de; alza la concorrenza solo sul tuo mirror
-export OVERPASS_URL="https://overpass.example.org/api/interpreter"
-# export OVERPASS_CONCURRENCY=4
-```
-
-Il secondo comando senza `--allow-host` viene **rifiutato**: l'SDK attiva la
-protezione da DNS rebinding solo quando il bind e' su localhost, cioe' proprio
-quando non serve. Vedi [DEVELOPMENT.md](DEVELOPMENT.md) §3.18.
-
-Su HTTP l'accesso resta **aperto** (nessuna API key obbligatoria): un tetto per
-IP (`HTTP_RATE_LIMIT_RPM` / `HTTP_RATE_LIMIT_BURST`) limita `tools/call` e la
-lettura dei bollettini. Dietro un reverse proxy che riscrive
-`X-Forwarded-For`, imposta `HTTP_TRUST_PROXY=1` cosi' il tetto e' per client e
-non per IP del proxy. Su stdio il limite non si applica. Vedi
-[DEVELOPMENT.md](DEVELOPMENT.md) §3.35.
-
-## Docker
-
-```bash
-docker build -t trekking-mcp .
-docker run --rm -p 8000:8000 trekking-mcp
-# health: curl -s localhost:8000/health
-# MCP:   http://localhost:8000/mcp
-```
-
-L'immagine ascolta su `0.0.0.0:8000` con `--allow-host` per `localhost` e
-`127.0.0.1`. Per un dominio pubblico passa gli argomenti dopo l'immagine, ad es.
-`docker run --rm -p 8000:8000 trekking-mcp trekking-mcp --transport http --host 0.0.0.0 --port 8000 --allow-host 'trekking.example.org:*'`.
-
-## Tool disponibili
-
-| Tool | Cosa fa |
+| Tool | A cosa serve |
 |---|---|
-| `cerca_localita` | Da un toponimo alle coordinate: rifugi, cime, valichi, paesi |
-| `cerca_sentieri` | Sentieri numerati in un raggio, filtrabili per numero, ente e difficolta' massima |
-| `sentieri_verso_localita` | Geocoding + sentieri + rifugi in una chiamata: l'ingresso da preferire quando il punto e' un nome |
-| `dettaglio_sentiero` | Dati completi di una relation OSM |
-| `profilo_altimetrico` | Lunghezza reale e dislivello, campionando le quote sul tracciato |
-| `cerca_ricoveri` | Rifugi gestiti, bivacchi e ripari entro un raggio |
-| `zona_valanghe_da_coordinate` | Da un punto alla micro-regione EAWS del bollettino |
-| `bollettino_valanghe` | Bollettino corrente di una zona, da CAAML v6 |
-| `meteo_quota` | Previsione oraria corretta per l'elevazione, con zero termico e raffiche |
-| `valuta_gita` | Compone tutto quanto sopra per un sentiero e una data |
+| `cerca_localita` | Trova le coordinate di un toponimo |
+| `cerca_sentieri` | Sentieri numerati intorno a un punto |
+| `sentieri_verso_localita` | Da un nome di luogo: sentieri e rifugi vicini (il punto di partenza consigliato) |
+| `dettaglio_sentiero` | Dettagli di un sentiero |
+| `profilo_altimetrico` | Lunghezza e dislivello |
+| `cerca_ricoveri` | Rifugi, bivacchi e ripari |
+| `zona_valanghe_da_coordinate` | Zona del bollettino valanghe da un punto |
+| `bollettino_valanghe` | Bollettino corrente di una zona |
+| `meteo_quota` | Previsione oraria in quota |
+| `valuta_gita` | Riassume sentiero, meteo e valanghe per una data |
 
-`meteo_quota` non risponde con le prime ore della serie di Open-Meteo, che
-comincia a mezzanotte: parte dall'ora corrente se la data e' oggi, dalle 6 se e'
-un giorno futuro, e da `ora_inizio` se lo si indica. Una gita non si prepara
-guardando la notte. Vedi [DEVELOPMENT.md](DEVELOPMENT.md) §3.27.
+## Fonti
 
-Il flusso tipico non richiede che l'utente conosca un solo codice. Quando il punto
-di arrivo e' un nome, `sentieri_verso_localita` fa da solo geocoding, ricerca sentieri
-e rifugi: e' l'ingresso che le `instructions` del server indicano per primo, al posto
-della catena `cerca_localita` + `cerca_sentieri`. Da li', `valuta_gita` per il resto.
-La zona del bollettino viene dedotta dalle coordinate.
+Dati da [OpenStreetMap](https://www.openstreetmap.org), [AINEVA](https://bollettini.aineva.it), [WSL-SLF](https://www.slf.ch) (Svizzera), [Open-Meteo](https://open-meteo.com), [EAWS Regions](https://regions.avalanches.org) e [Nominatim](https://nominatim.openstreetmap.org).
 
-Le resource sono `scala://pericolo-valanghe`, `scala://difficolta-escursionistica`,
-`metriche://fonti` (latenza, errori e hit rate per fonte) e la template
-`bollettino://{provider}/{zona_id}`, i cui due argomenti si autocompletano:
-scelto `slf`, `zona_id` propone solo le zone svizzere.
-
-## L'elicitation, in breve
-
-`valuta_gita` ha bisogno di sapere che difficolta' regge il gruppo e se ha ARTVA, pala e sonda. Sono informazioni che il modello **non puo' dedurre** e che non deve inventare. Il parametro e' annotato cosi':
-
-```python
-profilo: Annotated[ProfiloUscita, Resolve(chiedi_profilo)]
-```
-
-Il parametro non compare nello schema di input del tool, quindi il modello non sa nemmeno che esiste. Prima di eseguire il corpo, il framework esegue il resolver, che restituisce un marker `Elicit[ProfiloUscita]`: la domanda viene inoltrata al client, l'utente risponde, il valore viene iniettato. Se l'utente rifiuta, la chiamata si interrompe.
-
-## Fonti dati e attribuzioni
-
-| Fonte | Cosa fornisce | Licenza |
-|---|---|---|
-| [OpenStreetMap](https://www.openstreetmap.org) via [Overpass](https://overpass-api.de) | Sentieri (`route=hiking`), rifugi, bivacchi | ODbL, attribuzione obbligatoria |
-| [AINEVA](https://bollettini.aineva.it) | Bollettini valanghe dell'arco alpino italiano | Open data, CAAML v6 profilo EAWS |
-| [WSL-SLF](https://www.slf.ch) | Bollettini valanghe svizzeri | CC BY 4.0 |
-| [Open-Meteo](https://open-meteo.com) | Previsioni orarie e modello di elevazione | CC BY 4.0 |
-| [EAWS Regions](https://regions.avalanches.org) | Perimetri delle zone valanghe | Open data |
-| [Nominatim](https://nominatim.openstreetmap.org) | Geocoding dei toponimi | ODbL, usage policy |
-
-I sentieri numerati CAI sono mappati **dalla community OSM**: questo progetto non accede ad alcun dato proprietario del Club Alpino Italiano, che non espone un'API pubblica. La copertura non e' uniforme e l'assenza di un sentiero non significa che non esista.
-
-## Sviluppo
-
-```bash
-uv run pytest              # test
-uv run ruff check .        # lint
-uv run ruff format --check .
-uv run mypy                # type check
-uv run python client/ispeziona.py   # client MCP minimale: elenca tool e resource
-```
-
-Sono gli stessi comandi che gira la CI, sulla stessa risoluzione: `uv.lock` e'
-versionato e la CI installa con `uv sync --frozen`, quindi le versioni degli
-strumenti sono identiche a quelle locali.
-
-Architettura, decisioni di progetto e roadmap: [DEVELOPMENT.md](DEVELOPMENT.md).
+I sentieri numerati CAI sono quelli mappati dalla community OSM: la copertura non e' uniforme e un sentiero assente dalla mappa non significa che non esista.
 
 ## Licenza
 
 MIT.
+
+Per contribuire o dettagli di sviluppo: [DEVELOPMENT.md](DEVELOPMENT.md).
