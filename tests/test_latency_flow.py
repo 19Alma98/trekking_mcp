@@ -176,3 +176,23 @@ async def test_esegui_sentieri_verso_localita(httpx2_mock: respx.Router, monkeyp
     assert out.sentieri[0].ref == "C19"
     assert out.sentieri[0].distanza_km is not None
     assert len(out.ricoveri) == 1
+
+
+async def test_esegui_sentieri_verso_overpass_giu_restituisce_localita(monkeypatch, risorse):
+    from trekking_mcp.errors import FonteNonDisponibile
+    from trekking_mcp.models import Coord, Localita
+    from trekking_mcp.tools.sentieri import esegui_sentieri_verso_localita
+
+    async def _geo(*args, **kwargs):
+        return [Localita(nome="Monte Rosso", tipo="peak", coord=Coord(lat=45.63, lon=7.93), quota_m=2374, osm_url=None)]
+
+    async def _boom(*args, **kwargs):
+        raise FonteNonDisponibile("overpass", "HTTP 504")
+
+    monkeypatch.setattr("trekking_mcp.tools.sentieri.nominatim.cerca", _geo)
+    monkeypatch.setattr("trekking_mcp.tools.sentieri.overpass.cerca_sentieri", _boom)
+
+    out = await esegui_sentieri_verso_localita(risorse, nome="Monte Rosso")
+    assert out.localita.nome == "Monte Rosso"
+    assert out.sentieri == []
+    assert out.avvisi and "overpass" in out.avvisi[0].casefold()

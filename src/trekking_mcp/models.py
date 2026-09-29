@@ -176,6 +176,7 @@ class SentieriVersoLocalita(BaseModel):
     localita: Localita
     sentieri: list[Sentiero]
     ricoveri: list[Ricovero] = Field(default_factory=list)
+    avvisi: list[str] = Field(default_factory=list)
 
 
 class GradoPericolo(IntEnum):

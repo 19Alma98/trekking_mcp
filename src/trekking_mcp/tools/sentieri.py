@@ -8,7 +8,7 @@ from mcp.server.mcpserver.context import Context
 from pydantic import Field
 
 from trekking_mcp.constants import PREFISSI_TOPONIMO
-from trekking_mcp.errors import NonTrovato, ParametriNonValidi, esigi_coppia_coord
+from trekking_mcp.errors import FonteNonDisponibile, NonTrovato, ParametriNonValidi, esigi_coppia_coord
 from trekking_mcp.geo import distanza_km, riquadro_intorno
 from trekking_mcp.models import DifficoltaCAI, Ricovero, SentieriVersoLocalita, Sentiero
 from trekking_mcp.risorse import Risorse
@@ -64,17 +64,29 @@ async def esegui_sentieri_verso_localita(
     localita = candidati[0]
     testo = testo_da_toponimo(nome)
     sud, ovest, nord, est = riquadro_intorno(localita.coord.lat, localita.coord.lon, raggio_km)
-    grezzi = await overpass.cerca_sentieri(risorse, sud=sud, ovest=ovest, nord=nord, est=est, testo=testo)
+    avvisi: list[str] = []
+    try:
+        grezzi = await overpass.cerca_sentieri(risorse, sud=sud, ovest=ovest, nord=nord, est=est, testo=testo)
+    except FonteNonDisponibile as exc:
+        return SentieriVersoLocalita(
+            localita=localita,
+            sentieri=[],
+            ricoveri=[],
+            avvisi=[exc.messaggio_utente()],
+        )
     sentieri = ordina_sentieri_per_distanza(grezzi, lat=localita.coord.lat, lon=localita.coord.lon, limite=limite)
     ricoveri: list[Ricovero] = []
     if includi_ricoveri:
-        ricoveri = await overpass.cerca_ricoveri(
-            risorse,
-            lat=localita.coord.lat,
-            lon=localita.coord.lon,
-            raggio_m=int(raggio_km * 1000),
-        )
-    return SentieriVersoLocalita(localita=localita, sentieri=sentieri, ricoveri=ricoveri)
+        try:
+            ricoveri = await overpass.cerca_ricoveri(
+                risorse,
+                lat=localita.coord.lat,
+                lon=localita.coord.lon,
+                raggio_m=int(raggio_km * 1000),
+            )
+        except FonteNonDisponibile as exc:
+            avvisi.append(exc.messaggio_utente())
+    return SentieriVersoLocalita(localita=localita, sentieri=sentieri, ricoveri=ricoveri, avvisi=avvisi)
 
 
 def ordina_sentieri_per_distanza(risultati: list[Sentiero], *, lat: float, lon: float, limite: int) -> list[Sentiero]:
