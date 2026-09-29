@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from mcp.server.mcpserver import MCPServer
 
-from trekking_mcp.constants import PROVIDER_DEFAULT
+from trekking_mcp.sources import caaml
 
 
 def registra(mcp: MCPServer) -> None:
@@ -45,7 +45,8 @@ Vincoli sulla risposta:
         description="Rilegge un bollettino per chi non ha dimestichezza con la terminologia EAWS.",
     )
     def spiega_bollettino(zona_id: str) -> str:
-        return f"""Leggi la resource `bollettino://{PROVIDER_DEFAULT}/{zona_id}` e la resource
+        provider = caaml.provider_per_zona(zona_id)
+        return f"""Leggi la resource `bollettino://{provider}/{zona_id}` e la resource
 `scala://pericolo-valanghe`, poi spiega il bollettino a una persona che sa
 camminare in montagna ma non conosce la terminologia valanghiva.
 

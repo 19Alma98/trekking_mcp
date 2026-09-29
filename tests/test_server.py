@@ -87,6 +87,20 @@ async def test_il_prompt_vieta_il_verdetto(mcp):
     assert "fonti" in testo
 
 
+@pytest.mark.parametrize(
+    ("zona_id", "uri"),
+    [
+        ("IT-21-AO-01", "bollettino://aineva/IT-21-AO-01"),
+        ("CH-7121", "bollettino://slf/CH-7121"),
+    ],
+)
+async def test_spiega_bollettino_deduce_il_provider_dalla_zona(mcp, zona_id, uri):
+    risultato = await mcp.get_prompt("spiega_bollettino", {"zona_id": zona_id})
+    testo = " ".join(str(m.content) for m in risultato.messages)
+    assert uri in testo
+    assert "bollettino://aineva/CH-" not in testo
+
+
 async def test_le_istruzioni_dichiarano_le_fonti(mcp):
     assert mcp.instructions
     for atteso in ("OpenStreetMap", "AINEVA", "CAAML"):
