@@ -15,6 +15,7 @@ from trekking_mcp.constants import OVERPASS_URL_DEFAULT
 from trekking_mcp.metriche import Metriche
 from trekking_mcp.rate_limit import (
     RateLimitInbound,
+    RegistroBucket,
     TokenBucket,
     ip_da_request,
     metodo_da_limitare,
@@ -57,6 +58,63 @@ def test_ip_da_request_legge_il_peer():
     assert ip_da_request(None) is None
     assert ip_da_request(SimpleNamespace(client=None)) is None
     assert ip_da_request(SimpleNamespace(client=SimpleNamespace(host="1.2.3.4"))) == "1.2.3.4"
+
+
+def test_ip_da_request_ignora_xff_senza_trust_proxy():
+    req = SimpleNamespace(
+        client=SimpleNamespace(host="10.0.0.1"),
+        headers={"X-Forwarded-For": "203.0.113.9, 10.0.0.1"},
+    )
+    assert ip_da_request(req, trust_proxy=False) == "10.0.0.1"
+
+
+def test_ip_da_request_usa_primo_hop_xff_con_trust_proxy():
+    req = SimpleNamespace(
+        client=SimpleNamespace(host="10.0.0.1"),
+        headers={"X-Forwarded-For": "203.0.113.9, 10.0.0.1"},
+    )
+    assert ip_da_request(req, trust_proxy=True) == "203.0.113.9"
+
+
+def test_ip_da_request_trust_proxy_senza_xff_usa_peer():
+    req = SimpleNamespace(client=SimpleNamespace(host="10.0.0.1"), headers={})
+    assert ip_da_request(req, trust_proxy=True) == "10.0.0.1"
+
+
+def test_registro_bucket_rispetta_il_tetto_lru():
+    registro = RegistroBucket(capacita=1, rpm=60, max_keys=2)
+    assert registro.prova("a") is None
+    assert registro.prova("b") is None
+    assert len(registro) == 2
+    assert registro.prova("c") is None
+    assert len(registro) <= 2
+    assert "a" not in registro._bucket
+
+
+async def test_middleware_con_trust_proxy_bucketa_su_xff():
+    config = replace(Config(), http_rate_limit_rpm=60, http_rate_limit_burst=1, http_trust_proxy=True)
+    mw = RateLimitInbound(config, Metriche())
+    call_next = AsyncMock(return_value={"ok": True})
+
+    def ctx_con_xff(ip_peer: str, xff: str) -> ServerRequestContext:
+        request = SimpleNamespace(
+            client=SimpleNamespace(host=ip_peer),
+            headers={"X-Forwarded-For": xff},
+        )
+        return ServerRequestContext(
+            session=MagicMock(),
+            lifespan_context=None,
+            protocol_version="2025-06-18",
+            method="tools/call",
+            params={"name": "x"},
+            request_id=1,
+            request=request,
+        )
+
+    assert await mw(ctx_con_xff("10.0.0.1", "203.0.113.1"), call_next) == {"ok": True}
+    esito = await mw(ctx_con_xff("10.0.0.2", "203.0.113.1"), call_next)
+    assert isinstance(esito, dict) and esito.get("isError") is True
+    assert call_next.await_count == 1
 
 
 def test_metodo_da_limitare():
@@ -141,7 +199,10 @@ async def test_client_senza_peer_http_non_e_limitato(risorse_con, monkeypatch):
 
 async def test_client_con_ip_simulato_viene_limitato(risorse_con, monkeypatch):
     risorse = risorse_con(http_rate_limit_rpm=60, http_rate_limit_burst=2)
-    monkeypatch.setattr("trekking_mcp.rate_limit.ip_da_request", lambda _r: "203.0.113.9")
+    monkeypatch.setattr(
+        "trekking_mcp.rate_limit.ip_da_request",
+        lambda _r, *, trust_proxy=False: "203.0.113.9",
+    )
 
     async def _vuoto(*_a, **_k):
         return []

@@ -224,7 +224,7 @@ class Bollettino(BaseModel):
         default=None, description="Testo libero del previsore (`highlights`/`avalancheActivity`)"
     )
     innevamento: str | None = None
-    fonte: str = Field(description="Provider: aineva | slf | albina")
+    fonte: str = Field(description="Provider: aineva | slf")
     fonte_url: str
     avvertenza: str = Field(
         default=(

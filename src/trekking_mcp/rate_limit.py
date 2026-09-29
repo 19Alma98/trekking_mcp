@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable
+from collections import OrderedDict
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -50,15 +51,22 @@ class TokenBucket:
 
 @dataclass
 class RegistroBucket:
-    """Un bucket per chiave (`anon:{ip}`), creati lazy."""
+    """Un bucket per chiave (`anon:{ip}`), creati lazy, con tetto LRU."""
 
     capacita: float
     rpm: float
     _bucket: dict[str, TokenBucket] = field(default_factory=dict)
     _orologio: Callable[[], float] = field(default=time.monotonic, repr=False)
 
+    def __len__(self) -> int:
+        return len(self._bucket)
+
     def prova(self, chiave: str) -> float | None:
-        if chiave not in self._bucket:
+        if chiave in self._bucket:
+            self._bucket.move_to_end(chiave)
+        else:
+            while len(self._bucket) >= self.max_keys:
+                self._bucket.popitem(last=False)
             self._bucket[chiave] = TokenBucket(
                 capacita=self.capacita,
                 rpm=self.rpm,
@@ -67,10 +75,36 @@ class RegistroBucket:
         return self._bucket[chiave].prova()
 
 
-def ip_da_request(request: object | None) -> str | None:
-    """Estrae l'IP del peer da una Starlette `Request`, se c'e'."""
+def _header_xff(headers: object | None) -> str | None:
+    if headers is None:
+        return None
+    get = getattr(headers, "get", None)
+    if not callable(get):
+        if isinstance(headers, Mapping):
+            grezzo = headers.get("x-forwarded-for") or headers.get("X-Forwarded-For")
+        else:
+            return None
+    else:
+        grezzo = get("x-forwarded-for") or get("X-Forwarded-For")
+    if grezzo is None:
+        return None
+    testo = grezzo if isinstance(grezzo, str) else str(grezzo)
+    primo = testo.split(",")[0].strip()
+    return primo or None
+
+
+def ip_da_request(request: object | None, *, trust_proxy: bool = False) -> str | None:
+    """Estrae l'IP del client da una Starlette `Request`, se c'e'.
+
+    Con `trust_proxy=True` usa il primo hop di `X-Forwarded-For` (client
+    originale). Abilitare solo dietro un reverse proxy che riscrive l'header.
+    """
     if request is None:
         return None
+    if trust_proxy:
+        xff = _header_xff(getattr(request, "headers", None))
+        if xff is not None:
+            return xff
     client = getattr(request, "client", None)
     if client is None:
         return None
@@ -112,6 +146,7 @@ class RateLimitInbound(ServerMiddleware[Any]):
         self._registro = RegistroBucket(
             capacita=float(max(1, config.http_rate_limit_burst)),
             rpm=float(max(0, config.http_rate_limit_rpm)),
+            max_keys=config.http_rate_limit_max_keys,
             _orologio=self._orologio,
         )
 
@@ -123,7 +158,7 @@ class RateLimitInbound(ServerMiddleware[Any]):
         if not self.attivo or not metodo_da_limitare(ctx.method, dict(ctx.params) if ctx.params else None):
             return await call_next(ctx)
 
-        ip = ip_da_request(ctx.request)
+        ip = ip_da_request(ctx.request, trust_proxy=self._config.http_trust_proxy)
         if ip is None:
             return await call_next(ctx)
 

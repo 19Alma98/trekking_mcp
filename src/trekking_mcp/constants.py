@@ -30,6 +30,7 @@ OVERPASS_URL_DEFAULT = "https://overpass-api.de/api/interpreter"
 
 HTTP_RATE_LIMIT_RPM_DEFAULT = 30
 HTTP_RATE_LIMIT_BURST_DEFAULT = 10
+HTTP_RATE_LIMIT_MAX_KEYS_DEFAULT = 4096
 
 ATTRIBUZIONE_OVERPASS = "Dati sentieri e ricoveri: (c) contributori OpenStreetMap, ODbL"
 ATTRIBUZIONE_NOMINATIM = "Geocoding: Nominatim / (c) contributori OpenStreetMap, ODbL"

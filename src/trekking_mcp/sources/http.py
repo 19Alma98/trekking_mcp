@@ -7,6 +7,8 @@ import logging
 import random
 import time
 from collections import OrderedDict
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx2
@@ -22,14 +24,22 @@ _RIFAI = object()
 
 
 def secondi_retry_after(risposta: httpx2.Response) -> float | None:
-    """Parse di `Retry-After` in secondi. Solo valori numerici (non HTTP-date)."""
+    """Parse di `Retry-After` in secondi (numerico o HTTP-date)."""
     grezzo = risposta.headers.get("Retry-After")
     if grezzo is None:
         return None
+    testo = grezzo.strip()
     try:
-        return max(0.0, float(grezzo.strip()))
+        return max(0.0, float(testo))
     except ValueError:
+        pass
+    try:
+        quando = parsedate_to_datetime(testo)
+    except (TypeError, ValueError, IndexError, OverflowError):
         return None
+    if quando.tzinfo is None:
+        quando = quando.replace(tzinfo=UTC)
+    return max(0.0, (quando - datetime.now(UTC)).total_seconds())
 
 
 def ritardo_retry(tentativo: int, retry_after: float | None = None) -> float:
@@ -109,14 +119,16 @@ class ClientHttp:
         self.cache = cache or CacheTTL(config.cache_max_entry, config.cache_max_byte)
         self._in_volo: dict[str, asyncio.Future[Any]] = {}
         self._coalescing = asyncio.Lock()
+        self._avvio = asyncio.Lock()
 
     async def avvia(self) -> None:
-        if self._client is None:
-            self._client = httpx2.AsyncClient(
-                timeout=self.config.timeout_s,
-                headers={"User-Agent": self.config.user_agent, "Accept-Encoding": "gzip"},
-                follow_redirects=True,
-            )
+        async with self._avvio:
+            if self._client is None:
+                self._client = httpx2.AsyncClient(
+                    timeout=self.config.timeout_s,
+                    headers={"User-Agent": self.config.user_agent, "Accept-Encoding": "gzip"},
+                    follow_redirects=True,
+                )
 
     async def chiudi(self) -> None:
         if self._client is not None:
@@ -250,7 +262,8 @@ class ClientHttp:
         assert self._client is not None
 
         ultimo_errore: Exception | None = None
-        tentativi = self.config.max_retry if max_retry is None else max_retry
+        grezzo = self.config.max_retry if max_retry is None else max_retry
+        tentativi = max(1, grezzo)
         for tentativo in range(tentativi):
             avvio = time.perf_counter()
             try:

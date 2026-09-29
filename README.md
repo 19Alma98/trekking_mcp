@@ -78,7 +78,9 @@ quando non serve. Vedi [DEVELOPMENT.md](DEVELOPMENT.md) §3.18.
 
 Su HTTP l'accesso resta **aperto** (nessuna API key obbligatoria): un tetto per
 IP (`HTTP_RATE_LIMIT_RPM` / `HTTP_RATE_LIMIT_BURST`) limita `tools/call` e la
-lettura dei bollettini. Su stdio il limite non si applica. Vedi
+lettura dei bollettini. Dietro un reverse proxy che riscrive
+`X-Forwarded-For`, imposta `HTTP_TRUST_PROXY=1` cosi' il tetto e' per client e
+non per IP del proxy. Su stdio il limite non si applica. Vedi
 [DEVELOPMENT.md](DEVELOPMENT.md) §3.35.
 
 ## Docker

@@ -199,6 +199,45 @@ async def test_retry_rispetta_retry_after(httpx2_mock: respx.Router, monkeypatch
     assert attese == [7.0]
 
 
+async def test_retry_after_http_date(httpx2_mock: respx.Router, monkeypatch, risorse):
+    from datetime import UTC, datetime, timedelta
+    from email.utils import format_datetime
+
+    attese: list[float] = []
+
+    async def _registra(secondi: float) -> None:
+        attese.append(secondi)
+
+    monkeypatch.setattr("asyncio.sleep", _registra)
+    monkeypatch.setattr("trekking_mcp.sources.http.random.uniform", lambda _a, _b: 0.0)
+
+    quando = datetime.now(UTC) + timedelta(seconds=12)
+    rotta = httpx2_mock.post(url__startswith="https://overpass-api.de")
+    rotta.side_effect = [
+        respx.MockResponse(429, headers={"Retry-After": format_datetime(quando, usegmt=True)}),
+        respx.MockResponse(200, json={"elements": []}),
+    ]
+
+    await overpass.cerca_sentieri(risorse, sud=45.0, ovest=7.0, nord=45.5, est=7.5)
+
+    assert rotta.call_count == 2
+    assert len(attese) == 1
+    assert 10.0 <= attese[0] <= 13.0
+
+
+async def test_retry_after_http_date_passata_e_zero():
+    from datetime import UTC, datetime, timedelta
+    from email.utils import format_datetime
+
+    import httpx
+
+    from trekking_mcp.sources.http import secondi_retry_after
+
+    passato = datetime.now(UTC) - timedelta(hours=1)
+    risposta = httpx.Response(429, headers={"Retry-After": format_datetime(passato, usegmt=True)})
+    assert secondi_retry_after(risposta) == 0.0
+
+
 async def test_un_retry_after_enorme_non_blocca_la_chiamata(httpx2_mock: respx.Router, monkeypatch, risorse):
     attese: list[float] = []
 

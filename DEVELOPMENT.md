@@ -598,7 +598,9 @@ italiane allegato, cioe' un errore che manda fuori strada chi lo legge.
 
 Ora il prefisso di zona sta dentro `PROVIDER`, accanto all'URL, e
 `provider_per_zona()` e' l'unica funzione che fa la deduzione. Un terzo provider
-si aggiunge in un posto solo.
+si aggiunge in un posto solo. Il prompt `spiega_bollettino` usa la stessa
+funzione per costruire l'URI `bollettino://{provider}/{zona_id}`: non hardcoda
+AINEVA.
 
 La stessa tabella ha fatto emergere il gemello del bug: le zone `slf` non si
 autocompletavano **mai**, perche' i completamenti non scaricano niente (§3.20) e
@@ -714,6 +716,15 @@ HTTP resta anonimo; `RateLimitInbound` applica un token bucket per
 (nessun `ctx.request`) non si applica. I contatori vanno in
 `metriche.rate_limit_inbound`, esposti da `metriche://fonti`.
 
+Dietro un reverse proxy, `HTTP_TRUST_PROXY=1` fa usare il primo hop di
+`X-Forwarded-For` al posto del peer TCP. Lasciarlo spento (default) su un bind
+pubblico diretto: altrimenti un client puo' scegliere il proprio bucket.
+Il registro dei bucket ha un tetto LRU (`HTTP_RATE_LIMIT_MAX_KEYS`, default
+4096) cosi' IP casuali non fanno crescere la memoria senza limite.
+
+`Config` alza da solo `HTTP_TIMEOUT` sotto il margine Overpass e impone
+`HTTP_MAX_RETRY >= 1`. `Retry-After` accetta sia secondi numerici sia HTTP-date.
+
 ### 3.36 Anti fan-out Overpass: guidance, non rifiuto
 
 Il semaforo (`OVERPASS_CONCURRENCY=1`) serializza gia' le query: un agente che
@@ -788,8 +799,8 @@ l'interfaccia verso i client MCP, che e' la cosa che si rompe silenziosamente.
 |---|---|---|
 | Cache in memoria, per-processo | Su HTTP multi-worker ogni replica ha la sua cache | **Scelta, non dimenticanza**: vedi §5.1 |
 | Rate limiter Nominatim per-processo | Con piu' repliche il budget di 1 req/s viene superato | Stesso motivo e stesso limite di sopra: un processo solo |
-| Nessuna autenticazione sul transport HTTP | Il server non sa **chi** lo chiama | Di proposito: tetto per IP (§3.35); OAuth/API key in roadmap |
-| Rate-limit inbound per-processo | Multi-replica non condivide i bucket | Stesso vincolo della cache (§5.1): un processo solo |
+| Nessuna autenticazione sul transport HTTP | Il server non sa **chi** lo chiama | Di proposito: tetto per IP (§3.35), opz. `HTTP_TRUST_PROXY`; OAuth/API key in roadmap |
+| Rate-limit inbound per-processo | Multi-replica non condivide i bucket | Stesso vincolo della cache (§5.1): un processo solo; tetto LRU chiavi (§3.35) |
 | Elicitation e piu' repliche | Senza `TREKKING_MCP_STATE_KEYS` lo stato di un giro a due round-trip vale solo dentro un processo | Chiavi condivise e ruotabili, piu' un warning all'avvio (§3.26) |
 | Cache in memoria non condivisa fra repliche | Ogni processo riscalda la sua | Tetto in voci **e** in byte (§3.31), coalescing per non duplicare le richieste in volo (§3.30) |
 | Metriche per-processo, azzerate al riavvio | Nessuna serie storica | Bastano a dire quale fonte sta frenando adesso; l'export sta dietro `istantanea()` |

@@ -6,7 +6,9 @@ from pathlib import Path
 
 from trekking_mcp.constants import (
     HTTP_RATE_LIMIT_BURST_DEFAULT,
+    HTTP_RATE_LIMIT_MAX_KEYS_DEFAULT,
     HTTP_RATE_LIMIT_RPM_DEFAULT,
+    OVERPASS_MARGINE_TIMEOUT_S,
     OVERPASS_URL_DEFAULT,
     TERRITORI_DEFAULT,
     UA_DEFAULT,
@@ -19,6 +21,13 @@ def _elenco_env(nome: str, default: tuple[str, ...]) -> tuple[str, ...]:
     if grezzo is None:
         return default
     return tuple(pezzo.strip() for pezzo in grezzo.split(",") if pezzo.strip())
+
+
+def _bool_env(nome: str, default: bool = False) -> bool:
+    grezzo = os.getenv(nome)
+    if grezzo is None:
+        return default
+    return grezzo.strip().lower() in {"1", "true", "yes", "on"}
 
 
 @dataclass(frozen=True)
@@ -70,3 +79,28 @@ class Config:
     http_rate_limit_burst: int = field(
         default_factory=lambda: int(os.getenv("HTTP_RATE_LIMIT_BURST", str(HTTP_RATE_LIMIT_BURST_DEFAULT)))
     )
+    http_rate_limit_max_keys: int = field(
+        default_factory=lambda: int(os.getenv("HTTP_RATE_LIMIT_MAX_KEYS", str(HTTP_RATE_LIMIT_MAX_KEYS_DEFAULT)))
+    )
+    http_trust_proxy: bool = field(default_factory=lambda: _bool_env("HTTP_TRUST_PROXY", False))
+
+    def __post_init__(self) -> None:
+        """Clamp dei valori che altrimenti producono query o retry senza senso."""
+        object.__setattr__(self, "max_retry", max(1, self.max_retry))
+        object.__setattr__(self, "timeout_s", max(float(OVERPASS_MARGINE_TIMEOUT_S + 1), self.timeout_s))
+        object.__setattr__(self, "ttl_overpass_s", max(0, self.ttl_overpass_s))
+        object.__setattr__(self, "ttl_nominatim_s", max(0, self.ttl_nominatim_s))
+        object.__setattr__(self, "ttl_bollettino_s", max(0, self.ttl_bollettino_s))
+        object.__setattr__(self, "ttl_meteo_s", max(0, self.ttl_meteo_s))
+        object.__setattr__(self, "ttl_regioni_s", max(0, self.ttl_regioni_s))
+        object.__setattr__(self, "ttl_elevazione_s", max(0, self.ttl_elevazione_s))
+        object.__setattr__(self, "cache_max_entry", max(1, self.cache_max_entry))
+        object.__setattr__(self, "cache_max_byte", max(1, self.cache_max_byte))
+        object.__setattr__(self, "overpass_concurrency", max(1, self.overpass_concurrency))
+        object.__setattr__(self, "nominatim_intervallo_s", max(0.0, self.nominatim_intervallo_s))
+        object.__setattr__(self, "http_rate_limit_rpm", max(0, self.http_rate_limit_rpm))
+        object.__setattr__(self, "http_rate_limit_max_keys", max(1, self.http_rate_limit_max_keys))
+        burst = max(0, self.http_rate_limit_burst)
+        if self.http_rate_limit_rpm > 0:
+            burst = max(1, burst)
+        object.__setattr__(self, "http_rate_limit_burst", burst)

@@ -94,8 +94,9 @@ it isn't needed. See [DEVELOPMENT.md](DEVELOPMENT.md) §3.18.
 
 HTTP access stays **open** (no required API key): a per-IP cap
 (`HTTP_RATE_LIMIT_RPM` / `HTTP_RATE_LIMIT_BURST`) limits `tools/call` and
-bulletin reads. It does not apply on stdio. See [DEVELOPMENT.md](DEVELOPMENT.md)
-§3.35.
+bulletin reads. Behind a reverse proxy that rewrites `X-Forwarded-For`, set
+`HTTP_TRUST_PROXY=1` so the cap is per client, not per proxy IP. It does not
+apply on stdio. See [DEVELOPMENT.md](DEVELOPMENT.md) §3.35.
 
 ## Docker
 

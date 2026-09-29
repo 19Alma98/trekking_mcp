@@ -56,6 +56,31 @@ async def test_due_richieste_identiche_insieme_escono_una_volta_sola(httpx2_mock
     assert fonte.cache_hit == 0, "accodarsi non e' un cache hit: la cache era vuota"
 
 
+async def test_gather_simultaneo_senza_stagger_una_sola_richiesta(httpx2_mock: respx.Router, risorse):
+    """Due task partono insieme: niente wait sul primo arrivo prima del secondo."""
+    rub = _rubinetto(httpx2_mock.get(url__startswith="https://esempio.test"), httpx.Response(200, json={"ok": True}))
+    rub.prosegui.set()
+
+    esiti = await asyncio.gather(
+        risorse.http.json("GET", URL, fonte="prova", ttl_s=60),
+        risorse.http.json("GET", URL, fonte="prova", ttl_s=60),
+    )
+
+    assert esiti == [{"ok": True}, {"ok": True}]
+    assert len(rub.uscite) == 1
+
+
+async def test_avvia_concorrente_crea_un_solo_client(risorse):
+    await risorse.http.chiudi()
+    assert risorse.http._client is None
+
+    await asyncio.gather(risorse.http.avvia(), risorse.http.avvia())
+    assert risorse.http._client is not None
+    client = risorse.http._client
+    await risorse.http.avvia()
+    assert risorse.http._client is client
+
+
 async def test_richieste_diverse_non_si_accodano(httpx2_mock: respx.Router, risorse):
     rotta = httpx2_mock.get(url__startswith="https://esempio.test").respond(200, json={"ok": True})
 

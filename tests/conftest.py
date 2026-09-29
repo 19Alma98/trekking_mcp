@@ -30,6 +30,8 @@ def _ambiente_pulito(monkeypatch):
         "TTL_NOMINATIM",
         "HTTP_RATE_LIMIT_RPM",
         "HTTP_RATE_LIMIT_BURST",
+        "HTTP_RATE_LIMIT_MAX_KEYS",
+        "HTTP_TRUST_PROXY",
     ):
         monkeypatch.delenv(chiave, raising=False)
 
