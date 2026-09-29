@@ -286,6 +286,58 @@ async def test_valuta_gita_estate_salta_valanghe_senza_chiamare_caaml(httpx2_moc
     assert chiamate_valanghe == []
 
 
+async def test_valuta_gita_includi_valanghe_false_salta_valanghe_senza_chiamare_caaml(
+    httpx2_mock: respx.Router,
+):
+    import httpx
+
+    httpx2_mock.post(url__startswith="https://overpass-api.de").mock(
+        side_effect=[
+            httpx.Response(200, json=RELATION_CON_CENTRO),
+            httpx.Response(200, json={"elements": []}),
+        ]
+    )
+    httpx2_mock.get(url__startswith="https://api.open-meteo.com/v1/forecast").respond(
+        200,
+        json={
+            "hourly": {
+                "time": ["2026-01-15T08:00"],
+                "temperature_2m": [-5.0],
+                "precipitation": [0.0],
+                "snowfall": [0.0],
+                "cloud_cover": [10],
+                "wind_speed_10m": [5.0],
+                "wind_gusts_10m": [10.0],
+                "wind_direction_10m": [180],
+                "freezing_level_height": [1500],
+            }
+        },
+    )
+    callback, _ = _risponde()
+
+    async with Client(crea_server(), elicitation_callback=callback) as client:
+        esito = await client.call_tool(
+            "valuta_gita",
+            {"osm_relation_id": 42, "data": "2026-01-15", "includi_valanghe": False},
+        )
+
+    assert not esito.is_error
+    body = esito.structured_content
+    assert body["bollettino"] is None
+    assert body["zona_valanghe"] is None
+    valanghe = [s for s in body["segnali"] if s["categoria"] == "valanghe"]
+    assert valanghe
+    assert "Bollettino valanghe escluso dal chiamante (includi_valanghe=false)." in valanghe[0]["messaggio"]
+    chiamate_valanghe = [
+        str(c.request.url)
+        for c in httpx2_mock.calls
+        if "aineva" in str(c.request.url)
+        or "regions.avalanches.org" in str(c.request.url)
+        or "slf.ch" in str(c.request.url)
+    ]
+    assert chiamate_valanghe == []
+
+
 async def test_valuta_gita_ricoveri_overpass_giu_non_affonda(httpx2_mock: respx.Router, monkeypatch):
     from trekking_mcp.errors import FonteNonDisponibile
     from trekking_mcp.models import Coord, DifficoltaCAI, Sentiero
