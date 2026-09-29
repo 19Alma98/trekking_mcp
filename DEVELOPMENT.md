@@ -875,7 +875,53 @@ scraping di siti che non espongono dati aperti.
 
 ---
 
-## 8. Convenzioni
+## 8. Come rilasciare
+
+Distribuzione: PyPI (`trekking-mcp`) + MCP Registry
+(`io.github.19Alma98/trekking-mcp`). Il workflow
+[`.github/workflows/publish.yml`](.github/workflows/publish.yml) parte sul push
+di un tag `v*`. Non c'e' bump automatico in CI.
+
+### Prima di ogni tag
+
+1. Allinea la stessa versione in `pyproject.toml` (`project.version`) e in
+   `server.json` (`version` e `packages[0].version`).
+2. Merge su `main` (CI verde).
+3. Tag e push:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Il job `pypi` abortisce se tag, `pyproject.toml` e `server.json` non coincidono.
+Se `registry` fallisce dopo un `pypi` ok, il package resta su PyPI: rilancia il
+job `registry` (o l'intero workflow), non fare un bump solo per quello.
+
+### Setup una tantum (operatore)
+
+1. Account su [pypi.org](https://pypi.org) e progetto `trekking-mcp`.
+2. Trusted Publisher: owner `19Alma98`, repository `trekking_mcp`, workflow
+   `publish.yml`, environment `pypi`.
+3. Su GitHub: Environment `pypi` con deployment branch/tag rule limitata ai tag
+   `v*` (e reviewer obbligatorio se vuoi un gate umano).
+4. MCP Registry: nessun secret con OIDC (`mcp-publisher login github-oidc`);
+   il namespace e' `io.github.19Alma98/...` via account GitHub.
+
+La prima pubblicazione reale avviene **dopo** questo setup. Prima puoi mergiare
+file e workflow; il primo `uv publish` fallira' in modo chiaro se il Trusted
+Publisher non e' configurato.
+
+### Verifica post-release
+
+- PyPI: https://pypi.org/project/trekking-mcp/
+- Registry:
+  `curl -s 'https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.19Alma98/trekking-mcp'`
+- Locale: `uvx trekking-mcp@1.0.0 --help`
+
+---
+
+## 9. Convenzioni
 
 - **Italiano** per nomi di dominio, docstring e commenti. Il dominio e' italiano
   e i termini tecnici (rifugio, bivacco, EEA, grado di pericolo) non hanno
