@@ -108,6 +108,7 @@ class ClientHttp:
         self.metriche = metriche
         self.cache = cache or CacheTTL(config.cache_max_entry, config.cache_max_byte)
         self._in_volo: dict[str, asyncio.Future[Any]] = {}
+        self._coalescing = asyncio.Lock()
 
     async def avvia(self) -> None:
         if self._client is None:
@@ -144,25 +145,51 @@ class ClientHttp:
         usa_cache = ttl_s is not None and metodo.upper() in {"GET", "POST"}
         chiave = CacheTTL.chiave(metodo, url, kwargs.get("params"), kwargs.get("data"), kwargs.get("json"))
 
-        if usa_cache:
+        if not usa_cache:
+            return await self._richiedi(
+                metodo, url, fonte=fonte, ttl_s=None, chiave=chiave, max_retry=max_retry, **kwargs
+            )
+
+        while True:
             if (cachato := await self.cache.get(chiave)) is not None:
                 self.metriche.cache_hit(fonte)
                 log.debug("cache hit %s %s", fonte, url)
                 return cachato
 
-            if (in_volo := self._in_volo.get(chiave)) is not None:
+            async with self._coalescing:
+                if (cachato := await self.cache.get(chiave)) is not None:
+                    self.metriche.cache_hit(fonte)
+                    log.debug("cache hit %s %s", fonte, url)
+                    return cachato
+
+                if (in_volo := self._in_volo.get(chiave)) is not None:
+                    capofila: asyncio.Future[Any] | None = None
+                    da_attendere: asyncio.Future[Any] | None = in_volo
+                else:
+                    capofila = asyncio.get_running_loop().create_future()
+                    self._in_volo[chiave] = capofila
+                    da_attendere = None
+                    self.metriche.cache_miss(fonte)
+
+            if da_attendere is not None:
                 log.debug("coalescing %s %s", fonte, url)
-                risultato = await self._attendi(in_volo)
+                risultato = await self._attendi(da_attendere)
                 if risultato is not _RIFAI:
                     self.metriche.coalescing(fonte)
                     return risultato
+                continue
 
-            self.metriche.cache_miss(fonte)
+            assert capofila is not None
             return await self._guida(
-                metodo, url, fonte=fonte, ttl_s=ttl_s, chiave=chiave, max_retry=max_retry, **kwargs
+                capofila,
+                metodo,
+                url,
+                fonte=fonte,
+                ttl_s=ttl_s,
+                chiave=chiave,
+                max_retry=max_retry,
+                **kwargs,
             )
-
-        return await self._richiedi(metodo, url, fonte=fonte, ttl_s=None, chiave=chiave, max_retry=max_retry, **kwargs)
 
     async def _attendi(self, in_volo: asyncio.Future[Any]) -> Any:
         """Attende la richiesta identica gia' in corso."""
@@ -173,6 +200,7 @@ class ClientHttp:
 
     async def _guida(
         self,
+        attesa: asyncio.Future[Any],
         metodo: str,
         url: str,
         *,
@@ -182,9 +210,12 @@ class ClientHttp:
         max_retry: int | None,
         **kwargs: Any,
     ) -> Any:
-        """Fa la richiesta come capofila, pubblicando l'esito a chi si accoda."""
-        attesa: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
-        self._in_volo[chiave] = attesa
+        """Fa la richiesta come capofila, pubblicando l'esito a chi si accoda.
+
+        `attesa` e' gia' in `_in_volo` (registrata sotto `_coalescing`). Il pop
+        e' leader-aware: rimuove solo se la voce punta ancora a questo Future,
+        cosi' un capofila in ritardo non cancella la ripresa di un altro.
+        """
         try:
             dati = await self._richiedi(
                 metodo, url, fonte=fonte, ttl_s=ttl_s, chiave=chiave, max_retry=max_retry, **kwargs
@@ -200,7 +231,9 @@ class ClientHttp:
             attesa.set_result(dati)
             return dati
         finally:
-            self._in_volo.pop(chiave, None)
+            async with self._coalescing:
+                if self._in_volo.get(chiave) is attesa:
+                    self._in_volo.pop(chiave, None)
 
     async def _richiedi(
         self,

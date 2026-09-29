@@ -102,6 +102,27 @@ async def test_la_cancellazione_del_capofila_non_cancella_chi_aspetta(httpx2_moc
     assert len(rub.uscite) == 2, "deve aver rifatto la richiesta per conto proprio"
 
 
+async def test_due_follower_dopo_cancel_condividono_una_sola_ripresa(httpx2_mock: respx.Router, risorse):
+    rub = _rubinetto(httpx2_mock.get(url__startswith="https://esempio.test"), httpx.Response(200, json={"ok": True}))
+
+    capofila = asyncio.create_task(risorse.http.json("GET", URL, fonte="prova", ttl_s=60))
+    await rub.arrivata.wait()
+    primo = asyncio.create_task(risorse.http.json("GET", URL, fonte="prova", ttl_s=60))
+    secondo = asyncio.create_task(risorse.http.json("GET", URL, fonte="prova", ttl_s=60))
+    await _lascia_girare()
+
+    capofila.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await capofila
+
+    rub.prosegui.set()
+    esiti = await asyncio.gather(primo, secondo)
+
+    assert esiti == [{"ok": True}, {"ok": True}]
+    assert len(rub.uscite) == 2, (
+        f"1 richiesta del capofila + 1 ripresa condivisa; ottenute {len(rub.uscite)}"
+    )
+
 async def test_la_cache_sfratta_per_byte_non_solo_per_voci():
     cache = CacheTTL(max_entry=100, max_byte=1000)
 
