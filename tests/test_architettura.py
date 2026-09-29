@@ -14,6 +14,7 @@ LIVELLI = [
         "geo",
         "metriche",
         "valanghe_rilevanza",
+        "toponimi",
     },  # fondamenta: nessuna dipendenza interna
     {"models"},  # il contratto dati verso il client
     {"cache", "rate_limit", "sources"},  # gli adapter delle fonti + middleware di protocollo

@@ -13,6 +13,7 @@ from trekking_mcp.models import Localita
 from trekking_mcp.risorse import Risorse
 from trekking_mcp.sources import nominatim
 from trekking_mcp.sources.luoghi_simili import cerca_simili_nel_raggio
+from trekking_mcp.toponimi import varianti_query_geocode
 
 AzioneGeocode = Literal["usa_1", "usa_2", "usa_3", "espandi"]
 
@@ -84,9 +85,10 @@ async def risolvi_localita(
     raggio = float(raggio_km)
     espansioni = 0
     while True:
-        esatti = await nominatim.cerca(risorse, nome, limite=limite, lat=lat, lon=lon, raggio_km=raggio)
-        if esatti:
-            return esatti
+        for query in varianti_query_geocode(nome):
+            esatti = await nominatim.cerca(risorse, query, limite=limite, lat=lat, lon=lon, raggio_km=raggio)
+            if esatti:
+                return esatti
 
         simili = await cerca_simili_nel_raggio(risorse, nome, lat=lat, lon=lon, raggio_km=raggio)
         messaggio = messaggio_scelta_geocode(nome, lat=lat, lon=lon, raggio_km=raggio, simili=simili)

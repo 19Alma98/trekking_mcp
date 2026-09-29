@@ -439,6 +439,47 @@ async def test_esegui_sentieri_verso_senza_ctx_e_parametri_non_validi(risorse):
         )
 
 
+def test_varianti_monte_rosso_oropa():
+    from trekking_mcp.toponimi import varianti_query_geocode
+
+    assert varianti_query_geocode("Monte Rosso Oropa") == [
+        "Monte Rosso Oropa",
+        "Monte Rosso",
+        "Rosso",  # da testo_da_toponimo
+    ]
+
+
+async def test_risolvi_prova_varianti_dopo_miss(monkeypatch, risorse):
+    chiamate: list[str] = []
+
+    async def _cerca(risorse, nome, *, limite=5, solo_montagna=True, lat=None, lon=None, raggio_km=30):
+        chiamate.append(nome)
+        if nome == "Monte Rosso":
+            return [
+                Localita(
+                    nome="Monte Rosso",
+                    tipo="peak",
+                    coord=Coord(lat=45.63, lon=7.93),
+                    quota_m=2374,
+                )
+            ]
+        return []
+
+    monkeypatch.setattr("trekking_mcp.tools.geocode_risolvi.nominatim.cerca", _cerca)
+    ctx = FakeCtx()
+    out = await geocode_risolvi.risolvi_localita(
+        risorse,
+        ctx,
+        "Monte Rosso Oropa",
+        lat=45.57,
+        lon=8.05,
+    )  # type: ignore[arg-type]
+    assert len(out) == 1
+    assert out[0].nome == "Monte Rosso"
+    assert chiamate == ["Monte Rosso Oropa", "Monte Rosso"]
+    assert ctx.elicit_calls == []
+
+
 async def test_nominatim_usa_ttl_nominatim_non_overpass(httpx2_mock: respx.Router, monkeypatch, risorse_con):
     risorse = risorse_con(ttl_nominatim_s=1234, ttl_overpass_s=99999)
     monkeypatch.setattr(risorse.nominatim, "attendi", _no_attendi)
