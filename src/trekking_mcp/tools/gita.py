@@ -341,8 +341,8 @@ def registra(mcp: MCPServer, risorse: Risorse) -> None:
         await ctx.report_progress(4, passi, "Leggo il bollettino valanghe")
         bollettino = None
         if zona_valanghe:
-            provider = caaml.provider_per_zona(zona_valanghe)
             try:
+                provider = caaml.provider_per_zona(zona_valanghe)
                 bollettino = await caaml.leggi_bollettino(risorse, zona_id=zona_valanghe, provider=provider)
                 fonti.append(caaml.PROVIDER[provider]["attribuzione"])
             except ErroreSentieri as exc:

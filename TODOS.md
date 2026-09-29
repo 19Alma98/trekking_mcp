@@ -15,12 +15,11 @@ Obiettivo: server performante e funzionante per uso multi-utente / transport HTT
 
 ---
 
-## Futuro — dati OSM senza Overpass a runtime
+## Fuori da questo repo — scala OSM
 
-- [ ] **Estratto OSM (Geofabrik) → PostGIS (o SQLite+SpatiaLite)**
-  - Sync periodico di relation `route=hiking` e ricoveri per IT/Alpi
-  - Ricerche bbox/ref/operator in locale; Overpass solo come fallback o per geometrie rare
-  - Riduce dipendenza da istanze pubbliche e latenza sotto carico multi-utente
+Un estratto Geofabrik → PostGIS ridurrebbe la dipendenza da Overpass pubblico.
+Non e' un buco del protocollo MCP: il server parla gia' Overpass via
+`OVERPASS_URL`.
 
 ---
 
@@ -35,3 +34,4 @@ Obiettivo: server performante e funzionante per uso multi-utente / transport HTT
 - Rate-limit inbound per IP su HTTP (rilascio aperto senza client_id; tetto LRU sui bucket)
 - Coalescing HTTP atomico + `Config` con clamp su timeout/retry
 - Prompt `spiega_bollettino` e tool usano `provider_per_zona` (ALBINA non e' un provider MCP)
+- Prefisso zona sconosciuto (`XX-*`) → `NonTrovato`, non AINEVA

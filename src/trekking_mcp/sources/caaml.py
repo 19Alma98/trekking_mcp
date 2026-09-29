@@ -21,7 +21,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, TypedDict, cast
 
 from trekking_mcp.config import Config
-from trekking_mcp.constants import LINGUA_DEFAULT, PROVIDER_DEFAULT
+from trekking_mcp.constants import LINGUA_DEFAULT
 from trekking_mcp.errors import NonTrovato
 from trekking_mcp.models import (
     Bollettino,
@@ -70,7 +70,11 @@ def provider_per_zona(zona_id: str) -> str:
     for nome, dati in PROVIDER.items():
         if zona_id.startswith(dati["prefisso_zone"]):
             return nome
-    return PROVIDER_DEFAULT
+    raise NonTrovato(
+        "prefisso zona valanghe",
+        zona_id,
+        [f"{dati['prefisso_zone']}* ({nome})" for nome, dati in PROVIDER.items()],
+    )
 
 
 _GRADI = {

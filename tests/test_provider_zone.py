@@ -5,7 +5,7 @@ import respx
 from mcp import Client
 
 from trekking_mcp.config import Config
-from trekking_mcp.constants import PROVIDER_DEFAULT, TERRITORI_DEFAULT
+from trekking_mcp.constants import TERRITORI_DEFAULT
 from trekking_mcp.errors import NonTrovato
 from trekking_mcp.server import crea_server
 from trekking_mcp.sources import caaml
@@ -30,11 +30,23 @@ def test_i_territori_di_default_coprono_tutti_i_provider():
     [
         ("IT-21-AO-01", "aineva"),
         ("CH-7121", "slf"),
-        ("XX-1", PROVIDER_DEFAULT),  # sconosciuto: si ricade sul default, non si esplode
     ],
 )
 def test_provider_dedotto_dalla_zona(zona, atteso):
     assert caaml.provider_per_zona(zona) == atteso
+
+
+def test_un_prefisso_sconosciuto_non_ricade_su_aineva():
+    with pytest.raises(NonTrovato) as exc:
+        caaml.provider_per_zona("XX-1")
+    assert exc.value.chiave == "XX-1"
+    assert any("IT-" in a for a in exc.value.alternative)
+    assert any("CH-" in a for a in exc.value.alternative)
+
+
+async def test_leggi_bollettino_non_chiama_aineva_per_un_prefisso_sconosciuto(risorse):
+    with pytest.raises(NonTrovato, match="XX-1"):
+        await caaml.leggi_bollettino(risorse, zona_id="XX-1")
 
 
 async def test_una_zona_svizzera_va_chiesta_a_slf(httpx2_mock: respx.Router, risorse):

@@ -600,7 +600,9 @@ Ora il prefisso di zona sta dentro `PROVIDER`, accanto all'URL, e
 `provider_per_zona()` e' l'unica funzione che fa la deduzione. Un terzo provider
 si aggiunge in un posto solo. Il prompt `spiega_bollettino` usa la stessa
 funzione per costruire l'URI `bollettino://{provider}/{zona_id}`: non hardcoda
-AINEVA.
+AINEVA. Un prefisso che non sta in `PROVIDER` (es. `XX-*`, `AT-*`) solleva
+`NonTrovato` con i prefissi coperti: non si ricade su AINEVA, che sarebbe un
+errore che manda a consultare il bollettino italiano sbagliato.
 
 La stessa tabella ha fatto emergere il gemello del bug: le zone `slf` non si
 autocompletavano **mai**, perche' i completamenti non scaricano niente (§3.20) e
@@ -808,7 +810,7 @@ l'interfaccia verso i client MCP, che e' la cosa che si rompe silenziosamente.
 | `sac_scale` spesso mancante o datato | Difficolta' sconosciuta | Mai degradata a "facile": resta `SCONOSCIUTA` e genera un segnale |
 | Ray casting sul bordo dei poligoni | Un punto esattamente sul confine puo' cadere di qua o di la' | Irrilevante: le micro-regioni confinanti hanno bollettini simili |
 | Cache dei perimetri per-processo, su disco condiviso | Piu' repliche scrivono lo stesso file | La scrittura e' atomica, quindi al peggio si riscarica |
-| Il profilo altimetrico costa una query Overpass pesante | `valuta_gita` e' piu' lento | Disattivabile con `con_profilo=false` |
+| Overpass pubblico (`overpass-api.de`) | Non regge carico multi-utente | **Scala, non protocollo**: mirror via `OVERPASS_URL` (§3.35); estratto locale fuori da questo repo |
 | Solo previsione, nessun dato storico | Niente analisi retrospettive | Fuori scope |
 
 ### 5.1 Perche' la cache resta in memoria
@@ -861,6 +863,9 @@ aggiunto alla fine.
 ### Fase — deploy
 - [ ] OAuth / API key opzionali sul transport HTTP (quando serviranno client noti)
 - ~~Cache su Redis~~ — **non si fa**, per scelta: vedi §5.1
+- ~~Estratto OSM locale (Geofabrik → PostGIS) nel server MCP~~ — **scala, non
+      protocollo.** Overpass resta la fonte; in produzione si punta `OVERPASS_URL`
+      a un mirror. Un indice locale e' un altro servizio, non un primitivo MCP.
 - ~~Mirror Overpass nel codice~~ — **non si fa** oltre a `OVERPASS_URL` + warning;
       vedi §3.35
 
